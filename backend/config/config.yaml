@@ -1,0 +1,17 @@
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: password
+  name: tsim_socket_server
+
+jwt:
+  secret: your-secret-key-here
+
+server:
+  port: 7001
+websocket_url: ws://192.168.9.4:7001/ws
+
+
+rabbitmq:
+  url: amqp://panel:panel123@localhost:5672/ 

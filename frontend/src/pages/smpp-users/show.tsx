@@ -1,0 +1,260 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ArrowLeft, Edit, User, Key, Zap, Wifi, WifiOff, Clock, MapPin, CheckCircle, XCircle } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
+import { type BreadcrumbItem } from '@/types';
+import { apiClient } from '@/services/api-client';
+
+interface SmppUser {
+  id: number;
+  system_id: string;
+  password: string;
+  max_connection_speed: number;
+  is_active: boolean;
+  is_online: boolean;
+  last_connected_at: string | null;
+  last_disconnected_at: string | null;
+  last_ip_address: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export default function SmppUsersShow() {
+  const { id } = useParams<{ id: string }>();
+  const [smppUser, setSmppUser] = useState<SmppUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch SMPP user data
+  useEffect(() => {
+    const fetchSmppUser = async () => {
+      if (!id) return;
+      
+      try {
+        const data = await apiClient.get<{ data: SmppUser }>(`/smpp-users/${id}`);
+        setSmppUser(data.data);
+      } catch (error) {
+        console.error('Error fetching SMPP user:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSmppUser();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <AppLayout breadcrumbs={breadcrumbs}>
+        <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!smppUser) {
+    return (
+      <AppLayout breadcrumbs={breadcrumbs}>
+        <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">SMPP user not found</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const breadcrumbs: BreadcrumbItem[] = [
+    {
+        title: 'SMPP Users',
+        href: '/smpp-users',
+    },
+    {
+        title: smppUser.system_id,
+        href: `/smpp-users/${smppUser.id}`,
+    },
+  ];
+
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return 'Never';
+    return new Date(dateString).toLocaleString();
+  };
+
+  const getStatusBadge = (isOnline: boolean) => {
+    if (isOnline) {
+      return (
+        <Badge variant="default" className="bg-green-500 text-white">
+          <Wifi className="h-3 w-3 mr-1" />
+          Online
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="secondary">
+        <WifiOff className="h-3 w-3 mr-1" />
+        Offline
+      </Badge>
+    );
+  };
+
+  const getActiveBadge = (isActive: boolean) => {
+    if (isActive) {
+      return (
+        <Badge variant="default" className="bg-blue-500 text-white">
+          <CheckCircle className="h-3 w-3 mr-1" />
+          Active
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="destructive">
+        <XCircle className="h-3 w-3 mr-1" />
+        Inactive
+      </Badge>
+    );
+  };
+
+  return (
+    <AppLayout breadcrumbs={breadcrumbs}>
+      <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link to="/smpp-users">
+                <Button variant="ghost">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to SMPP Users
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">{smppUser.system_id}</h1>
+                <p className="text-muted-foreground">SMPP User Details</p>
+              </div>
+            </div>
+            <Link to={`/smpp-users/${smppUser.id}/edit`}>
+              <Button>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit SMPP User
+              </Button>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Basic Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Basic Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">System ID</label>
+                  <p className="font-mono text-sm">{smppUser.system_id}</p>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Password</label>
+                  <p className="font-mono text-sm">{smppUser.password}</p>
+                </div>
+
+                <Separator />
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Active Status</label>
+                  <div className="mt-1">
+                    {getActiveBadge(smppUser.is_active)}
+                  </div>
+                </div>
+
+                <Separator />
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Connection Status</label>
+                  <div className="mt-1">
+                    {getStatusBadge(smppUser.is_online)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Connection Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Connection Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Max Connection Speed</label>
+                  <p className="text-lg font-semibold">{smppUser.max_connection_speed} msg/sec</p>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Last IP Address</label>
+                  <p className="font-mono text-sm">{smppUser.last_ip_address || 'Never connected'}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Connection History */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Connection History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Last Connected</label>
+                  <p>{formatDateTime(smppUser.last_connected_at)}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Last Disconnected</label>
+                  <p>{formatDateTime(smppUser.last_disconnected_at)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Timestamps */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Timestamps</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Created At</label>
+                  <p>{formatDateTime(smppUser.created_at)}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Updated At</label>
+                  <p>{formatDateTime(smppUser.updated_at)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </AppLayout>
+  );
+} 

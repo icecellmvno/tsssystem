@@ -1,152 +1,97 @@
 import { create } from 'zustand';
-import { deviceGroupService, type DeviceGroup, type DeviceGroupFilters } from '@/services/device-groups';
-import { sitenamesService, type Sitename } from '@/services/sitenames';
-import { useAuthStore } from '@/stores/auth-store';
-
-interface WebsocketConfig {
-  websocket_url: string;
-  device_websocket_url: string;
-  api_key: string;
-  queue_name: string;
-}
+import { countrySitesService, type CountrySite } from '@/services/countrysites';
+import { deviceGroupService, type DeviceGroup, type DeviceGroupCreateRequest, type DeviceGroupUpdateRequest } from '@/services/device-groups';
+import { toast } from 'sonner';
 
 interface DeviceGroupsState {
   // Device Groups
   deviceGroups: DeviceGroup[];
-  selectedDeviceGroup: DeviceGroup | null;
-  loading: boolean;
-  error: string | null;
-  
-  // Sitenames
-  sitenames: Sitename[];
-  sitenamesLoading: boolean;
-  sitenamesError: string | null;
-  
-  // Websocket Config
-  websocketConfig: WebsocketConfig | null;
-  websocketConfigLoading: boolean;
-  websocketConfigError: string | null;
-  
+  deviceGroupsLoading: boolean;
+  deviceGroupsError: string | null;
+  currentDeviceGroup: DeviceGroup | null;
+  currentDeviceGroupLoading: boolean;
+  currentDeviceGroupError: string | null;
+
+  // Country Sites
+  countrySites: CountrySite[];
+  countrySitesLoading: boolean;
+  countrySitesError: string | null;
+
   // Actions
-  loadDeviceGroups: (filters?: DeviceGroupFilters) => Promise<void>;
-  loadSitenames: () => Promise<void>;
-  loadWebsocketConfig: () => Promise<void>;
-  getDeviceGroup: (id: number) => Promise<DeviceGroup | null>;
-  createDeviceGroup: (data: any) => Promise<void>;
-  updateDeviceGroup: (id: number, data: any) => Promise<void>;
+  loadDeviceGroups: () => Promise<void>;
+  loadDeviceGroup: (id: number) => Promise<void>;
+  createDeviceGroup: (data: DeviceGroupCreateRequest) => Promise<void>;
+  updateDeviceGroup: (id: number, data: DeviceGroupUpdateRequest) => Promise<void>;
   deleteDeviceGroup: (id: number) => Promise<void>;
-  setSelectedDeviceGroup: (deviceGroup: DeviceGroup | null) => void;
-  clearError: () => void;
+  loadCountrySites: () => Promise<void>;
+  clearErrors: () => void;
 }
 
 export const useDeviceGroupsStore = create<DeviceGroupsState>((set, get) => ({
   // Initial state
   deviceGroups: [],
-  selectedDeviceGroup: null,
-  loading: false,
-  error: null,
-  sitenames: [],
-  sitenamesLoading: false,
-  sitenamesError: null,
-  websocketConfig: null,
-  websocketConfigLoading: false,
-  websocketConfigError: null,
+  deviceGroupsLoading: false,
+  deviceGroupsError: null,
+  currentDeviceGroup: null,
+  currentDeviceGroupLoading: false,
+  currentDeviceGroupError: null,
+  countrySites: [],
+  countrySitesLoading: false,
+  countrySitesError: null,
 
   // Load device groups
-  loadDeviceGroups: async (filters?: DeviceGroupFilters) => {
+  loadDeviceGroups: async () => {
     try {
-      set({ loading: true, error: null });
-      const response = await deviceGroupService.getDeviceGroups(filters || {});
-      set({ deviceGroups: response.data, loading: false });
+      set({ deviceGroupsLoading: true, deviceGroupsError: null });
+      const response = await deviceGroupService.getDeviceGroups();
+      set({ deviceGroups: response.data || [], deviceGroupsLoading: false });
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to load device groups', 
-        loading: false 
+      set({
+        deviceGroupsError: error instanceof Error ? error.message : 'Failed to load device groups',
+        deviceGroupsLoading: false
       });
     }
   },
 
-  // Load sitenames
-  loadSitenames: async () => {
+  // Load single device group
+  loadDeviceGroup: async (id: number) => {
     try {
-      set({ sitenamesLoading: true, sitenamesError: null });
-      const response = await sitenamesService.getAll();
-      set({ sitenames: response.data, sitenamesLoading: false });
-    } catch (error) {
-      set({ 
-        sitenamesError: error instanceof Error ? error.message : 'Failed to load sitenames', 
-        sitenamesLoading: false 
-      });
-    }
-  },
-
-  // Load websocket config
-  loadWebsocketConfig: async () => {
-    try {
-      set({ websocketConfigLoading: true, websocketConfigError: null });
-      const token = useAuthStore.getState().token;
-      const response = await fetch('/api/websocket-config', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to load websocket config');
-      }
-      const data = await response.json();
-      set({ websocketConfig: data.data, websocketConfigLoading: false });
-    } catch (error) {
-      set({ 
-        websocketConfigError: error instanceof Error ? error.message : 'Failed to load websocket config', 
-        websocketConfigLoading: false 
-      });
-    }
-  },
-
-  // Get single device group
-  getDeviceGroup: async (id: number) => {
-    try {
-      set({ loading: true, error: null });
+      set({ currentDeviceGroupLoading: true, currentDeviceGroupError: null });
       const deviceGroup = await deviceGroupService.getDeviceGroup(id);
-      set({ selectedDeviceGroup: deviceGroup, loading: false });
-      return deviceGroup;
+      set({ currentDeviceGroup: deviceGroup, currentDeviceGroupLoading: false });
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to load device group', 
-        loading: false 
+      set({
+        currentDeviceGroupError: error instanceof Error ? error.message : 'Failed to load device group',
+        currentDeviceGroupLoading: false
       });
-      return null;
     }
   },
 
   // Create device group
-  createDeviceGroup: async (data: any) => {
+  createDeviceGroup: async (data: DeviceGroupCreateRequest) => {
     try {
-      set({ loading: true, error: null });
       await deviceGroupService.createDeviceGroup(data);
-      // Reload device groups after creation
+      toast.success('Device group created successfully');
+      // Reload device groups
       await get().loadDeviceGroups();
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to create device group', 
-        loading: false 
-      });
+      toast.error('Failed to create device group');
       throw error;
     }
   },
 
   // Update device group
-  updateDeviceGroup: async (id: number, data: any) => {
+  updateDeviceGroup: async (id: number, data: DeviceGroupUpdateRequest) => {
     try {
-      set({ loading: true, error: null });
       await deviceGroupService.updateDeviceGroup(id, data);
-      // Reload device groups after update
-      await get().loadDeviceGroups();
+      toast.success('Device group updated successfully');
+      // Reload device groups and current device group
+      await Promise.all([
+        get().loadDeviceGroups(),
+        get().loadDeviceGroup(id)
+      ]);
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to update device group', 
-        loading: false 
-      });
+      toast.error('Failed to update device group');
       throw error;
     }
   },
@@ -154,26 +99,32 @@ export const useDeviceGroupsStore = create<DeviceGroupsState>((set, get) => ({
   // Delete device group
   deleteDeviceGroup: async (id: number) => {
     try {
-      set({ loading: true, error: null });
       await deviceGroupService.deleteDeviceGroup(id);
-      // Reload device groups after deletion
+      toast.success('Device group deleted successfully');
+      // Reload device groups
       await get().loadDeviceGroups();
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to delete device group', 
-        loading: false 
-      });
+      toast.error('Failed to delete device group');
       throw error;
     }
   },
 
-  // Set selected device group
-  setSelectedDeviceGroup: (deviceGroup: DeviceGroup | null) => {
-    set({ selectedDeviceGroup: deviceGroup });
+  // Load country sites
+  loadCountrySites: async () => {
+    try {
+      set({ countrySitesLoading: true, countrySitesError: null });
+      const response = await countrySitesService.getAll();
+      set({ countrySites: response.data || [], countrySitesLoading: false });
+    } catch (error) {
+      set({
+        countrySitesError: error instanceof Error ? error.message : 'Failed to load country sites',
+        countrySitesLoading: false
+      });
+    }
   },
 
-  // Clear error
-  clearError: () => {
-    set({ error: null, sitenamesError: null });
+  // Clear errors
+  clearErrors: () => {
+    set({ countrySitesError: null });
   },
 })); 

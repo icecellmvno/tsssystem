@@ -199,7 +199,7 @@ export default function WebSocketTest() {
                   <div>
                     <p className="font-medium">{device.id}</p>
                     <p className="text-sm text-muted-foreground">
-                      {device.device_group} - {device.sitename}
+                      {device.device_group} - {device.country_site}
                     </p>
                   </div>
                   <Badge variant={device.status === 'online' ? "default" : "secondary"}>

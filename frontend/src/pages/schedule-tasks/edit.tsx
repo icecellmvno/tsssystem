@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+
 import { ArrowLeft, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,63 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import InputError from '@/components/input-error';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { toast } from 'sonner';
+import { scheduleTasksService, type ScheduleTask, type UpdateScheduleTaskData } from '@/services/schedule-tasks';
 
 interface DeviceGroup {
   id: number;
   name: string;
-}
-
-interface OperatorCommand {
-  id: number;
-  name: string;
-  command_type: 'ussd' | 'sms';
-  key: string;
-  code: string;
-  message_text: string | null;
-  number: string | null;
-  mcc_mnc: {
-    id: number;
-    mcc: string;
-    mnc: string;
-    country_name: string;
-    brand: string;
-    operator: string;
-  };
-}
-
-interface ScheduleTask {
-  id: number;
-  name: string;
-  description: string | null;
-  device_group_id: number;
-  task_type: 'ussd' | 'sms';
-  command: string;
-  recipient: string | null;
-  frequency: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
-  cron_expression: string | null;
-  time: string;
-  day_of_week: number | null;
-  day_of_month: number | null;
-  month: number | null;
-  interval_minutes: number | null;
-  is_active: boolean;
-  dual_sim_support: boolean;
-  fallback_to_single_sim: boolean;
-  max_retries: number;
-  retry_delay_minutes: number;
-}
-
-interface Props {
-  task: ScheduleTask;
-  deviceGroups: DeviceGroup[];
-  operatorCommands: {
-    ussd: OperatorCommand[];
-    sms: OperatorCommand[];
-  };
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -78,100 +30,212 @@ const breadcrumbs: BreadcrumbItem[] = [
   },
   {
     title: 'Edit',
-    href: '/schedule-tasks/edit',
+    href: '/schedule-tasks/:id/edit',
   },
 ];
 
-export default function ScheduleTaskEdit({ task, deviceGroups, operatorCommands }: Props) {
-  const { data, setData, put, processing, errors } = useForm({
-    name: task.name,
-    description: task.description || '',
-    device_group_id: task.device_group_id,
-    task_type: task.task_type,
-    command: task.command,
-    recipient: task.recipient || '',
-    operator_command_id: '',
-    command_key: '',
-    frequency: task.frequency,
-    cron_expression: task.cron_expression || '',
-    time: task.time,
-    day_of_week: task.day_of_week || '',
-    day_of_month: task.day_of_month || '',
-    month: task.month || '',
-    interval_minutes: task.interval_minutes || '',
-    is_active: task.is_active,
-    dual_sim_support: task.dual_sim_support,
-    fallback_to_single_sim: task.fallback_to_single_sim,
-    max_retries: task.max_retries,
-    retry_delay_minutes: task.retry_delay_minutes,
+export default function ScheduleTaskEdit() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
+  
+  const [formData, setFormData] = useState<UpdateScheduleTaskData>({
+    name: '',
+    description: '',
+    device_group_id: 0,
+    task_type: 'ussd',
+    command: '',
+    recipient: '',
+    frequency: 'hourly',
+    cron_expression: '',
+    time: '00:00',
+    day_of_week: undefined,
+    day_of_month: undefined,
+    month: undefined,
+    interval_minutes: undefined,
+    is_active: true,
+    dual_sim_support: false,
+    fallback_to_single_sim: true,
+    max_retries: 3,
+    retry_delay_minutes: 5,
   });
 
-  const [showCustomFields, setShowCustomFields] = useState(task.frequency === 'custom');
-  const [showWeeklyFields, setShowWeeklyFields] = useState(task.frequency === 'weekly');
-  const [showMonthlyFields, setShowMonthlyFields] = useState(task.frequency === 'monthly');
-
   useEffect(() => {
-    setShowCustomFields(data.frequency === 'custom');
-    setShowWeeklyFields(data.frequency === 'weekly');
-    setShowMonthlyFields(data.frequency === 'monthly');
-  }, [data.frequency]);
+    if (id) {
+      fetchTask();
+      fetchDeviceGroups();
+    }
+  }, [id]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fetchTask = async () => {
+    try {
+      setFetching(true);
+      const taskData = await scheduleTasksService.getScheduleTask(parseInt(id!));
+      setFormData({
+        name: taskData.name,
+        description: taskData.description || '',
+        device_group_id: taskData.device_group_id,
+        task_type: taskData.task_type,
+        command: taskData.command,
+        recipient: taskData.recipient || '',
+        frequency: taskData.frequency,
+        cron_expression: taskData.cron_expression || '',
+        time: taskData.time,
+        day_of_week: taskData.day_of_week || undefined,
+        day_of_month: taskData.day_of_month || undefined,
+        month: taskData.month || undefined,
+        interval_minutes: taskData.interval_minutes || undefined,
+        is_active: taskData.is_active,
+        dual_sim_support: taskData.dual_sim_support,
+        fallback_to_single_sim: taskData.fallback_to_single_sim,
+        max_retries: taskData.max_retries,
+        retry_delay_minutes: taskData.retry_delay_minutes,
+      });
+    } catch (error) {
+      toast.error('Failed to fetch schedule task');
+      console.error('Error fetching task:', error);
+      navigate('/schedule-tasks');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const fetchDeviceGroups = async () => {
+    try {
+      const response = await fetch('/api/device-groups');
+      if (response.ok) {
+        const data = await response.json();
+        setDeviceGroups(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching device groups:', error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    put(route('schedule-tasks.update', task.id), {
-      onSuccess: () => {
-        toast.success('Schedule task updated successfully.');
-      },
-      onError: () => {
-        toast.error('Failed to update schedule task.');
-      },
-    });
+    
+    if (!formData.name || !formData.device_group_id || !formData.command) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await scheduleTasksService.updateScheduleTask(parseInt(id!), formData);
+      toast.success('Schedule task updated successfully');
+      navigate(`/schedule-tasks/${id}`);
+    } catch (error) {
+      toast.error('Failed to update schedule task');
+      console.error('Error updating schedule task:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleFrequencyChange = (value: string) => {
-    setData('frequency', value as any);
-    setData('cron_expression', '');
-    setData('interval_minutes', '');
-    setData('day_of_week', '');
-    setData('day_of_month', '');
-    setData('month', '');
+  const handleFrequencyChange = (frequency: string) => {
+    setFormData(prev => ({
+      ...prev,
+      frequency: frequency as any,
+      day_of_week: undefined,
+      day_of_month: undefined,
+      month: undefined,
+      interval_minutes: undefined,
+      cron_expression: '',
+    }));
   };
+
+  const getDayOfWeekOptions = () => [
+    { value: 0, label: 'Sunday' },
+    { value: 1, label: 'Monday' },
+    { value: 2, label: 'Tuesday' },
+    { value: 3, label: 'Wednesday' },
+    { value: 4, label: 'Thursday' },
+    { value: 5, label: 'Friday' },
+    { value: 6, label: 'Saturday' },
+  ];
+
+  const getMonthOptions = () => [
+    { value: 1, label: 'January' },
+    { value: 2, label: 'February' },
+    { value: 3, label: 'March' },
+    { value: 4, label: 'April' },
+    { value: 5, label: 'May' },
+    { value: 6, label: 'June' },
+    { value: 7, label: 'July' },
+    { value: 8, label: 'August' },
+    { value: 9, label: 'September' },
+    { value: 10, label: 'October' },
+    { value: 11, label: 'November' },
+    { value: 12, label: 'December' },
+  ];
+
+  if (fetching) {
+    return (
+      <AppLayout breadcrumbs={breadcrumbs}>
+        <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
-      <Head title={`Edit Schedule Task - ${task.name}`} />
-      <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
+      <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Edit Schedule Task</h1>
+          <div className="flex items-center space-x-4">
+            <Link to={`/schedule-tasks/${id}`}>
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Edit Schedule Task</h1>
+            </div>
           </div>
-          <Button variant="outline" onClick={() => window.history.back()}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Basic Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Basic Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="name">Name *</Label>
                   <Input
                     id="name"
-                    value={data.name}
-                    onChange={(e) => setData('name', e.target.value)}
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="Enter task name"
+                    required
                   />
-                  <InputError message={errors.name} />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="device_group_id">Device Group</Label>
-                  <Select value={data.device_group_id.toString()} onValueChange={(value) => setData('device_group_id', parseInt(value))}>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Enter task description"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="device_group">Device Group *</Label>
+                  <Select
+                    value={formData.device_group_id.toString()}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, device_group_id: parseInt(value) }))}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select device group" />
                     </SelectTrigger>
@@ -183,90 +247,64 @@ export default function ScheduleTaskEdit({ task, deviceGroups, operatorCommands 
                       ))}
                     </SelectContent>
                   </Select>
-                  <InputError message={errors.device_group_id} />
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={data.description}
-                  onChange={(e) => setData('description', e.target.value)}
-                  placeholder="Enter task description"
-                  rows={3}
-                />
-                <InputError message={errors.description} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Task Configuration</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="task_type">Task Type</Label>
-                  <Select value={data.task_type} onValueChange={(value) => setData('task_type', value as 'ussd' | 'sms')}>
+                  <Label htmlFor="task_type">Task Type *</Label>
+                  <Select
+                    value={formData.task_type}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, task_type: value as 'ussd' | 'sms' }))}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select task type" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ussd">USSD</SelectItem>
                       <SelectItem value="sms">SMS</SelectItem>
                     </SelectContent>
                   </Select>
-                  <InputError message={errors.task_type} />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="command_key">Command Key</Label>
-                  <Select 
-                    value={data.command_key || ''} 
-                    onValueChange={(value) => setData('command_key', value)}
+                  <Label htmlFor="command">Command *</Label>
+                  <Textarea
+                    id="command"
+                    value={formData.command}
+                    onChange={(e) => setFormData(prev => ({ ...prev, command: e.target.value }))}
+                    placeholder="Enter USSD code or SMS message"
+                    rows={3}
+                    required
+                  />
+                </div>
+
+                {formData.task_type === 'sms' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="recipient">Recipient Number</Label>
+                    <Input
+                      id="recipient"
+                      value={formData.recipient || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, recipient: e.target.value }))}
+                      placeholder="Enter recipient phone number"
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Schedule Configuration */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Schedule Configuration</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="frequency">Frequency *</Label>
+                  <Select
+                    value={formData.frequency}
+                    onValueChange={handleFrequencyChange}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select command key" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="main_balance_check">Main Balance Check</SelectItem>
-                      <SelectItem value="sms_balance_check">SMS Balance Check</SelectItem>
-                      <SelectItem value="buy_pack_command">Buy Pack Command</SelectItem>
-                      <SelectItem value="phonenumber_check">Phone Number Check</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <InputError message={errors.command_key} />
-                </div>
-              </div>
-
-              {data.task_type === 'sms' && (
-                <div className="space-y-2">
-                  <Label htmlFor="recipient">Recipient (Optional)</Label>
-                  <Input
-                    id="recipient"
-                    value={data.recipient}
-                    onChange={(e) => setData('recipient', e.target.value)}
-                    placeholder="Enter recipient phone number"
-                  />
-                  <InputError message={errors.recipient} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Schedule Configuration</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="frequency">Frequency</Label>
-                  <Select value={data.frequency} onValueChange={handleFrequencyChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select frequency" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="hourly">Hourly</SelectItem>
@@ -276,131 +314,101 @@ export default function ScheduleTaskEdit({ task, deviceGroups, operatorCommands 
                       <SelectItem value="custom">Custom</SelectItem>
                     </SelectContent>
                   </Select>
-                  <InputError message={errors.frequency} />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="time">Time</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    value={data.time}
-                    onChange={(e) => setData('time', e.target.value)}
-                  />
-                  <InputError message={errors.time} />
-                </div>
-              </div>
-
-              {showWeeklyFields && (
-                <div className="space-y-2">
-                  <Label htmlFor="day_of_week">Day of Week</Label>
-                  <Select value={data.day_of_week.toString()} onValueChange={(value) => setData('day_of_week', parseInt(value))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select day of week" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Sunday</SelectItem>
-                      <SelectItem value="1">Monday</SelectItem>
-                      <SelectItem value="2">Tuesday</SelectItem>
-                      <SelectItem value="3">Wednesday</SelectItem>
-                      <SelectItem value="4">Thursday</SelectItem>
-                      <SelectItem value="5">Friday</SelectItem>
-                      <SelectItem value="6">Saturday</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <InputError message={errors.day_of_week} />
-                </div>
-              )}
-
-              {showMonthlyFields && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {formData.frequency === 'daily' && (
                   <div className="space-y-2">
-                    <Label htmlFor="day_of_month">Day of Month</Label>
+                    <Label htmlFor="time">Time</Label>
                     <Input
-                      id="day_of_month"
-                      type="number"
-                      min="1"
-                      max="31"
-                      value={data.day_of_month}
-                      onChange={(e) => setData('day_of_month', parseInt(e.target.value) || 0)}
-                      placeholder="1-31"
+                      id="time"
+                      type="time"
+                      value={formData.time}
+                      onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
                     />
-                    <InputError message={errors.day_of_month} />
                   </div>
+                )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="month">Month</Label>
-                    <Select value={data.month.toString()} onValueChange={(value) => setData('month', parseInt(value))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select month" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">January</SelectItem>
-                        <SelectItem value="2">February</SelectItem>
-                        <SelectItem value="3">March</SelectItem>
-                        <SelectItem value="4">April</SelectItem>
-                        <SelectItem value="5">May</SelectItem>
-                        <SelectItem value="6">June</SelectItem>
-                        <SelectItem value="7">July</SelectItem>
-                        <SelectItem value="8">August</SelectItem>
-                        <SelectItem value="9">September</SelectItem>
-                        <SelectItem value="10">October</SelectItem>
-                        <SelectItem value="11">November</SelectItem>
-                        <SelectItem value="12">December</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <InputError message={errors.month} />
-                  </div>
-                </div>
-              )}
+                {formData.frequency === 'weekly' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="day_of_week">Day of Week</Label>
+                      <Select
+                        value={formData.day_of_week?.toString() || ''}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, day_of_week: parseInt(value) }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getDayOfWeekOptions().map((option) => (
+                            <SelectItem key={option.value} value={option.value.toString()}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="time">Time</Label>
+                      <Input
+                        id="time"
+                        type="time"
+                        value={formData.time}
+                        onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
+                      />
+                    </div>
+                  </>
+                )}
 
-              {showCustomFields && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cron_expression">Cron Expression</Label>
-                    <Input
-                      id="cron_expression"
-                      value={data.cron_expression}
-                      onChange={(e) => setData('cron_expression', e.target.value)}
-                      placeholder="* * * * *"
-                    />
-                    <InputError message={errors.cron_expression} />
-                  </div>
+                {formData.frequency === 'monthly' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="day_of_month">Day of Month</Label>
+                      <Input
+                        id="day_of_month"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={formData.day_of_month || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, day_of_month: parseInt(e.target.value) }))}
+                        placeholder="1-31"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="time">Time</Label>
+                      <Input
+                        id="time"
+                        type="time"
+                        value={formData.time}
+                        onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
+                      />
+                    </div>
+                  </>
+                )}
 
+                {formData.frequency === 'custom' && (
                   <div className="space-y-2">
                     <Label htmlFor="interval_minutes">Interval (minutes)</Label>
                     <Input
                       id="interval_minutes"
                       type="number"
                       min="1"
-                      value={data.interval_minutes}
-                      onChange={(e) => setData('interval_minutes', parseInt(e.target.value) || 0)}
+                      value={formData.interval_minutes || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, interval_minutes: parseInt(e.target.value) }))}
                       placeholder="Enter interval in minutes"
                     />
-                    <InputError message={errors.interval_minutes} />
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Execution Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="max_retries">Max Retries</Label>
                   <Input
                     id="max_retries"
                     type="number"
                     min="0"
-                    value={data.max_retries}
-                    onChange={(e) => setData('max_retries', parseInt(e.target.value) || 0)}
-                    placeholder="Enter max retries"
+                    value={formData.max_retries}
+                    onChange={(e) => setFormData(prev => ({ ...prev, max_retries: parseInt(e.target.value) }))}
                   />
-                  <InputError message={errors.max_retries} />
                 </div>
 
                 <div className="space-y-2">
@@ -409,55 +417,58 @@ export default function ScheduleTaskEdit({ task, deviceGroups, operatorCommands 
                     id="retry_delay_minutes"
                     type="number"
                     min="1"
-                    value={data.retry_delay_minutes}
-                    onChange={(e) => setData('retry_delay_minutes', parseInt(e.target.value) || 0)}
-                    placeholder="Enter retry delay"
+                    value={formData.retry_delay_minutes}
+                    onChange={(e) => setFormData(prev => ({ ...prev, retry_delay_minutes: parseInt(e.target.value) }))}
                   />
-                  <InputError message={errors.retry_delay_minutes} />
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="space-y-4">
+            {/* Advanced Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Advanced Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="is_active"
-                    checked={data.is_active}
-                    onCheckedChange={(checked) => setData('is_active', checked as boolean)}
+                    checked={formData.is_active}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked as boolean }))}
                   />
                   <Label htmlFor="is_active">Active</Label>
                 </div>
-                <InputError message={errors.is_active} />
 
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="dual_sim_support"
-                    checked={data.dual_sim_support}
-                    onCheckedChange={(checked) => setData('dual_sim_support', checked as boolean)}
+                    checked={formData.dual_sim_support}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, dual_sim_support: checked as boolean }))}
                   />
                   <Label htmlFor="dual_sim_support">Dual SIM Support</Label>
                 </div>
-                <InputError message={errors.dual_sim_support} />
 
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="fallback_to_single_sim"
-                    checked={data.fallback_to_single_sim}
-                    onCheckedChange={(checked) => setData('fallback_to_single_sim', checked as boolean)}
+                    checked={formData.fallback_to_single_sim}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, fallback_to_single_sim: checked as boolean }))}
                   />
                   <Label htmlFor="fallback_to_single_sim">Fallback to Single SIM</Label>
                 </div>
-                <InputError message={errors.fallback_to_single_sim} />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
 
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => window.history.back()}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={processing}>
+          <div className="flex justify-end space-x-4 mt-6">
+            <Link to={`/schedule-tasks/${id}`}>
+              <Button variant="outline" type="button">
+                Cancel
+              </Button>
+            </Link>
+            <Button type="submit" disabled={loading}>
               <Save className="mr-2 h-4 w-4" />
-              {processing ? 'Saving...' : 'Save Changes'}
+              {loading ? 'Updating...' : 'Update Task'}
             </Button>
           </div>
         </form>

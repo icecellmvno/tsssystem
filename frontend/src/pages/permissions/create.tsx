@@ -1,64 +1,78 @@
-import { useState } from 'react'
-import { Head, router } from '@inertiajs/react'
-import { ArrowLeft, Save } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { toast } from 'sonner'
-import AppLayout from '@/layouts/app-layout'
-import { type BreadcrumbItem } from '@/types'
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Save, Shield } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { AppLayout } from '@/layouts/app-layout';
+import { type BreadcrumbItem } from '@/types';
+import { useAuthStore } from '@/stores/auth-store';
 
 const breadcrumbs: BreadcrumbItem[] = [
-  {
-    title: 'User Management',
-    href: '#',
-  },
-  {
-    title: 'Permissions',
-    href: '/permissions',
-  },
-  {
-    title: 'Create Permission',
-    href: '/permissions/create',
-  },
-]
+  { title: 'User Management', href: '#' },
+  { title: 'Permissions', href: '/permissions' },
+  { title: 'Create Permission', href: '#' },
+];
 
 export default function PermissionsCreate() {
+  const navigate = useNavigate();
+  const { token } = useAuthStore();
+  const [saving, setSaving] = useState(false);
+  
   const [formData, setFormData] = useState({
-    name: ''
-  })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
+    name: '',
+    description: ''
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    setErrors({})
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrors({});
 
-    router.post('/permissions', formData, {
-      onSuccess: () => {
-        toast.success('Permission created successfully')
-      },
-      onError: (errors) => {
-        setErrors(errors)
-        toast.error('Failed to create permission')
-      },
-      onFinish: () => {
-        setIsSubmitting(false)
+    try {
+      const response = await fetch('/api/permissions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (response.ok) {
+        toast.success('Permission created successfully');
+        navigate('/permissions');
+      } else {
+        const errorData = await response.json();
+        setErrors(errorData.errors || {});
+        toast.error('Failed to create permission');
       }
-    })
-  }
+    } catch (error) {
+      console.error('Error creating permission:', error);
+      toast.error('Failed to create permission');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
-      <Head title="Create Permission" />
-      
       <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-x-auto">
         <div className="flex items-center space-x-4">
           <Button
             variant="ghost"
-            onClick={() => router.get('/permissions')}
+            onClick={() => navigate('/permissions')}
             className="p-0"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -66,48 +80,64 @@ export default function PermissionsCreate() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Create Permission</h1>
-            <p className="text-muted-foreground">Add a new permission to the system</p>
+            <p className="text-muted-foreground">Create a new system permission</p>
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Permission Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Permission Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
                 <Label htmlFor="name">Permission Name</Label>
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className={errors.name ? 'border-red-500' : ''}
-                  placeholder="e.g., users.create, roles.edit"
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="Enter permission name (e.g., users.create)"
+                  required
                 />
                 {errors.name && (
-                  <p className="text-sm text-red-500">{errors.name}</p>
+                  <p className="text-sm text-red-500 mt-1">{errors.name}</p>
                 )}
               </div>
 
-              <div className="flex justify-end space-x-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.get('/permissions')}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {isSubmitting ? 'Creating...' : 'Create Permission'}
-                </Button>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  placeholder="Enter permission description (optional)"
+                  rows={3}
+                />
+                {errors.description && (
+                  <p className="text-sm text-red-500 mt-1">{errors.description}</p>
+                )}
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <div className="flex items-center gap-4">
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Creating...' : 'Create Permission'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/permissions')}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
       </div>
     </AppLayout>
-  )
+  );
 } 

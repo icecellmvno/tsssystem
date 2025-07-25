@@ -511,7 +511,7 @@ export default function DeviceShow() {
   // Create dynamic breadcrumbs
   const breadcrumbs: BreadcrumbItem[] = [
     {
-      title: 'Site Management',
+                      title: 'Country Management',
       href: '#',
     },
     {

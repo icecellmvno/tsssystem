@@ -6,7 +6,7 @@ type DeviceInfo struct {
 	Model          string `json:"model"`
 	AndroidVersion string `json:"android_version"`
 	DeviceID       string `json:"device_id"`
-	Sitename       string `json:"sitename"`
+	CountrySite    string `json:"country_site"`
 	DeviceGroup    string `json:"device_group"`
 }
 
@@ -48,7 +48,7 @@ type HeartbeatData struct {
 type DeviceStatusData struct {
 	Status      string      `json:"status"`
 	DeviceGroup string      `json:"device_group"`
-	Sitename    string      `json:"sitename"`
+	CountrySite string      `json:"country_site"`
 	Details     interface{} `json:"details"`
 }
 
@@ -58,7 +58,7 @@ type AlarmData struct {
 	Message     string `json:"message"`
 	Severity    string `json:"severity"`
 	DeviceGroup string `json:"device_group"`
-	Sitename    string `json:"sitename"`
+	CountrySite string `json:"country_site"`
 }
 
 // SmsLogData represents SMS log message data
@@ -68,7 +68,7 @@ type SmsLogData struct {
 	Message     string `json:"message"`
 	Status      string `json:"status"`
 	DeviceGroup string `json:"device_group"`
-	Sitename    string `json:"sitename"`
+	CountrySite string `json:"country_site"`
 }
 
 // SmsMessageData represents SMS message data
@@ -80,7 +80,7 @@ type SmsMessageData struct {
 	Timestamp          int64  `json:"timestamp"`
 	FormattedTimestamp string `json:"formatted_timestamp"`
 	DeviceGroup        string `json:"device_group"`
-	Sitename           string `json:"sitename"`
+	CountrySite        string `json:"country_site"`
 }
 
 // SmsDeliveryReportData represents SMS delivery report data
@@ -91,7 +91,7 @@ type SmsDeliveryReportData struct {
 	SimSlot     int    `json:"sim_slot"`
 	Timestamp   int64  `json:"timestamp"`
 	DeviceGroup string `json:"device_group"`
-	Sitename    string `json:"sitename"`
+	CountrySite string `json:"country_site"`
 }
 
 // UssdResponseData represents USSD response data
@@ -125,7 +125,7 @@ type MmsReceivedData struct {
 	SimSlot     int    `json:"sim_slot"`
 	Timestamp   int64  `json:"timestamp"`
 	DeviceGroup string `json:"device_group"`
-	Sitename    string `json:"sitename"`
+	CountrySite string `json:"country_site"`
 }
 
 // RcsReceivedData represents RCS received data
@@ -136,7 +136,7 @@ type RcsReceivedData struct {
 	SimSlot     int    `json:"sim_slot"`
 	Timestamp   int64  `json:"timestamp"`
 	DeviceGroup string `json:"device_group"`
-	Sitename    string `json:"sitename"`
+	CountrySite string `json:"country_site"`
 }
 
 // UssdCodeData represents USSD code data
@@ -146,7 +146,7 @@ type UssdCodeData struct {
 	SimSlot     int    `json:"sim_slot"`
 	Timestamp   int64  `json:"timestamp"`
 	DeviceGroup string `json:"device_group"`
-	Sitename    string `json:"sitename"`
+	CountrySite string `json:"country_site"`
 }
 
 // FindDeviceSuccessData represents find device success data
@@ -273,7 +273,7 @@ type AlarmStartData struct {
 type DeviceConnection struct {
 	DeviceID       string      `json:"device_id"`
 	DeviceGroup    string      `json:"device_group"`
-	Sitename       string      `json:"sitename"`
+	CountrySite    string      `json:"country_site"`
 	ConnectionType string      `json:"connection_type"` // android, frontend, usbmodem
 	Conn           interface{} `json:"-"`
 	IsHandicap     bool        `json:"is_handicap"`
@@ -282,7 +282,7 @@ type DeviceConnection struct {
 // QRConfigData represents QR code configuration data
 type QRConfigData struct {
 	DeviceGroup             string `json:"device_group"`
-	Sitename                string `json:"sitename"`
+	CountrySite             string `json:"country_site"`
 	WebsocketURL            string `json:"websocket_url"`
 	APIKey                  string `json:"api_key"`
 	QueueName               string `json:"queue_name"`

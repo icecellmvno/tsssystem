@@ -42,16 +42,24 @@ func GetDB() *gorm.DB {
 func autoMigrate(db *gorm.DB) error {
 	log.Println("Starting database migration...")
 
-	// Add all models here for auto-migration
+	// Auto migrate models
 	err := db.AutoMigrate(
 		&models.User{},
-		&models.Sitename{},
+		&models.Role{},
+		&models.Permission{},
+		&models.CountrySite{},
 		&models.DeviceGroup{},
 		&models.Device{},
+		&models.DeviceSimCard{},
+		&models.SmsLog{},
 		&models.AlarmLog{},
 		&models.SmppUser{},
 		&models.BlacklistNumber{},
-		&models.SmsLog{},
+		&models.Filter{},
+		&models.ScheduleTask{},
+		&models.ScheduleTaskExecution{},
+		&models.UssdLog{},
+		&models.SimCardRecord{},
 	)
 
 	if err != nil {

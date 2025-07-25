@@ -4,24 +4,28 @@ import (
 	"tsimsocketserver/config"
 	"tsimsocketserver/handlers"
 	"tsimsocketserver/middleware"
+	"tsimsocketserver/redis"
 	"tsimsocketserver/websocket"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSocketServer) {
+func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSocketServer, redisService *redis.RedisService) {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(cfg)
 	userHandler := handlers.NewUserHandler()
-	sitenameHandler := handlers.NewSitenameHandler()
+	roleHandler := handlers.NewRoleHandler()
+	permissionHandler := handlers.NewPermissionHandler()
+	countrySiteHandler := handlers.NewCountrySiteHandler()
 	deviceGroupHandler := handlers.NewDeviceGroupHandler(cfg)
 	deviceHandler := handlers.NewDeviceHandler(wsServer)
 	qrHandler := handlers.NewQRHandler(cfg)
 	websocketHandler := handlers.NewWebSocketHandler(cfg)
 	alarmLogHandler := handlers.NewAlarmLogHandler(cfg)
-	smppUserHandler := handlers.NewSmppUserHandler()
+	smppUserHandler := handlers.NewSmppUserHandler(redisService)
 	blacklistNumberHandler := handlers.NewBlacklistNumberHandler()
 	bulkSmsHandler := handlers.NewBulkSmsHandler(wsServer)
+	scheduleTaskHandler := handlers.NewScheduleTaskHandler(wsServer)
 
 	// API routes
 	api := app.Group("/api")
@@ -39,16 +43,33 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	users.Get("/profile", userHandler.GetProfile)
 	users.Get("/", userHandler.GetAllUsers)
 	users.Get("/:id", userHandler.GetUserByID)
+	users.Post("/", userHandler.CreateUser)
 	users.Put("/:id", userHandler.UpdateUser)
 	users.Delete("/:id", userHandler.DeleteUser)
 
-	// Sitename routes
-	sitenames := protected.Group("/sitenames")
-	sitenames.Post("/", sitenameHandler.CreateSitename)
-	sitenames.Get("/", sitenameHandler.GetAllSitenames)
-	sitenames.Get("/:id", sitenameHandler.GetSitenameByID)
-	sitenames.Put("/:id", sitenameHandler.UpdateSitename)
-	sitenames.Delete("/:id", sitenameHandler.DeleteSitename)
+	// Role routes
+	roles := protected.Group("/roles")
+	roles.Get("/", roleHandler.GetAllRoles)
+	roles.Get("/:id", roleHandler.GetRoleByID)
+	roles.Post("/", roleHandler.CreateRole)
+	roles.Put("/:id", roleHandler.UpdateRole)
+	roles.Delete("/:id", roleHandler.DeleteRole)
+
+	// Permission routes
+	permissions := protected.Group("/permissions")
+	permissions.Get("/", permissionHandler.GetAllPermissions)
+	permissions.Get("/:id", permissionHandler.GetPermissionByID)
+	permissions.Post("/", permissionHandler.CreatePermission)
+	permissions.Put("/:id", permissionHandler.UpdatePermission)
+	permissions.Delete("/:id", permissionHandler.DeletePermission)
+
+	// Country Site routes
+	countrySites := protected.Group("/country-sites")
+	countrySites.Post("/", countrySiteHandler.CreateCountrySite)
+	countrySites.Get("/", countrySiteHandler.GetAllCountrySites)
+	countrySites.Get("/:id", countrySiteHandler.GetCountrySiteByID)
+	countrySites.Put("/:id", countrySiteHandler.UpdateCountrySite)
+	countrySites.Delete("/:id", countrySiteHandler.DeleteCountrySite)
 
 	// Device Group routes
 	deviceGroups := protected.Group("/device-groups")
@@ -110,10 +131,46 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	smsLogs.Get("/:id", handlers.GetSmsLog)
 	smsLogs.Get("/filter-options", handlers.GetSmsLogFilterOptions)
 
+	// USSD Log routes
+	ussdLogs := protected.Group("/ussd-logs")
+	ussdLogs.Get("/", handlers.GetUssdLogs)
+	ussdLogs.Get("/:id", handlers.GetUssdLog)
+	ussdLogs.Get("/filter-options", handlers.GetUssdLogFilterOptions)
+
+	// SIM Card routes
+	simCards := protected.Group("/sim-cards")
+	simCards.Post("/", handlers.CreateSimCard)
+	simCards.Get("/", handlers.GetSimCards)
+	simCards.Get("/:id", handlers.GetSimCard)
+	simCards.Put("/:id", handlers.UpdateSimCard)
+	simCards.Delete("/:id", handlers.DeleteSimCard)
+	simCards.Get("/filter-options", handlers.GetSimCardFilterOptions)
+
+	// Filter routes
+	filters := protected.Group("/filters")
+	filters.Post("/", handlers.CreateFilter)
+	filters.Get("/", handlers.GetFilters)
+	filters.Get("/:id", handlers.GetFilter)
+	filters.Put("/:id", handlers.UpdateFilter)
+	filters.Delete("/:id", handlers.DeleteFilter)
+	filters.Delete("/bulk-delete", handlers.BulkDeleteFilters)
+	filters.Patch("/:id/toggle", handlers.ToggleFilterStatus)
+
 	// Bulk SMS routes
 	bulkSms := protected.Group("/bulk-sms")
 	bulkSms.Post("/send", bulkSmsHandler.SendBulkSms)
 	bulkSms.Get("/status", bulkSmsHandler.GetBulkSmsStatus)
+
+	// Schedule Task routes
+	scheduleTasks := protected.Group("/schedule-tasks")
+	scheduleTasks.Post("/", scheduleTaskHandler.CreateScheduleTask)
+	scheduleTasks.Get("/", scheduleTaskHandler.GetAllScheduleTasks)
+	scheduleTasks.Get("/:id", scheduleTaskHandler.GetScheduleTaskByID)
+	scheduleTasks.Put("/:id", scheduleTaskHandler.UpdateScheduleTask)
+	scheduleTasks.Delete("/:id", scheduleTaskHandler.DeleteScheduleTask)
+	scheduleTasks.Post("/:id/execute", scheduleTaskHandler.ExecuteScheduleTask)
+	scheduleTasks.Post("/:id/pause", scheduleTaskHandler.PauseScheduleTask)
+	scheduleTasks.Post("/:id/resume", scheduleTaskHandler.ResumeScheduleTask)
 
 	// QR Code routes
 	qr := protected.Group("/qr")

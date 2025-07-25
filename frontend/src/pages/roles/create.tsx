@@ -1,65 +1,108 @@
-import { useState } from 'react'
-import { Head, router } from '@inertiajs/react'
-import { ArrowLeft, Save } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
-import { toast } from 'sonner'
-import AppLayout from '@/layouts/app-layout'
-import { type BreadcrumbItem } from '@/types'
-
-const breadcrumbs: BreadcrumbItem[] = [
-  {
-    title: 'User Management',
-    href: '#',
-  },
-  {
-    title: 'Roles',
-    href: '/roles',
-  },
-  {
-    title: 'Create Role',
-    href: '/roles/create',
-  },
-]
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Save, Shield, CheckSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
+import { AppLayout } from '@/layouts/app-layout';
+import { type BreadcrumbItem } from '@/types';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface Permission {
-  id: number
-  name: string
+  id: number;
+  name: string;
+  description?: string;
 }
 
-interface Props {
-  permissions: Permission[]
-}
+const breadcrumbs: BreadcrumbItem[] = [
+  { title: 'User Management', href: '#' },
+  { title: 'Roles', href: '/roles' },
+  { title: 'Create Role', href: '#' },
+];
 
-export default function RolesCreate({ permissions }: Props) {
+export default function RolesCreate() {
+  const navigate = useNavigate();
+  const { token } = useAuthStore();
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
+    description: '',
     permission_ids: [] as number[]
-  })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    setErrors({})
-
-    router.post('/roles', formData, {
-      onSuccess: () => {
-        toast.success('Role created successfully')
-      },
-      onError: (errors) => {
-        setErrors(errors)
-        toast.error('Failed to create role')
-      },
-      onFinish: () => {
-        setIsSubmitting(false)
+  // Fetch permissions from API
+  const fetchPermissions = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/permissions', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPermissions(data.permissions || []);
+      } else {
+        toast.error('Failed to fetch permissions');
       }
-    })
-  }
+    } catch (error) {
+      console.error('Error fetching permissions:', error);
+      toast.error('Failed to fetch permissions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPermissions();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrors({});
+
+    try {
+      const response = await fetch('/api/roles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (response.ok) {
+        toast.success('Role created successfully');
+        navigate('/roles');
+      } else {
+        const errorData = await response.json();
+        setErrors(errorData.errors || {});
+        toast.error('Failed to create role');
+      }
+    } catch (error) {
+      console.error('Error creating role:', error);
+      toast.error('Failed to create role');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
 
   const handlePermissionChange = (permissionId: number, checked: boolean) => {
     setFormData(prev => ({
@@ -67,18 +110,31 @@ export default function RolesCreate({ permissions }: Props) {
       permission_ids: checked 
         ? [...prev.permission_ids, permissionId]
         : prev.permission_ids.filter(id => id !== permissionId)
-    }))
+    }));
+  };
+
+  if (loading) {
+    return (
+      <AppLayout breadcrumbs={breadcrumbs}>
+        <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading permissions...</p>
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
   }
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
-      <Head title="Create Role" />
-      
       <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-x-auto">
         <div className="flex items-center space-x-4">
           <Button
             variant="ghost"
-            onClick={() => router.get('/roles')}
+            onClick={() => navigate('/roles')}
             className="p-0"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -86,68 +142,97 @@ export default function RolesCreate({ permissions }: Props) {
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Create Role</h1>
-            <p className="text-muted-foreground">Add a new role to the system</p>
+            <p className="text-muted-foreground">Create a new role with specific permissions</p>
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Role Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Role Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
                 <Label htmlFor="name">Role Name</Label>
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className={errors.name ? 'border-red-500' : ''}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="Enter role name"
+                  required
                 />
                 {errors.name && (
-                  <p className="text-sm text-red-500">{errors.name}</p>
+                  <p className="text-sm text-red-500 mt-1">{errors.name}</p>
                 )}
               </div>
 
-              <div className="space-y-4">
-                <Label>Permissions</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {permissions.map((permission) => (
-                    <div key={permission.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`permission-${permission.id}`}
-                        checked={formData.permission_ids.includes(permission.id)}
-                        onCheckedChange={(checked) => handlePermissionChange(permission.id, checked as boolean)}
-                      />
-                      <Label htmlFor={`permission-${permission.id}`} className="text-sm font-normal">
-                        {permission.name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                {errors.permission_ids && (
-                  <p className="text-sm text-red-500">{errors.permission_ids}</p>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  placeholder="Enter role description (optional)"
+                  rows={3}
+                />
+                {errors.description && (
+                  <p className="text-sm text-red-500 mt-1">{errors.description}</p>
                 )}
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex justify-end space-x-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.get('/roles')}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {isSubmitting ? 'Creating...' : 'Create Role'}
-                </Button>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckSquare className="h-5 w-5" />
+                Permissions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {permissions.map((permission) => (
+                  <div key={permission.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`permission-${permission.id}`}
+                      checked={formData.permission_ids.includes(permission.id)}
+                      onCheckedChange={(checked) => handlePermissionChange(permission.id, checked as boolean)}
+                    />
+                    <Label htmlFor={`permission-${permission.id}`} className="flex-1">
+                      <div>
+                        <div className="font-medium">{permission.name}</div>
+                        {permission.description && (
+                          <div className="text-sm text-muted-foreground">{permission.description}</div>
+                        )}
+                      </div>
+                    </Label>
+                  </div>
+                ))}
+                {permissions.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No permissions available</p>
+                )}
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <div className="flex items-center gap-4">
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Creating...' : 'Create Role'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/roles')}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
       </div>
     </AppLayout>
-  )
+  );
 } 

@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+
 import { Plus, Search, Filter, MoreHorizontal, Play, Pause, RotateCcw, Clock, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,70 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { toast } from 'sonner';
-
-interface ScheduleTask {
-  id: number;
-  name: string;
-  description: string | null;
-  device_group_id: number;
-  task_type: 'ussd' | 'sms';
-  command: string;
-  recipient: string | null;
-  frequency: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
-  cron_expression: string | null;
-  time: string;
-  day_of_week: number | null;
-  day_of_month: number | null;
-  month: number | null;
-  interval_minutes: number | null;
-  is_active: boolean;
-  dual_sim_support: boolean;
-  fallback_to_single_sim: boolean;
-  max_retries: number;
-  retry_delay_minutes: number;
-  status: 'active' | 'paused' | 'completed' | 'failed';
-  last_executed_at: string | null;
-  next_execution_at: string | null;
-  execution_count: number;
-  success_count: number;
-  failure_count: number;
-  last_error: string | null;
-  created_at: string;
-  updated_at: string;
-  status_badge_variant: string;
-  task_type_badge_variant: string;
-  frequency_badge_variant: string;
-  human_readable_frequency: string;
-  success_rate: number;
-  can_execute: boolean;
-  can_pause: boolean;
-  can_resume: boolean;
-  device_group_data: {
-    id: number;
-    name: string;
-  } | null;
-}
-
-interface Props {
-  tasks: {
-    data: ScheduleTask[];
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-    from: number;
-    to: number;
-  };
-  filters: {
-    search: string;
-    task_type: string;
-    frequency: string;
-    status: string;
-    is_active: string;
-    sort_by: string;
-    sort_order: string;
-  };
-}
+import { scheduleTasksService, type ScheduleTask, type ScheduleTaskFilters } from '@/services/schedule-tasks';
 
 const breadcrumbs: BreadcrumbItem[] = [
   {
@@ -87,64 +25,95 @@ const breadcrumbs: BreadcrumbItem[] = [
   },
 ];
 
-export default function ScheduleTasksIndex({ tasks, filters }: Props) {
-  const [search, setSearch] = useState(filters.search || '');
-  const [taskTypeFilter, setTaskTypeFilter] = useState(filters.task_type || 'all');
-  const [frequencyFilter, setFrequencyFilter] = useState(filters.frequency || 'all');
-  const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
-  const [activeFilter, setActiveFilter] = useState(filters.is_active || 'all');
+export default function ScheduleTasksIndex() {
+  const [tasks, setTasks] = useState<ScheduleTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    last_page: 1,
+    per_page: 10,
+    total: 0,
+    from: 0,
+    to: 0,
+  });
+  
+  const [search, setSearch] = useState('');
+  const [taskTypeFilter, setTaskTypeFilter] = useState('all');
+  const [frequencyFilter, setFrequencyFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const filters: ScheduleTaskFilters = {
+        page: pagination.current_page,
+        per_page: pagination.per_page,
+        search,
+        task_type: taskTypeFilter !== 'all' ? taskTypeFilter : undefined,
+        frequency: frequencyFilter !== 'all' ? frequencyFilter : undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        is_active: activeFilter !== 'all' ? activeFilter : undefined,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      };
+
+      const data = await scheduleTasksService.getScheduleTasks(filters);
+      setTasks(data.data);
+      setPagination({
+        current_page: data.current_page,
+        last_page: data.last_page,
+        per_page: data.per_page,
+        total: data.total,
+        from: data.from,
+        to: data.to,
+      });
+    } catch (error) {
+      toast.error('Failed to fetch schedule tasks');
+      console.error('Error fetching tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, [pagination.current_page, search, taskTypeFilter, frequencyFilter, statusFilter, activeFilter, sortBy, sortOrder]);
 
   const handleSearch = () => {
-    router.get(route('schedule-tasks.index'), {
-      search,
-      task_type: taskTypeFilter,
-      frequency: frequencyFilter,
-      status: statusFilter,
-      is_active: activeFilter,
-      sort_by: filters.sort_by,
-      sort_order: filters.sort_order,
-    }, {
-      preserveState: true,
-      replace: true,
-    });
+    setPagination(prev => ({ ...prev, current_page: 1 }));
   };
 
   const handleSort = (column: string) => {
-    const newOrder = filters.sort_by === column && filters.sort_order === 'asc' ? 'desc' : 'asc';
-    router.get(route('schedule-tasks.index'), {
-      search,
-      task_type: taskTypeFilter,
-      frequency: frequencyFilter,
-      status: statusFilter,
-      is_active: activeFilter,
-      sort_by: column,
-      sort_order: newOrder,
-    }, {
-      preserveState: true,
-      replace: true,
-    });
+    const newOrder = sortBy === column && sortOrder === 'asc' ? 'desc' : 'asc';
+    setSortBy(column);
+    setSortOrder(newOrder);
   };
 
   const handleTaskAction = async (taskId: number, action: 'execute' | 'pause' | 'resume') => {
     try {
-      const response = await fetch(route(`schedule-tasks.${action}`, taskId), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-        },
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success(result.message);
-        router.reload();
-      } else {
-        toast.error(result.message);
+      let result;
+      switch (action) {
+        case 'execute':
+          result = await scheduleTasksService.executeScheduleTask(taskId);
+          break;
+        case 'pause':
+          result = await scheduleTasksService.pauseScheduleTask(taskId);
+          break;
+        case 'resume':
+          result = await scheduleTasksService.resumeScheduleTask(taskId);
+          break;
+        default:
+          throw new Error('Invalid action');
       }
+
+      toast.success(result.message);
+      fetchTasks(); // Refresh the list
     } catch (error) {
       toast.error('An error occurred while performing the action.');
+      console.error('Error performing task action:', error);
     }
   };
 
@@ -199,13 +168,12 @@ export default function ScheduleTasksIndex({ tasks, filters }: Props) {
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
-      <Head title="Schedule Tasks" />
       <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Schedule Tasks</h1>
           </div>
-          <Link href={route('schedule-tasks.create')}>
+          <Link to="/schedule-tasks/create">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               New Schedule Task
@@ -308,175 +276,175 @@ export default function ScheduleTasksIndex({ tasks, filters }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>
-              Schedule Tasks ({tasks.total})
+              Schedule Tasks ({pagination.total})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleSort('name')}
-                      className="h-auto p-0 font-medium"
-                    >
-                      Name
-                      {filters.sort_by === 'name' && (
-                        <span className="ml-1">
-                          {filters.sort_order === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead>Device Group</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Frequency</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Execution</TableHead>
-                  <TableHead>Next Execution</TableHead>
-                  <TableHead>Success Rate</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tasks.data.map((task) => (
-                  <TableRow key={task.id}>
-                    <TableCell>
-                      <div>
-                        <Link
-                          href={route('schedule-tasks.show', task.id)}
-                          className="font-medium hover:underline"
-                        >
-                          {task.name}
-                        </Link>
-                        {task.description && (
-                          <p className="text-sm text-muted-foreground">{task.description}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {task.device_group_data?.name || 'Unknown Group'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getTaskTypeBadge(task.task_type)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {getFrequencyBadge(task.frequency)}
-                        <div className="text-xs text-muted-foreground">
-                          {task.human_readable_frequency}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(task.status)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {formatDateTime(task.last_executed_at)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {formatDateTime(task.next_execution_at)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <div className="text-sm font-medium">{task.success_rate}%</div>
-                        <div className="text-xs text-muted-foreground">
-                          ({task.success_count}/{task.execution_count})
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={route('schedule-tasks.show', task.id)}>
-                              View Details
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link href={route('schedule-tasks.edit', task.id)}>
-                              Edit
-                            </Link>
-                          </DropdownMenuItem>
-                          {task.can_execute && (
-                            <DropdownMenuItem
-                              onClick={() => handleTaskAction(task.id, 'execute')}
-                            >
-                              <Play className="mr-2 h-4 w-4" />
-                              Execute Now
-                            </DropdownMenuItem>
-                          )}
-                          {task.can_pause && (
-                            <DropdownMenuItem
-                              onClick={() => handleTaskAction(task.id, 'pause')}
-                            >
-                              <Pause className="mr-2 h-4 w-4" />
-                              Pause
-                            </DropdownMenuItem>
-                          )}
-                          {task.can_resume && (
-                            <DropdownMenuItem
-                              onClick={() => handleTaskAction(task.id, 'resume')}
-                            >
-                              <RotateCcw className="mr-2 h-4 w-4" />
-                              Resume
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-
-            {tasks.data.length === 0 && (
+            {loading ? (
               <div className="text-center py-8">
-                <p className="text-muted-foreground">No schedule tasks found.</p>
+                <p className="text-muted-foreground">Loading...</p>
               </div>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('name')}
+                          className="h-auto p-0 font-medium"
+                        >
+                          Name
+                          {sortBy === 'name' && (
+                            <span className="ml-1">
+                              {sortOrder === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </Button>
+                      </TableHead>
+                      <TableHead>Device Group</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Frequency</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last Execution</TableHead>
+                      <TableHead>Next Execution</TableHead>
+                      <TableHead>Success Rate</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tasks.map((task) => (
+                      <TableRow key={task.id}>
+                        <TableCell>
+                          <div>
+                            <Link
+                              to={`/schedule-tasks/${task.id}`}
+                              className="font-medium hover:underline"
+                            >
+                              {task.name}
+                            </Link>
+                            {task.description && (
+                              <p className="text-sm text-muted-foreground">{task.description}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {task.device_group_data?.name || 'Unknown Group'}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {getTaskTypeBadge(task.task_type)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {getFrequencyBadge(task.frequency)}
+                            <div className="text-xs text-muted-foreground">
+                              {task.human_readable_frequency}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(task.status)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {formatDateTime(task.last_executed_at)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {formatDateTime(task.next_execution_at)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm font-medium">{task.success_rate}%</div>
+                            <div className="text-xs text-muted-foreground">
+                              ({task.success_count}/{task.execution_count})
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link to={`/schedule-tasks/${task.id}`}>
+                                  View Details
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link to={`/schedule-tasks/${task.id}/edit`}>
+                                  Edit
+                                </Link>
+                              </DropdownMenuItem>
+                              {task.can_execute && (
+                                <DropdownMenuItem
+                                  onClick={() => handleTaskAction(task.id, 'execute')}
+                                >
+                                  <Play className="mr-2 h-4 w-4" />
+                                  Execute Now
+                                </DropdownMenuItem>
+                              )}
+                              {task.can_pause && (
+                                <DropdownMenuItem
+                                  onClick={() => handleTaskAction(task.id, 'pause')}
+                                >
+                                  <Pause className="mr-2 h-4 w-4" />
+                                  Pause
+                                </DropdownMenuItem>
+                              )}
+                              {task.can_resume && (
+                                <DropdownMenuItem
+                                  onClick={() => handleTaskAction(task.id, 'resume')}
+                                >
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Resume
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {tasks.length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No schedule tasks found.</p>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
 
         {/* Pagination */}
-        {tasks.last_page > 1 && (
+        {pagination.last_page > 1 && (
           <div className="flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
-              Showing {tasks.from} to {tasks.to} of {tasks.total} results
+              Showing {pagination.from} to {pagination.to} of {pagination.total} results
             </div>
             <div className="flex space-x-2">
-              {tasks.current_page > 1 && (
+              {pagination.current_page > 1 && (
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('page', String(tasks.current_page - 1));
-                    router.visit(url.toString());
-                  }}
+                  onClick={() => setPagination(prev => ({ ...prev, current_page: prev.current_page - 1 }))}
                 >
                   Previous
                 </Button>
               )}
-              {tasks.current_page < tasks.last_page && (
+              {pagination.current_page < pagination.last_page && (
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('page', String(tasks.current_page + 1));
-                    router.visit(url.toString());
-                  }}
+                  onClick={() => setPagination(prev => ({ ...prev, current_page: prev.current_page + 1 }))}
                 >
                   Next
                 </Button>

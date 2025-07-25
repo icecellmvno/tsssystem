@@ -11,6 +11,7 @@ type Config struct {
 	JWT          JWTConfig      `mapstructure:"jwt"`
 	Server       ServerConfig   `mapstructure:"server"`
 	RabbitMQ     RabbitMQConfig `mapstructure:"rabbitmq"`
+	Redis        RedisConfig    `mapstructure:"redis"`
 	WebSocketURL string         `mapstructure:"websocket_url"`
 }
 
@@ -36,6 +37,10 @@ type RabbitMQConfig struct {
 	Password string `mapstructure:"password"`
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port"`
+}
+
+type RedisConfig struct {
+	URL string `mapstructure:"url"`
 }
 
 func LoadConfig() (*Config, error) {

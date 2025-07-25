@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -227,13 +227,13 @@ export default function Environment({ envVars, sections }: Props) {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {backups.length === 0 ? (
+                  {backups?.length === 0 ? (
                     <div className="text-center py-8">
                       <Download className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
                       <p className="text-sm text-muted-foreground">No backups found</p>
                     </div>
                   ) : (
-                    backups.map((backup) => (
+                    backups?.map((backup) => (
                       <div key={backup.filename} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex-1">
                           <p className="text-sm font-medium">{backup.filename}</p>

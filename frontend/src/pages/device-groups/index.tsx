@@ -15,7 +15,7 @@ import type {
   VisibilityState,
 } from "@tanstack/react-table"
 import { toast } from 'sonner';
-import { Plus, Search, QrCode, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, QrCode, Edit, Trash2, Building2 } from 'lucide-react';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,7 +52,7 @@ export default function DeviceGroupsIndex() {
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = useState({})
     const [globalFilter, setGlobalFilter] = useState('')
-    const [selectedSitename, setSelectedSitename] = useState<string>('all');
+    const [selectedCountrySite, setSelectedCountrySite] = useState<string>('all');
     const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<DeviceGroup | null>(null);
     const [showQRDialog, setShowQRDialog] = useState(false);
     const [copiedApiKey, setCopiedApiKey] = useState<string | null>(null);
@@ -63,13 +63,11 @@ export default function DeviceGroupsIndex() {
     // Use store
     const { 
         deviceGroups, 
-        sitenames, 
-        websocketConfig,
-        loading, 
-        error,
+        countrySites, 
+        deviceGroupsLoading, 
+        deviceGroupsError,
         loadDeviceGroups, 
-        loadSitenames, 
-        loadWebsocketConfig,
+        loadCountrySites, 
         deleteDeviceGroup: deleteDeviceGroupFromStore 
     } = useDeviceGroupsStore();
 
@@ -85,19 +83,18 @@ export default function DeviceGroupsIndex() {
     useEffect(() => {
         const filters: DeviceGroupFilters = {
             search: undefined,
-            sitename_id: selectedSitename === 'all' ? undefined : parseInt(selectedSitename),
+            sitename_id: selectedCountrySite === 'all' ? undefined : parseInt(selectedCountrySite),
             sort_by: sorting.length > 0 ? sorting[0].id : 'created_at',
             sort_order: sorting.length > 0 ? sorting[0].desc ? 'desc' : 'asc' : 'desc',
             page: 1,
             per_page: 50,
         };
         loadDeviceGroups(filters);
-    }, [selectedSitename, sorting, loadDeviceGroups]);
+    }, [selectedCountrySite, sorting, loadDeviceGroups]);
 
     useEffect(() => {
-        loadSitenames();
-        loadWebsocketConfig();
-    }, [loadSitenames, loadWebsocketConfig]);
+        loadCountrySites();
+    }, [loadCountrySites]);
 
     const handleDelete = useCallback(async (id: number) => {
         try {
@@ -398,6 +395,33 @@ export default function DeviceGroupsIndex() {
                     )}
                 </div>
 
+                {/* Sitename Warning */}
+                                                    {countrySites?.length === 0 && (
+                    <Card className="border-yellow-200 bg-yellow-50">
+                        <CardContent className="p-4">
+                            <div className="flex items-center gap-3">
+                                <Building2 className="h-5 w-5 text-yellow-600" />
+                                <div>
+                                    <h3 className="font-semibold text-yellow-800">No Country Sites Available</h3>
+                                    <p className="text-sm text-yellow-700 mt-1">
+                                        You need to create at least one country site before creating device groups. 
+                                        Device groups must be associated with a country site.
+                                    </p>
+                                    <div className="mt-3">
+                                        <Button 
+                                            onClick={() => navigate('/country-sites/create')}
+                                            size="sm"
+                                            className="bg-yellow-600 hover:bg-yellow-700"
+                                        >
+                                            Create Sitename
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* Filters */}
                 <Card>
                     <CardHeader>
@@ -416,21 +440,21 @@ export default function DeviceGroupsIndex() {
                                     className="max-w-sm"
                                 />
                             </div>
-                            <Select value={selectedSitename} onValueChange={setSelectedSitename}>
+                                                            <Select value={selectedCountrySite} onValueChange={setSelectedCountrySite}>
                                 <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Filter by sitename" />
+                                    <SelectValue placeholder="Filter by country site" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Sitenames</SelectItem>
-                                    {sitenames.length > 0 ? (
-                                        sitenames.map((sitename) => (
-                                            <SelectItem key={sitename.id} value={sitename.id.toString()}>
-                                                {sitename.name}
+                                    <SelectItem value="all">All Country Sites</SelectItem>
+                                    {countrySites?.length > 0 ? (
+                                        countrySites.map((countrySite) => (
+                                            <SelectItem key={countrySite.id} value={countrySite.id.toString()}>
+                                                {countrySite.name}
                                             </SelectItem>
                                         ))
                                     ) : (
                                         <SelectItem value="loading" disabled>
-                                            Loading sitenames...
+                                            Loading country sites...
                                         </SelectItem>
                                     )}
                                 </SelectContent>

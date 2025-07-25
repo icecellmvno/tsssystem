@@ -1,21 +1,27 @@
 package handlers
 
 import (
+	"log"
 	"strconv"
 	"tsimsocketserver/database"
 	"tsimsocketserver/models"
+	"tsimsocketserver/redis"
+
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
 type SmppUserHandler struct {
-	db *gorm.DB
+	db    *gorm.DB
+	redis *redis.RedisService
 }
 
-func NewSmppUserHandler() *SmppUserHandler {
+func NewSmppUserHandler(redisService *redis.RedisService) *SmppUserHandler {
 	return &SmppUserHandler{
-		db: database.GetDB(),
+		db:    database.GetDB(),
+		redis: redisService,
 	}
 }
 
@@ -61,6 +67,34 @@ func (h *SmppUserHandler) CreateSmppUser(c *fiber.Ctx) error {
 			"message": err.Error(),
 		})
 	}
+
+	// --- REDIS EVENT ---
+	if h.redis != nil {
+		event := &redis.SmppUserEvent{
+			Type:      "USER_CREATED",
+			Timestamp: time.Now(),
+			Source:    "backend",
+			Data: map[string]interface{}{
+				"system_id":            smppUser.SystemID,
+				"password":             smppUser.Password,
+				"max_connection_speed": smppUser.MaxConnectionSpeed,
+				"is_active":            smppUser.IsActive,
+			},
+		}
+		if err := h.redis.PublishSmppUserEvent(event); err != nil {
+			log.Printf("Warning: Failed to publish SMPP user event to Redis: %v", err)
+		} else {
+			log.Printf("Successfully published SMPP user created event to Redis for: %s", smppUser.SystemID)
+		}
+
+		// Cache user data in Redis
+		if err := h.redis.CacheSmppUser(smppUser.SystemID, smppUser); err != nil {
+			log.Printf("Warning: Failed to cache SMPP user data in Redis: %v", err)
+		}
+	} else {
+		log.Printf("Warning: Redis service is nil, skipping event publication for user: %s", smppUser.SystemID)
+	}
+	// --- END REDIS EVENT ---
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "SMPP user created successfully",
@@ -232,21 +266,43 @@ func (h *SmppUserHandler) DeleteSmppUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check if user is currently online
-	if smppUser.IsOnline {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Cannot delete",
-			"message": "Cannot delete SMPP user while they are online",
-		})
-	}
-
-	// Delete the SMPP user
+	// Delete the SMPP user (permanently remove from database)
 	if err := h.db.Delete(&smppUser).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":   "Database error",
 			"message": err.Error(),
 		})
 	}
+
+	// --- REDIS EVENT ---
+	if h.redis != nil {
+		event := &redis.SmppUserEvent{
+			Type:      "USER_DELETED",
+			Timestamp: time.Now(),
+			Source:    "backend",
+			Data: map[string]interface{}{
+				"system_id":            smppUser.SystemID,
+				"password":             smppUser.Password,
+				"max_connection_speed": smppUser.MaxConnectionSpeed,
+				"is_active":            smppUser.IsActive,
+				"is_online":            smppUser.IsOnline,
+				"action":               "delete",
+			},
+		}
+		if err := h.redis.PublishSmppUserEvent(event); err != nil {
+			log.Printf("Warning: Failed to publish SMPP user deletion event to Redis: %v", err)
+		} else {
+			log.Printf("Successfully published SMPP user deletion event to Redis for: %s", smppUser.SystemID)
+		}
+
+		// Remove cached user data from Redis
+		if err := h.redis.DeleteCachedSmppUser(smppUser.SystemID); err != nil {
+			log.Printf("Warning: Failed to delete cached SMPP user data from Redis: %v", err)
+		}
+	} else {
+		log.Printf("Warning: Redis service is nil, skipping event publication for user: %s", smppUser.SystemID)
+	}
+	// --- END REDIS EVENT ---
 
 	return c.JSON(fiber.Map{
 		"message": "SMPP user deleted successfully",
@@ -291,6 +347,15 @@ func (h *SmppUserHandler) UpdateConnectionStatus(c *fiber.Ctx) error {
 			"error":   "Database error",
 			"message": err.Error(),
 		})
+	}
+
+	// Update connection status in Redis
+	if h.redis != nil {
+		if err := h.redis.UpdateUserConnectionStatus(smppUser.SystemID, request.IsOnline, request.IPAddress); err != nil {
+			log.Printf("Warning: Failed to update user connection status in Redis: %v", err)
+		} else {
+			log.Printf("Successfully updated connection status in Redis for user: %s", smppUser.SystemID)
+		}
 	}
 
 	return c.JSON(fiber.Map{

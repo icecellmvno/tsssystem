@@ -30,6 +30,15 @@ export interface DeviceAlert {
   timestamp: string;
 }
 
+export interface SmppUserStatusUpdate {
+  system_id: string;
+  session_id: string;
+  remote_addr: string;
+  bind_type: string;
+  is_online: boolean;
+  timestamp: string;
+}
+
 class WebSocketService {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -179,6 +188,9 @@ class WebSocketService {
       case 'alarm':
         this.handleAlarm(message.data);
         break;
+      case 'smpp_user_status_update':
+        this.handleSmppUserStatusUpdate(message.data as SmppUserStatusUpdate);
+        break;
       case 'connected':
         console.log('WebSocket connection confirmed');
         break;
@@ -265,6 +277,31 @@ class WebSocketService {
         }
       }
     });
+  }
+
+  private handleSmppUserStatusUpdate(data: SmppUserStatusUpdate) {
+    console.log('SMPP User Status Update:', data);
+    
+    // Show notification for status change
+    const statusText = data.is_online ? 'connected' : 'disconnected';
+    const icon = data.is_online ? '🟢' : '🔴';
+    
+    toast(`${icon} SMPP User ${statusText}`, {
+      description: `${data.system_id} (${data.bind_type}) - ${data.remote_addr}`,
+      duration: 4000,
+      action: {
+        label: 'View Users',
+        onClick: () => {
+          window.location.href = '/smpp-users';
+        }
+      }
+    });
+
+    // Dispatch custom event for components to listen to
+    const event = new CustomEvent('smpp-user-status-update', {
+      detail: data
+    });
+    window.dispatchEvent(event);
   }
 
   private notifyConnectionChange(connected: boolean) {

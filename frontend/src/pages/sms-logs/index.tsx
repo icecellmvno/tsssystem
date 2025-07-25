@@ -47,8 +47,8 @@ interface SmsLogItem {
     simcard_iccid: string | null;
     device_group_id: number | null;
     device_group: string | null;
-    sitename_id: number | null;
-    sitename: string | null;
+    country_site_id: number | null;
+    country_site: string | null;
     source_addr: string | null;
     source_username: string | null;
     destination_addr: string | null;
@@ -147,7 +147,7 @@ export default function SmsLogsIndex() {
     device_name: '',
     simcard_name: '',
     sim_slot: '',
-    sitename: '',
+            country_site: '',
     device_group: '',
     source_username: '',
     sort_by: 'created_at',
@@ -159,7 +159,7 @@ export default function SmsLogsIndex() {
     deviceNames: [],
     simcardNames: [],
     simSlots: [],
-    sitenames: [],
+            countrySites: [],
     deviceGroups: [],
     sourceUsernames: []
   });
@@ -285,7 +285,7 @@ export default function SmsLogsIndex() {
             device_name: '',
             simcard_name: '',
             sim_slot: '',
-            sitename: '',
+            country_site: '',
             device_group: '',
             source_username: '',
             sort_by: 'created_at',
@@ -490,20 +490,20 @@ export default function SmsLogsIndex() {
                                     </div>
                                     
                                     <div className="space-y-2">
-                                        <Label htmlFor="sitename" className="text-sm font-medium">Sitename</Label>
-                                        <Select value={filters.sitename} onValueChange={(value) => handleFilterChange('sitename', value)}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select sitename" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="">All sitenames</SelectItem>
-                                                {filterOptions.sitenames.map((sitename) => (
-                                                    <SelectItem key={sitename} value={sitename}>
-                                                        {sitename}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                                                    <Label htmlFor="country_site" className="text-sm font-medium">Country Site</Label>
+                            <Select value={filters.country_site} onValueChange={(value) => handleFilterChange('country_site', value)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select country site" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">All country sites</SelectItem>
+                                    {filterOptions.countrySites.map((countrySite) => (
+                                        <SelectItem key={countrySite} value={countrySite}>
+                                            {countrySite}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                                     </div>
                                     
                                     <div className="space-y-2">
@@ -839,9 +839,9 @@ export default function SmsLogsIndex() {
                                                     {item.device_group && (
                                                         <div className="text-xs text-blue-600 font-medium">Group: {item.device_group}</div>
                                                     )}
-                                                    {item.sitename && (
-                                                        <div className="text-xs text-green-600 font-medium">Site: {item.sitename}</div>
-                                                    )}
+                                                                        {item.country_site && (
+                        <div className="text-xs text-green-600 font-medium">Site: {item.country_site}</div>
+                    )}
                                                     
                                                     {/* SIM Card Bilgileri */}
                                                     {item.simcard_name && (

@@ -3,7 +3,7 @@ import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { Link } from 'react-router-dom';
-import { BookOpen, Folder, LayoutGrid, Smartphone, Users, Database, MessageSquare, AlertTriangle, Building2, Wifi, Route, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, PhoneOff, Send } from 'lucide-react';
+import { BookOpen, Folder, LayoutGrid, Smartphone, Users, Database, MessageSquare, AlertTriangle, Building2, Wifi, Route, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, PhoneOff, Send, Filter } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems = [
@@ -13,13 +13,13 @@ const mainNavItems = [
         icon: LayoutGrid,
     },
     {
-        title: 'Site Management',
+        title: 'Country Management',
         url: '#',
         icon: Building2,
         items: [
             {
-                title: 'Sitenames',
-                url: '/sitenames',
+                title: 'Country Sites',
+                url: '/country-sites',
             },
             {
                 title: 'Device Groups',
@@ -101,6 +101,11 @@ const mainNavItems = [
         title: 'Blacklist Numbers',
         url: '/blacklist-numbers',
         icon: PhoneOff,
+    },
+    {
+        title: 'Filters',
+        url: '/filters',
+        icon: Filter,
     },
     {
         title: 'MCC-MNC',

@@ -14,4 +14,15 @@ websocket_url: ws://192.168.9.4:7001/ws
 
 
 rabbitmq:
-  url: amqp://panel:panel123@localhost:5672/ 
+  url: amqp://guest:guest@localhost:5672/
+
+redis:
+  url: redis://localhost:6379
+
+smpp:
+  enquire_link_interval: 30s
+  session_timeout: 60s
+
+logging:
+  level: info
+  format: json 

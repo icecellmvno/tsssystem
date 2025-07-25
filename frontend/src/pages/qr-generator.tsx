@@ -18,7 +18,7 @@ import { type DeviceGroup } from '@/services/device-groups';
 
 interface QRConfig {
   device_group: string;
-  sitename: string;
+      country_site: string;
   websocket_url: string;
   api_key: string;
   queue_name: string;
@@ -57,7 +57,7 @@ export default function QRGenerator() {
 
   const [formData, setFormData] = useState({
     device_group: '',
-    sitename: '',
+            country_site: '',
     api_key: '',
     device_id: '',
     queue_name: 'device_queue',
@@ -130,7 +130,7 @@ export default function QRGenerator() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `qr-config-${formData.device_group}-${formData.sitename}.json`;
+            a.download = `qr-config-${formData.device_group}-${formData.country_site}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -171,13 +171,13 @@ export default function QRGenerator() {
                 </div>
 
                 <div>
-                  <Label htmlFor="sitename">Sitename *</Label>
-                  <Input
-                    id="sitename"
-                    value={formData.sitename}
-                    onChange={(e) => handleInputChange('sitename', e.target.value)}
-                    placeholder="Enter sitename"
-                  />
+                                          <Label htmlFor="country_site">Country Site *</Label>
+                        <Input
+                            id="country_site"
+                            value={formData.country_site}
+                            onChange={(e) => handleInputChange('country_site', e.target.value)}
+                            placeholder="Enter country site"
+                        />
                 </div>
 
                 <div>
@@ -450,7 +450,7 @@ export default function QRGenerator() {
                         <strong>Device Group:</strong> {qrConfig.device_group}
                       </div>
                       <div>
-                        <strong>Sitename:</strong> {qrConfig.sitename}
+                        <strong>Country Site:</strong> {qrConfig.country_site}
                       </div>
                       <div>
                         <strong>WebSocket URL:</strong> {qrConfig.websocket_url}

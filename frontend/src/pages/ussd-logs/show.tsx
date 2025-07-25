@@ -1,147 +1,164 @@
-import { Head, Link } from '@inertiajs/react';
+
+import { useState, useEffect } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { type BreadcrumbItem } from '@/types';
-import { ArrowLeft, Phone, MessageSquare, Hash, Calendar, DollarSign, Settings, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Phone, Hash, Calendar, AlertTriangle } from 'lucide-react';
+import { ussdLogsService, type UssdLog } from '@/services/ussd-logs';
+import { toast } from 'sonner';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: '/dashboard',
-    },
-    {
-        title: 'USSD Logs',
-        href: '/ussd-logs',
-    },
-    {
-        title: 'Details',
-        href: '#',
-    },
-];
+export default function UssdLogsShow() {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const [ussdLog, setUssdLog] = useState<UssdLog | null>(null);
+    const [loading, setLoading] = useState(true);
 
-interface UssdLogItem {
-    id: number;
-    session_id: string;
-    device_id: string;
-    ussd_code: string;
-    request_message: string | null;
-    response_message: string | null;
-    status: string;
-    sent_at: string | null;
-    received_at: string | null;
-    error_message: string | null;
-    metadata: any;
-    device_group_id: number | null;
-    created_at: string;
-    updated_at: string;
-}
+    const breadcrumbs: BreadcrumbItem[] = [
+        {
+            title: 'Dashboard',
+            href: '/dashboard',
+        },
+        {
+            title: 'USSD Logs',
+            href: '/ussd-logs',
+        },
+        {
+            title: 'Details',
+            href: '#',
+        },
+    ];
 
-interface Props {
-    ussdLog: UssdLogItem;
-}
+    useEffect(() => {
+        const fetchUssdLog = async () => {
+            if (!id) return;
+            
+            try {
+                setLoading(true);
+                const data = await ussdLogsService.getUssdLog(parseInt(id));
+                setUssdLog(data);
+            } catch (error) {
+                console.error('Error fetching USSD log:', error);
+                toast.error('Failed to fetch USSD log details');
+                navigate('/ussd-logs');
+            } finally {
+                setLoading(false);
+            }
+        };
 
-export default function UssdLogShow({ ussdLog }: Props) {
+        fetchUssdLog();
+    }, [id, navigate]);
+
     const getStatusBadgeVariant = (status: string) => {
-        switch (status?.toLowerCase()) {
-            case 'success':
+        switch (status) {
+            case 'completed':
                 return 'default';
-            case 'failed':
-                return 'destructive';
             case 'pending':
                 return 'secondary';
-            case 'timeout':
-                return 'outline';
+            case 'failed':
+                return 'destructive';
             default:
-                return 'secondary';
+                return 'outline';
         }
     };
 
-    const getStatusIcon = (status: string) => {
-        switch (status?.toLowerCase()) {
-            case 'success':
-                return <CheckCircle className="h-4 w-4 text-green-500" />;
-            case 'failed':
-                return <XCircle className="h-4 w-4 text-red-500" />;
-            default:
-                return <MessageSquare className="h-4 w-4 text-blue-500" />;
-        }
+    const formatDate = (dateString: string | null) => {
+        if (!dateString) return 'Not available';
+        return new Date(dateString).toLocaleString();
     };
+
+    if (loading) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                        <p className="mt-2 text-muted-foreground">Loading USSD log details...</p>
+                    </div>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    if (!ussdLog) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">USSD log not found</p>
+                        <Button onClick={() => navigate('/ussd-logs')} className="mt-4">
+                            Back to USSD Logs
+                        </Button>
+                    </div>
+                </div>
+            </AppLayout>
+        );
+    }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`USSD Log - ${ussdLog.session_id}`} />
-            
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/ussd-logs">
+                        <Link to="/ussd-logs">
                             <Button variant="outline" size="sm">
-                                <ArrowLeft className="mr-2 h-4 w-4" />
-                                Back to List
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Back to USSD Logs
                             </Button>
                         </Link>
                         <div>
-                            <h1 className="text-3xl font-bold tracking-tight">USSD Log Details</h1>
+                            <h1 className="text-2xl font-bold tracking-tight">USSD Log Details</h1>
                             <p className="text-muted-foreground">
                                 Session ID: {ussdLog.session_id}
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        {getStatusIcon(ussdLog.status)}
-                        <Badge variant={getStatusBadgeVariant(ussdLog.status)}>
-                            {ussdLog.status}
-                        </Badge>
-                    </div>
+                    <Badge variant={getStatusBadgeVariant(ussdLog.status)} className="text-sm">
+                        {ussdLog.status}
+                    </Badge>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* USSD Information */}
+                    {/* Basic Information */}
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <MessageSquare className="h-5 w-5" />
-                                USSD Information
+                                Basic Information
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className="text-sm font-medium text-muted-foreground">ID</label>
+                                    <p className="text-sm">{ussdLog.id}</p>
+                                </div>
+                                <div>
                                     <label className="text-sm font-medium text-muted-foreground">Session ID</label>
                                     <p className="text-sm font-mono">{ussdLog.session_id}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Device ID</label>
+                                    <p className="text-sm">{ussdLog.device_id}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Device Name</label>
+                                    <p className="text-sm">{ussdLog.device_name || 'Not available'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">SIM Slot</label>
+                                    <p className="text-sm">{ussdLog.sim_slot || 'Not available'}</p>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">USSD Code</label>
                                     <p className="text-sm font-mono">{ussdLog.ussd_code}</p>
                                 </div>
                             </div>
-                            
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Request Message</label>
-                                <div className="mt-1 p-3 bg-muted rounded-md">
-                                    <p className="text-sm whitespace-pre-wrap">{ussdLog.request_message || 'N/A'}</p>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Response Message</label>
-                                <div className="mt-1 p-3 bg-muted rounded-md">
-                                    <p className="text-sm whitespace-pre-wrap">{ussdLog.response_message || 'N/A'}</p>
-                                </div>
-                            </div>
-
-                            {ussdLog.error_message && (
-                                <div>
-                                    <label className="text-sm font-medium text-muted-foreground text-red-600">Error Message</label>
-                                    <div className="mt-1 p-3 bg-red-50 border border-red-200 rounded-md">
-                                        <p className="text-sm text-red-700 whitespace-pre-wrap">{ussdLog.error_message}</p>
-                                    </div>
-                                </div>
-                            )}
                         </CardContent>
                     </Card>
 
@@ -154,64 +171,62 @@ export default function UssdLogShow({ ussdLog }: Props) {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Device ID</label>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <Phone className="h-4 w-4 text-muted-foreground" />
-                                    <span className="text-sm font-mono">{ussdLog.device_id}</span>
-                                </div>
-                            </div>
-
-                            <Separator />
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Device Group ID</label>
-                                <p className="text-sm">{ussdLog.device_group_id || 'N/A'}</p>
-                            </div>
-
-                            {ussdLog.metadata && (
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Metadata</label>
-                                    <div className="mt-1 p-3 bg-muted rounded-md">
-                                        <pre className="text-xs overflow-auto">{JSON.stringify(ussdLog.metadata, null, 2)}</pre>
-                                    </div>
+                                    <label className="text-sm font-medium text-muted-foreground">Device IMEI</label>
+                                    <p className="text-sm font-mono">{ussdLog.device_imei || 'Not available'}</p>
                                 </div>
-                            )}
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Device IMSI</label>
+                                    <p className="text-sm font-mono">{ussdLog.device_imsi || 'Not available'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Device Group</label>
+                                    <p className="text-sm">{ussdLog.device_group || 'Not available'}</p>
+                                </div>
+                                <div>
+                                                            <label className="text-sm font-medium text-muted-foreground">Country Site</label>
+                        <p className="text-sm">{ussdLog.country_site || 'Not available'}</p>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
-                    {/* Status Information */}
-                    <Card>
+                    {/* Messages */}
+                    <Card className="lg:col-span-2">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
-                                <Settings className="h-5 w-5" />
-                                Status Information
+                                <MessageSquare className="h-5 w-5" />
+                                USSD Messages
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div>
-                                <label className="text-sm font-medium text-muted-foreground">Status</label>
-                                <div className="mt-1">
-                                    <Badge variant={getStatusBadgeVariant(ussdLog.status)}>
-                                        {ussdLog.status}
-                                    </Badge>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Sent At</label>
-                                    <p className="text-sm">
-                                        {ussdLog.sent_at ? new Date(ussdLog.sent_at).toLocaleString() : 'N/A'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Received At</label>
-                                    <p className="text-sm">
-                                        {ussdLog.received_at ? new Date(ussdLog.received_at).toLocaleString() : 'N/A'}
+                                <label className="text-sm font-medium text-muted-foreground">Request Message</label>
+                                <div className="mt-1 p-3 bg-muted rounded-md">
+                                    <p className="text-sm font-mono whitespace-pre-wrap">
+                                        {ussdLog.request_message || 'No request message'}
                                     </p>
                                 </div>
                             </div>
+                            <div>
+                                <label className="text-sm font-medium text-muted-foreground">Response Message</label>
+                                <div className="mt-1 p-3 bg-muted rounded-md">
+                                    <p className="text-sm font-mono whitespace-pre-wrap">
+                                        {ussdLog.response_message || 'No response message'}
+                                    </p>
+                                </div>
+                            </div>
+                            {ussdLog.error_message && (
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Error Message</label>
+                                    <div className="mt-1 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                                        <p className="text-sm text-destructive">
+                                            {ussdLog.error_message}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -223,21 +238,46 @@ export default function UssdLogShow({ ussdLog }: Props) {
                                 Timestamps
                             </CardTitle>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 gap-4">
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">Created At</label>
-                                    <p className="text-sm">{new Date(ussdLog.created_at).toLocaleString()}</p>
+                                    <p className="text-sm">{formatDate(ussdLog.created_at)}</p>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">Updated At</label>
-                                    <p className="text-sm">
-                                        {ussdLog.updated_at ? new Date(ussdLog.updated_at).toLocaleString() : 'N/A'}
-                                    </p>
+                                    <p className="text-sm">{formatDate(ussdLog.updated_at)}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Sent At</label>
+                                    <p className="text-sm">{formatDate(ussdLog.sent_at)}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Received At</label>
+                                    <p className="text-sm">{formatDate(ussdLog.received_at)}</p>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* Metadata */}
+                    {ussdLog.metadata && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Hash className="h-5 w-5" />
+                                    Metadata
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="p-3 bg-muted rounded-md">
+                                    <pre className="text-sm font-mono whitespace-pre-wrap">
+                                        {JSON.stringify(ussdLog.metadata, null, 2)}
+                                    </pre>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
             </div>
         </AppLayout>

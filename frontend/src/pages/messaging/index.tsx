@@ -24,7 +24,7 @@ import {
 interface DeviceGroup {
     id: number;
     device_group: string;
-    sitename: string;
+    country_site: string;
 }
 
 interface Device {
@@ -245,7 +245,7 @@ export default function MessagingIndex({ deviceGroups, devices }: Props) {
                         <SelectContent>
                             {deviceGroups.map((group) => (
                                 <SelectItem key={group.id} value={group.id.toString()}>
-                                    {group.device_group} ({group.sitename})
+                                    {group.device_group} ({group.country_site})
                                 </SelectItem>
                             ))}
                         </SelectContent>

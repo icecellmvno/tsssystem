@@ -7,6 +7,7 @@ import (
 	"tsimsocketserver/config"
 	"tsimsocketserver/database"
 	"tsimsocketserver/rabbitmq"
+	"tsimsocketserver/redis"
 	"tsimsocketserver/routes"
 	"tsimsocketserver/websocket"
 
@@ -41,6 +42,14 @@ func main() {
 		log.Printf("Warning: Failed to connect to RabbitMQ: %v", err)
 	} else {
 		log.Println("Successfully connected to RabbitMQ")
+	}
+
+	// Initialize Redis service
+	redisService, err := redis.NewRedisService(cfg.Redis.URL)
+	if err != nil {
+		log.Printf("Warning: Failed to connect to Redis: %v", err)
+	} else {
+		log.Println("Successfully connected to Redis")
 	}
 
 	// Initialize WebSocket server
@@ -78,7 +87,7 @@ func main() {
 	}))
 
 	// Setup routes
-	routes.SetupRoutes(app, cfg, wsServer)
+	routes.SetupRoutes(app, cfg, wsServer, redisService)
 
 	// Start server
 	log.Printf("Server starting on port %s", cfg.Server.Port)

@@ -30,8 +30,8 @@ interface SmsLogItem {
     simcard_iccid: string;
     device_group_id: number;
     device_group: string;
-    sitename_id: number;
-    sitename: string;
+    country_site_id: number;
+    country_site: string;
     source_addr: string;
     source_username: string;
     destination_addr: string;
@@ -401,10 +401,10 @@ export default function SmsLogShow() {
                                             <p className="text-sm font-semibold">{smsLog.device_group}</p>
                                         </div>
                                     )}
-                                    {smsLog.sitename && (
+                                    {smsLog.country_site && (
                                         <div>
-                                            <label className="text-sm font-medium text-muted-foreground">Sitename</label>
-                                            <p className="text-sm font-semibold">{smsLog.sitename}</p>
+                                            <label className="text-sm font-medium text-muted-foreground">Country Site</label>
+                                            <p className="text-sm font-semibold">{smsLog.country_site}</p>
                                         </div>
                                     )}
                                     {smsLog.device_group_id && (

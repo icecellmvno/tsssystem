@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+
 import { LoaderCircle } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
@@ -96,3 +96,4 @@ export default function ResetPassword({ token, email }: ResetPasswordProps) {
         </AuthLayout>
     );
 }
+

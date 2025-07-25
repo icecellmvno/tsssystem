@@ -98,6 +98,17 @@ func (h *BulkSmsHandler) SendBulkSms(c *fiber.Ctx) error {
 		device := devices[deviceIndex%len(devices)]
 		deviceIndex++
 
+		// Get SIM card information for the specified slot
+		var deviceSimCard models.DeviceSimCard
+		var simcardName, simcardNumber, simcardICCID, deviceIMSI *string
+		
+		if err := database.GetDB().Where("device_imei = ? AND slot_index = ?", device.IMEI, req.SimSlot).First(&deviceSimCard).Error; err == nil {
+			simcardName = &deviceSimCard.CarrierName
+			simcardNumber = &deviceSimCard.PhoneNumber
+			simcardICCID = &deviceSimCard.ICCID
+			deviceIMSI = &deviceSimCard.IMSI
+		}
+
 		// Generate unique message ID
 		messageID := utils.GenerateMessageID()
 
@@ -106,7 +117,12 @@ func (h *BulkSmsHandler) SendBulkSms(c *fiber.Ctx) error {
 			MessageID:               messageID,
 			DeviceID:                &device.IMEI,
 			DeviceName:              &device.Name,
+			DeviceIMEI:              &device.IMEI,
+			DeviceIMSI:              deviceIMSI,
+			SimcardName:             simcardName,
 			SimSlot:                 &req.SimSlot,
+			SimcardNumber:           simcardNumber,
+			SimcardICCID:            simcardICCID,
 			DestinationAddr:         &phoneNumber,
 			Message:                 &req.Message,
 			MessageLength:           len(req.Message),

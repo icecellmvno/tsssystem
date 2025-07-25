@@ -1,4 +1,7 @@
-import { Head, Link } from '@inertiajs/react';
+
+import { useState, useEffect } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { type BreadcrumbItem } from '@/types';
 import { ArrowLeft, Smartphone, Signal, Wifi, Globe, CreditCard, Settings, Edit } from 'lucide-react';
+import { simCardsService, type SimCard } from '@/services/sim-cards';
+import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -22,98 +27,125 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-interface SimCardItem {
-    id: number;
-    slot_index: number;
-    subscription_id: number;
-    display_name: string;
-    carrier_name: string;
-    country_iso: string;
-    number: string;
-    imei: string;
-    iccid: string;
-    imsi: string;
-    network_mcc: string;
-    network_mnc: string;
-    sim_mcc: string;
-    sim_mnc: string;
-    network_operator_name: string;
-    sim_operator_name: string;
-    roaming: boolean;
-    signal_strength: number;
-    signal_dbm: number;
-    signal_type: string;
-    rsrp: number;
-    rsrq: number;
-    rssnr: number;
-    cqi: number;
-    network_type: string;
-    is_active: boolean;
-    total_delivered: number;
-    total_sent: number;
-    total_waiting: number;
-    main_balance: number;
-    sms_balance: number;
-    sms_limit: number;
-    device_id: number;
-    device_name: string;
-    sitename: string;
-    device_group_name: string;
-    created_at: string;
-    updated_at: string;
-    status_badge_variant: string;
-    roaming_badge_variant: string;
-    signal_strength_badge_variant: string;
-    network_type_badge_variant: string;
-    success_rate: number;
-    formatted_main_balance: string;
-    formatted_sms_balance: string;
-    formatted_sms_limit: string;
-    signal_strength_text: string;
-}
+export default function SimCardShow() {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const [simCard, setSimCard] = useState<SimCard | null>(null);
+    const [loading, setLoading] = useState(true);
 
-interface Props {
-    simCard: SimCardItem;
-}
+    useEffect(() => {
+        const fetchSimCard = async () => {
+            if (!id) return;
+            
+            try {
+                setLoading(true);
+                const response = await simCardsService.getSimCard(parseInt(id));
+                setSimCard(response.data);
+            } catch (error) {
+                console.error('Error fetching SIM card:', error);
+                toast.error('Failed to fetch SIM card details');
+                navigate('/sim-cards');
+            } finally {
+                setLoading(false);
+            }
+        };
 
-export default function SimCardShow({ simCard }: Props) {
+        fetchSimCard();
+    }, [id, navigate]);
+
+    if (loading) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                        <p className="mt-2 text-muted-foreground">Loading SIM card details...</p>
+                    </div>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    if (!simCard) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <p className="text-muted-foreground">SIM card not found</p>
+                        <Link to="/sim-cards">
+                            <Button className="mt-4">Back to SIM Cards</Button>
+                        </Link>
+                    </div>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    const getStatusBadgeVariant = (isActive: boolean) => {
+        return isActive ? 'default' : 'destructive';
+    };
+
+    const getRoamingBadgeVariant = (roaming: boolean) => {
+        return roaming ? 'destructive' : 'default';
+    };
+
+    const getNetworkTypeBadgeVariant = (networkType: string) => {
+        switch (networkType) {
+            case '5G':
+                return 'default';
+            case '4G':
+                return 'outline';
+            case '3G':
+                return 'secondary';
+            case '2G':
+                return 'destructive';
+            default:
+                return 'secondary';
+        }
+    };
+
+    const getSignalStrengthBadgeVariant = (signalStrength: number) => {
+        if (signalStrength >= 75) return 'default';
+        if (signalStrength >= 50) return 'outline';
+        return 'destructive';
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+        }).format(amount);
+    };
+
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleString();
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`SIM Card - ${simCard.display_name}`} />
-            
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
+            <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/sim-cards">
+                        <Link to="/sim-cards">
                             <Button variant="outline" size="sm">
-                                <ArrowLeft className="mr-2 h-4 w-4" />
-                                Back to List
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Back to SIM Cards
                             </Button>
                         </Link>
                         <div>
-                            <h1 className="text-3xl font-bold tracking-tight">SIM Card Details</h1>
+                            <h1 className="text-2xl font-bold tracking-tight">SIM Card Details</h1>
                             <p className="text-muted-foreground">
                                 {simCard.display_name} - Slot {simCard.slot_index}
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Badge variant={simCard.status_badge_variant}>
-                            {simCard.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                        {simCard.roaming && (
-                            <Badge variant={simCard.roaming_badge_variant}>
-                                Roaming
-                            </Badge>
-                        )}
-                        <Link href={`/sim-cards/${simCard.id}/edit`}>
-                            <Button size="sm">
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                            </Button>
-                        </Link>
-                    </div>
+                    <Link to={`/sim-cards/${simCard.id}/edit`}>
+                        <Button>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit SIM Card
+                        </Button>
+                    </Link>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -128,101 +160,38 @@ export default function SimCardShow({ simCard }: Props) {
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className="text-sm font-medium text-muted-foreground">ID</label>
+                                    <p className="text-sm">{simCard.id}</p>
+                                </div>
+                                <div>
                                     <label className="text-sm font-medium text-muted-foreground">Slot Index</label>
                                     <p className="text-sm">Slot {simCard.slot_index}</p>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">Subscription ID</label>
-                                    <p className="text-sm">{simCard.subscription_id || 'N/A'}</p>
+                                    <p className="text-sm">{simCard.subscription_id}</p>
                                 </div>
-                            </div>
-                            
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Display Name</label>
-                                <p className="text-sm font-medium">{simCard.display_name}</p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Carrier Name</label>
-                                    <p className="text-sm">{simCard.carrier_name}</p>
+                                    <label className="text-sm font-medium text-muted-foreground">Display Name</label>
+                                    <p className="text-sm">{simCard.display_name || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Carrier</label>
+                                    <p className="text-sm">{simCard.carrier_name || 'N/A'}</p>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">Country</label>
-                                    <p className="text-sm">{simCard.country_iso}</p>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Phone Number</label>
-                                <p className="text-sm">{simCard.number}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Device Information */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Wifi className="h-5 w-5" />
-                                Device Information
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Device Name</label>
-                                <p className="text-lg font-semibold">{simCard.device_name || 'N/A'}</p>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Device ID</label>
-                                <p className="text-lg font-semibold">{simCard.device_id || 'N/A'}</p>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Sitename</label>
-                                <p className="text-lg font-semibold">{simCard.sitename || 'N/A'}</p>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Device Group</label>
-                                <p className="text-lg font-semibold">{simCard.device_group_name || 'N/A'}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Technical Information */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Settings className="h-5 w-5" />
-                                Technical Information
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">IMEI</label>
-                                <p className="text-sm font-mono">{simCard.imei}</p>
-                            </div>
-                            
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">ICCID</label>
-                                <p className="text-sm font-mono">{simCard.iccid}</p>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">IMSI</label>
-                                <p className="text-sm font-mono">{simCard.imsi}</p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Network MCC</label>
-                                    <p className="text-sm">{simCard.network_mcc}</p>
+                                    <p className="text-sm">{simCard.country_iso || 'N/A'}</p>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Network MNC</label>
-                                    <p className="text-sm">{simCard.network_mnc}</p>
+                                    <label className="text-sm font-medium text-muted-foreground">Phone Number</label>
+                                    <p className="text-sm font-mono">{simCard.number || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Status</label>
+                                    <Badge variant={getStatusBadgeVariant(simCard.is_active)}>
+                                        {simCard.is_active ? 'Active' : 'Inactive'}
+                                    </Badge>
                                 </div>
                             </div>
                         </CardContent>
@@ -239,54 +208,66 @@ export default function SimCardShow({ simCard }: Props) {
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Network Type</label>
+                                    <Badge variant={getNetworkTypeBadgeVariant(simCard.network_type)}>
+                                        {simCard.network_type || 'N/A'}
+                                    </Badge>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Roaming</label>
+                                    <Badge variant={getRoamingBadgeVariant(simCard.roaming)}>
+                                        {simCard.roaming ? 'Roaming' : 'Local'}
+                                    </Badge>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Network Operator</label>
+                                    <p className="text-sm">{simCard.network_operator_name || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">SIM Operator</label>
+                                    <p className="text-sm">{simCard.sim_operator_name || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Network MCC</label>
+                                    <p className="text-sm">{simCard.network_mcc || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Network MNC</label>
+                                    <p className="text-sm">{simCard.network_mnc || 'N/A'}</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Technical Details */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Settings className="h-5 w-5" />
+                                Technical Details
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">IMEI</label>
+                                    <p className="text-sm font-mono">{simCard.imei || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">ICCID</label>
+                                    <p className="text-sm font-mono">{simCard.iccid || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">IMSI</label>
+                                    <p className="text-sm font-mono">{simCard.imsi || 'N/A'}</p>
+                                </div>
+                                <div>
                                     <label className="text-sm font-medium text-muted-foreground">SIM MCC</label>
-                                    <p className="text-sm">{simCard.sim_mcc}</p>
+                                    <p className="text-sm">{simCard.sim_mcc || 'N/A'}</p>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">SIM MNC</label>
-                                    <p className="text-sm">{simCard.sim_mnc}</p>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Network Operator</label>
-                                <p className="text-sm">{simCard.network_operator_name}</p>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">SIM Operator</label>
-                                <p className="text-sm">{simCard.sim_operator_name}</p>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Network Type</label>
-                                <div className="mt-1">
-                                    <Badge variant={simCard.network_type_badge_variant}>
-                                        {simCard.network_type}
-                                    </Badge>
-                                </div>
-                            </div>
-
-                            <Separator />
-
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={simCard.roaming}
-                                        readOnly
-                                        className="rounded"
-                                    />
-                                    <label className="text-sm">Roaming</label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={simCard.is_active}
-                                        readOnly
-                                        className="rounded"
-                                    />
-                                    <label className="text-sm">Active</label>
+                                    <p className="text-sm">{simCard.sim_mnc || 'N/A'}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -304,24 +285,18 @@ export default function SimCardShow({ simCard }: Props) {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">Signal Strength</label>
-                                    <div className="mt-1">
-                                        <Badge variant={simCard.signal_strength_badge_variant}>
-                                            {simCard.signal_strength_text}
-                                        </Badge>
-                                    </div>
+                                    <Badge variant={getSignalStrengthBadgeVariant(simCard.signal_strength)}>
+                                        {simCard.signal_strength}%
+                                    </Badge>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Signal dBm</label>
+                                    <label className="text-sm font-medium text-muted-foreground">Signal DBM</label>
                                     <p className="text-sm">{simCard.signal_dbm} dBm</p>
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Signal Type</label>
-                                <p className="text-sm">{simCard.signal_type}</p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Signal Type</label>
+                                    <p className="text-sm">{simCard.signal_type || 'N/A'}</p>
+                                </div>
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">RSRP</label>
                                     <p className="text-sm">{simCard.rsrp} dBm</p>
@@ -330,9 +305,6 @@ export default function SimCardShow({ simCard }: Props) {
                                     <label className="text-sm font-medium text-muted-foreground">RSRQ</label>
                                     <p className="text-sm">{simCard.rsrq} dB</p>
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">RSSNR</label>
                                     <p className="text-sm">{simCard.rssnr} dB</p>
@@ -345,28 +317,27 @@ export default function SimCardShow({ simCard }: Props) {
                         </CardContent>
                     </Card>
 
-                    {/* Balance Information */}
+                    {/* Balance and Limits */}
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <CreditCard className="h-5 w-5" />
-                                Balance Information
+                                Balance and Limits
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium text-muted-foreground">Main Balance</label>
-                                <p className="text-lg font-semibold">₺{simCard.formatted_main_balance}</p>
-                            </div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Main Balance</label>
+                                    <p className="text-sm font-medium">{simCard.formatted_main_balance}</p>
+                                </div>
+                                <div>
                                     <label className="text-sm font-medium text-muted-foreground">SMS Balance</label>
-                                    <p className="text-sm">{simCard.formatted_sms_balance}</p>
+                                    <p className="text-sm">{simCard.formatted_sms_balance} SMS</p>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">SMS Limit</label>
-                                    <p className="text-sm">{simCard.formatted_sms_limit}</p>
+                                    <p className="text-sm">{simCard.formatted_sms_limit} SMS</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -380,75 +351,78 @@ export default function SimCardShow({ simCard }: Props) {
                                 SMS Statistics
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-6">
-                            {/* Summary Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                        <span className="text-sm font-medium text-green-700">Delivered</span>
-                                    </div>
-                                    <p className="text-2xl font-bold text-green-600">{simCard.total_delivered.toLocaleString()}</p>
-                                    <p className="text-xs text-green-600 mt-1">
-                                        {simCard.total_sent > 0 ? Math.round((simCard.total_delivered / simCard.total_sent) * 100) : 0}% of total sent
-                                    </p>
-                                </div>
-                                
-                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                                        <span className="text-sm font-medium text-blue-700">Sent</span>
-                                    </div>
-                                    <p className="text-2xl font-bold text-blue-600">{simCard.total_sent.toLocaleString()}</p>
-                                    <p className="text-xs text-blue-600 mt-1">Total messages sent</p>
-                                </div>
-                                
-                                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                                        <span className="text-sm font-medium text-yellow-700">Waiting</span>
-                                    </div>
-                                    <p className="text-2xl font-bold text-yellow-600">{simCard.total_waiting.toLocaleString()}</p>
-                                    <p className="text-xs text-yellow-600 mt-1">Pending delivery</p>
-                                </div>
-                            </div>
-
-                            {/* Success Rate */}
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-medium text-gray-700">Success Rate</span>
-                                    <span className="text-lg font-bold text-gray-900">{simCard.success_rate}%</span>
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                    <div 
-                                        className="bg-green-500 h-2 rounded-full transition-all duration-300" 
-                                        style={{ width: `${Math.min(simCard.success_rate, 100)}%` }}
-                                    ></div>
-                                </div>
-                                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                    <span>0%</span>
-                                    <span>100%</span>
-                                </div>
-                            </div>
-
-                            {/* Additional Stats */}
+                        <CardContent className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Failed Messages</label>
-                                    <p className="text-lg font-semibold text-red-600">
-                                        {Math.max(0, simCard.total_sent - simCard.total_delivered - simCard.total_waiting)}
-                                    </p>
+                                    <label className="text-sm font-medium text-muted-foreground">Total Sent</label>
+                                    <p className="text-sm font-medium">{simCard.total_sent.toLocaleString()}</p>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Delivery Rate</label>
-                                    <p className="text-lg font-semibold">
-                                        {simCard.total_sent > 0 ? Math.round((simCard.total_delivered / simCard.total_sent) * 100) : 0}%
-                                    </p>
+                                    <label className="text-sm font-medium text-muted-foreground">Total Delivered</label>
+                                    <p className="text-sm font-medium text-green-600">{simCard.total_delivered.toLocaleString()}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Total Waiting</label>
+                                    <p className="text-sm font-medium text-yellow-600">{simCard.total_waiting.toLocaleString()}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Success Rate</label>
+                                    <p className="text-sm font-medium">{simCard.success_rate.toFixed(1)}%</p>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Device Information */}
+                                    {(simCard.device_name || simCard.country_site || simCard.device_group_name) && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Device Information</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {simCard.device_name && (
+                                    <div>
+                                        <label className="text-sm font-medium text-muted-foreground">Device Name</label>
+                                        <p className="text-sm">{simCard.device_name}</p>
+                                    </div>
+                                )}
+                                                    {simCard.country_site && (
+                        <div>
+                            <label className="text-sm font-medium text-muted-foreground">Country Site</label>
+                            <p className="text-sm">{simCard.country_site}</p>
+                        </div>
+                    )}
+                                {simCard.device_group_name && (
+                                    <div>
+                                        <label className="text-sm font-medium text-muted-foreground">Device Group</label>
+                                        <p className="text-sm">{simCard.device_group_name}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Timestamps */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Timestamps</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-sm font-medium text-muted-foreground">Created At</label>
+                                <p className="text-sm">{formatDate(simCard.created_at)}</p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-muted-foreground">Updated At</label>
+                                <p className="text-sm">{formatDate(simCard.updated_at)}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         </AppLayout>
     );

@@ -1,59 +1,70 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { deviceGroupService, type DeviceGroup } from '@/services/device-groups';
-import { apiClient } from '@/services/api-client';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { deviceGroupService, type DeviceGroup } from '@/services/device-groups';
 import { 
     Building2, 
     Settings, 
+    Shield, 
+    Smartphone, 
+    MessageSquare, 
     AlertTriangle, 
-    Battery, 
-    Wifi, 
-    Clock, 
-    CreditCard, 
+    Save, 
+    ArrowLeft, 
+    ArrowRight,
     CheckCircle,
-    ChevronLeft,
-    ChevronRight
+    Circle,
+    Clock,
+    CreditCard,
+    Wifi,
+    Battery,
+    Signal,
+    Bell,
+    Zap,
+    Gauge,
+    Hash,
+    Calendar,
+    Timer,
+    Lock,
+    Unlock
 } from 'lucide-react';
-
-
 
 interface Props {
     deviceGroup?: DeviceGroup | null;
-    sitenames: Array<{ id: number; sitename: string }>;
+    countrySites: Array<{ id: number; country_site: string }>;
     onSuccess: () => void;
     onCancel: () => void;
 }
 
 const steps = [
     { id: 1, title: 'Basic Information', icon: Building2 },
-    { id: 2, title: 'Alarm Settings', icon: AlertTriangle },
-    { id: 3, title: 'SMS Limits', icon: CreditCard },
-    { id: 4, title: 'Auto Actions', icon: Settings },
-    { id: 5, title: 'Review & Save', icon: CheckCircle },
+    { id: 2, title: 'Device Settings', icon: Settings },
+    { id: 3, title: 'Alarm Settings', icon: AlertTriangle },
+    { id: 4, title: 'SMS Limits', icon: MessageSquare },
+    { id: 5, title: 'Review & Create', icon: CheckCircle }
 ];
 
-export default function DeviceGroupForm({ deviceGroup, sitenames, onSuccess, onCancel }: Props) {
+export default function DeviceGroupForm({ deviceGroup, countrySites, onSuccess, onCancel }: Props) {
     const [currentStep, setCurrentStep] = useState(1);
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [processing, setProcessing] = useState(false);
+    const [loading, setLoading] = useState(false);
 
     const [formData, setFormData] = useState({
         device_group: deviceGroup?.device_group || '',
-        description: '', // Description field doesn't exist in DeviceGroup interface
-        sitename: deviceGroup?.sitename || '',
-        sitename_id: deviceGroup?.sitename_id || 0,
+        country_site: deviceGroup?.country_site || '',
+        country_site_id: deviceGroup?.country_site_id || 0,
         device_type: deviceGroup?.device_type || 'android',
         status: deviceGroup?.status || 'inactive',
+        websocket_url: deviceGroup?.websocket_url || '',
+        api_key: deviceGroup?.api_key || '',
+        queue_name: deviceGroup?.queue_name || '',
         battery_low_threshold: deviceGroup?.battery_low_threshold || 20,
         error_count_threshold: deviceGroup?.error_count_threshold || 5,
         offline_threshold_minutes: deviceGroup?.offline_threshold_minutes || 5,
@@ -64,7 +75,7 @@ export default function DeviceGroupForm({ deviceGroup, sitenames, onSuccess, onC
         enable_offline_alarms: deviceGroup?.enable_offline_alarms ?? true,
         enable_signal_alarms: deviceGroup?.enable_signal_alarms ?? true,
         enable_sim_balance_alarms: deviceGroup?.enable_sim_balance_alarms ?? true,
-        auto_disable_sim_on_alarm: deviceGroup ? (deviceGroup.auto_disable_sim_on_alarm ?? false) : false,
+        auto_disable_sim_on_alarm: deviceGroup?.auto_disable_sim_on_alarm ?? false,
         sim1_daily_sms_limit: deviceGroup?.sim1_daily_sms_limit || 100,
         sim1_monthly_sms_limit: deviceGroup?.sim1_monthly_sms_limit || 1000,
         sim2_daily_sms_limit: deviceGroup?.sim2_daily_sms_limit || 100,
@@ -75,895 +86,720 @@ export default function DeviceGroupForm({ deviceGroup, sitenames, onSuccess, onC
         sim2_guard_interval: deviceGroup?.sim2_guard_interval || 1,
     });
 
-    // Update form data when deviceGroup prop changes
-    useEffect(() => {
-        if (deviceGroup && deviceGroup.id) {
-            setFormData({
-                device_group: deviceGroup.device_group || '',
-                description: '', // Description field doesn't exist in DeviceGroup interface
-                sitename: deviceGroup.sitename || '',
-                sitename_id: deviceGroup.sitename_id || 0,
-                device_type: deviceGroup.device_type || 'android',
-                status: deviceGroup.status || 'inactive',
-                battery_low_threshold: deviceGroup.battery_low_threshold || 20,
-                error_count_threshold: deviceGroup.error_count_threshold || 5,
-                offline_threshold_minutes: deviceGroup.offline_threshold_minutes || 5,
-                signal_low_threshold: deviceGroup.signal_low_threshold || 2,
-                low_balance_threshold: String(deviceGroup.low_balance_threshold || '10.00'),
-                enable_battery_alarms: deviceGroup.enable_battery_alarms ?? true,
-                enable_error_alarms: deviceGroup.enable_error_alarms ?? true,
-                enable_offline_alarms: deviceGroup.enable_offline_alarms ?? true,
-                enable_signal_alarms: deviceGroup.enable_signal_alarms ?? true,
-                enable_sim_balance_alarms: deviceGroup.enable_sim_balance_alarms ?? true,
-                auto_disable_sim_on_alarm: deviceGroup.auto_disable_sim_on_alarm ?? false,
-                sim1_daily_sms_limit: deviceGroup.sim1_daily_sms_limit || 100,
-                sim1_monthly_sms_limit: deviceGroup.sim1_monthly_sms_limit || 1000,
-                sim2_daily_sms_limit: deviceGroup.sim2_daily_sms_limit || 100,
-                sim2_monthly_sms_limit: deviceGroup.sim2_monthly_sms_limit || 1000,
-                enable_sms_limits: deviceGroup.enable_sms_limits ?? false,
-                sms_limit_reset_hour: deviceGroup.sms_limit_reset_hour || 0,
-                sim1_guard_interval: deviceGroup.sim1_guard_interval || 1,
-                sim2_guard_interval: deviceGroup.sim2_guard_interval || 1,
-            });
-        } else {
-            // Reset to defaults when no deviceGroup or creating new
-            setFormData({
-                device_group: '',
-                description: '',
-                sitename: '',
-                sitename_id: 0,
-                device_type: 'android',
-                status: 'inactive',
-                battery_low_threshold: 20,
-                error_count_threshold: 5,
-                offline_threshold_minutes: 5,
-                signal_low_threshold: 2,
-                low_balance_threshold: '10.00',
-                enable_battery_alarms: true,
-                enable_error_alarms: true,
-                enable_offline_alarms: true,
-                enable_signal_alarms: true,
-                enable_sim_balance_alarms: true,
-                auto_disable_sim_on_alarm: false,
-                sim1_daily_sms_limit: 100,
-                sim1_monthly_sms_limit: 1000,
-                sim2_daily_sms_limit: 100,
-                sim2_monthly_sms_limit: 1000,
-                enable_sms_limits: false,
-                sms_limit_reset_hour: 0,
-                sim1_guard_interval: 1,
-                sim2_guard_interval: 1,
-            });
+    const handleInputChange = (field: string, value: string | number | boolean) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        if (errors[field]) {
+            setErrors(prev => ({ ...prev, [field]: '' }));
         }
-    }, [deviceGroup]);
+    };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        // Validate form before submission
-        const errors: Record<string, string> = {};
-        
-        // Device group name validation
-        if (!formData.device_group.trim()) {
-            errors.device_group = 'Group name is required';
-        } else {
-            // Alphanumeric validation (no spaces, only letters, numbers, and underscores)
-            const alphanumericRegex = /^[a-zA-Z0-9_]+$/;
-            if (!alphanumericRegex.test(formData.device_group)) {
-                errors.device_group = 'Group name can only contain letters, numbers, and underscores (no spaces or special characters)';
-            }
-            
-            // Length validation
-            if (formData.device_group.length < 3) {
-                errors.device_group = 'Group name must be at least 3 characters long';
-            } else if (formData.device_group.length > 50) {
-                errors.device_group = 'Group name cannot exceed 50 characters';
-            }
+    const validateStep = (step: number): boolean => {
+        const newErrors: Record<string, string> = {};
+
+        switch (step) {
+            case 1:
+                if (!formData.device_group.trim()) {
+                    newErrors.device_group = 'Device group name is required';
+                }
+                if (!formData.country_site_id) {
+                    newErrors.country_site = 'Country site is required';
+                }
+                if (!formData.websocket_url.trim()) {
+                    newErrors.websocket_url = 'WebSocket URL is required';
+                }
+                break;
+            case 2:
+                if (formData.battery_low_threshold < 0 || formData.battery_low_threshold > 100) {
+                    newErrors.battery_low_threshold = 'Battery threshold must be between 0 and 100';
+                }
+                if (formData.error_count_threshold < 1) {
+                    newErrors.error_count_threshold = 'Error count threshold must be at least 1';
+                }
+                if (formData.offline_threshold_minutes < 1) {
+                    newErrors.offline_threshold_minutes = 'Offline threshold must be at least 1 minute';
+                }
+                if (formData.signal_low_threshold < 0) {
+                    newErrors.signal_low_threshold = 'Signal threshold must be at least 0';
+                }
+                break;
+            case 4:
+                if (formData.sim1_daily_sms_limit < 0) {
+                    newErrors.sim1_daily_sms_limit = 'Daily SMS limit must be at least 0';
+                }
+                if (formData.sim1_monthly_sms_limit < 0) {
+                    newErrors.sim1_monthly_sms_limit = 'Monthly SMS limit must be at least 0';
+                }
+                if (formData.sim2_daily_sms_limit < 0) {
+                    newErrors.sim2_daily_sms_limit = 'Daily SMS limit must be at least 0';
+                }
+                if (formData.sim2_monthly_sms_limit < 0) {
+                    newErrors.sim2_monthly_sms_limit = 'Monthly SMS limit must be at least 0';
+                }
+                if (formData.sms_limit_reset_hour < 0 || formData.sms_limit_reset_hour > 23) {
+                    newErrors.sms_limit_reset_hour = 'Reset hour must be between 0 and 23';
+                }
+                break;
         }
-        
-        // Sitename validation
-        if (!formData.sitename_id) {
-            errors.sitename = 'Sitename is required';
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handleNext = () => {
+        if (validateStep(currentStep)) {
+            setCurrentStep(prev => Math.min(prev + 1, steps.length));
         }
-        
-        if (Object.keys(errors).length > 0) {
-            setErrors(errors);
+    };
+
+    const handlePrevious = () => {
+        setCurrentStep(prev => Math.max(prev - 1, 1));
+    };
+
+    const handleSubmit = async () => {
+        if (!validateStep(currentStep)) {
             return;
         }
-        
-        setErrors({});
 
-        // Ensure sitename fields are properly set
-        setFormData(prev => ({
-            ...prev,
-            sitename_id: prev.sitename_id || 0,
-            sitename: prev.sitename || ''
-        }));
-
+        setLoading(true);
         try {
-            setProcessing(true);
+            const submitData = {
+                ...formData,
+                // Ensure country site fields are properly set
+                country_site_id: formData.country_site_id || 0,
+                country_site: formData.country_site || ''
+            };
+
             if (deviceGroup) {
-                await deviceGroupService.updateDeviceGroup(deviceGroup.id, formData);
+                await deviceGroupService.updateDeviceGroup(deviceGroup.id, submitData);
                 toast.success('Device group updated successfully');
             } else {
-                await deviceGroupService.createDeviceGroup(formData);
+                await deviceGroupService.createDeviceGroup(submitData);
                 toast.success('Device group created successfully');
             }
             onSuccess();
-        } catch (error) {
-            console.error('Form submission error:', error);
-            toast.error('Failed to save device group');
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    const nextStep = () => {
-        // Validate current step before proceeding
-        if (currentStep === 1) {
-            const errors: Record<string, string> = {};
-            
-            // Device group name validation
-            if (!formData.device_group.trim()) {
-                errors.device_group = 'Group name is required';
+        } catch (error: any) {
+            if (error.errors) {
+                setErrors(error.errors);
             } else {
-                // Alphanumeric validation (no spaces, only letters, numbers, and underscores)
-                const alphanumericRegex = /^[a-zA-Z0-9_]+$/;
-                if (!alphanumericRegex.test(formData.device_group)) {
-                    errors.device_group = 'Group name can only contain letters, numbers, and underscores (no spaces or special characters)';
-                }
-                
-                // Length validation
-                if (formData.device_group.length < 3) {
-                    errors.device_group = 'Group name must be at least 3 characters long';
-                } else if (formData.device_group.length > 50) {
-                    errors.device_group = 'Group name cannot exceed 50 characters';
-                }
+                toast.error('Failed to save device group');
             }
-            
-            // Sitename validation
-            if (!formData.sitename_id) {
-                errors.sitename = 'Sitename is required';
-            }
-            
-            if (Object.keys(errors).length > 0) {
-                setErrors(errors);
-                return;
-            }
-        }
-        
-        if (currentStep < steps.length) {
-            setErrors({}); // Clear any previous errors
-            setCurrentStep(currentStep + 1);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const prevStep = () => {
-        if (currentStep > 1) {
-            setCurrentStep(currentStep - 1);
-        }
-    };
-
-    const getActiveAlarmsCount = () => {
-        let count = 0;
-        if (formData.enable_battery_alarms) count++;
-        if (formData.enable_error_alarms) count++;
-        if (formData.enable_offline_alarms) count++;
-        if (formData.enable_signal_alarms) count++;
-        if (formData.enable_sim_balance_alarms) count++;
-        return count;
-    };
-
-    const renderStepIndicator = () => (
-        <div className="flex items-center justify-center mb-6">
-            <div className="flex items-center space-x-4">
-                {steps.map((step, index) => {
-                    const Icon = step.icon;
-                    const isActive = currentStep === step.id;
-                    const isCompleted = currentStep > step.id;
-                    
-                    return (
-                        <div key={step.id} className="flex items-center">
-                            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                                isActive 
-                                    ? 'border-primary bg-primary text-primary-foreground' 
-                                    : isCompleted 
-                                        ? 'border-green-500 bg-green-500 text-white'
-                                        : 'border-muted-foreground text-muted-foreground'
-                            }`}>
-                                {isCompleted ? (
-                                    <CheckCircle className="h-5 w-5" />
-                                ) : (
-                                    <Icon className="h-5 w-5" />
-                                )}
-                            </div>
-                            <div className="ml-3">
-                                <div className={`text-sm font-medium ${
-                                    isActive ? 'text-primary' : 'text-muted-foreground'
-                                }`}>
-                                    {step.title}
-                                </div>
-                            </div>
-                            {index < steps.length - 1 && (
-                                <div className={`w-8 h-0.5 mx-4 ${
-                                    isCompleted ? 'bg-green-500' : 'bg-muted-foreground'
-                                }`} />
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-
-    const renderBasicInformation = () => (
-        <div className="space-y-6">
-            <div className="space-y-2">
-                <Label htmlFor="device_group">Group Name *</Label>
-                <Input
-                    id="device_group"
-                    value={formData.device_group}
-                    onChange={(e) => {
-                        const value = e.target.value;
-                        setFormData(prev => ({ ...prev, device_group: value }));
-                        
-                        // Clear error when user starts typing
-                        if (errors.device_group) {
-                            setErrors(prev => ({ ...prev, device_group: '' }));
-                        }
-                    }}
-                    placeholder="Enter device group name (letters, numbers, underscores only)"
-                    className={errors.device_group ? 'border-destructive' : ''}
-                />
-                <p className="text-xs text-muted-foreground">
-                    Only letters, numbers, and underscores allowed. 3-50 characters.
-                </p>
-                {errors.device_group && (
-                    <p className="text-sm text-destructive">{errors.device_group}</p>
-                )}
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Enter group description"
-                    rows={3}
-                />
-                {errors.description && (
-                    <p className="text-sm text-destructive">{errors.description}</p>
-                )}
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="sitename">Sitename *</Label>
-                <Select value={formData.sitename_id ? formData.sitename_id.toString() : ''} onValueChange={(value) => {
-                    const selectedSitename = sitenames.find(s => s.id.toString() === value);
-                    setFormData(prev => ({
-                        ...prev,
-                        sitename_id: value ? parseInt(value) : 0,
-                        sitename: selectedSitename?.sitename || ''
-                    }));
-                }}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select sitename" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {sitenames.map((sitename) => (
-                            <SelectItem key={sitename.id} value={sitename.id.toString()}>{sitename.sitename}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                {errors.sitename && (
-                    <p className="text-sm text-destructive">{errors.sitename}</p>
-                )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="device_type">Device Type</Label>
-                    <Select value={formData.device_type} onValueChange={(value) => {
-                        setFormData(prev => ({ ...prev, device_type: value }));
-                    }}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select device type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="android">Android</SelectItem>
-                            <SelectItem value="usb_modem">USB Modem</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {errors.device_type && (
-                        <p className="text-sm text-destructive">{errors.device_type}</p>
-                    )}
-                </div>
-
-                <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select value={formData.status} onValueChange={(value) => {
-                        setFormData(prev => ({ ...prev, status: value }));
-                    }}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
-                            <SelectItem value="maintenance">Maintenance</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {errors.status && (
-                        <p className="text-sm text-destructive">{errors.status}</p>
-                    )}
-                </div>
-            </div>
-
-
-        </div>
-    );
-
-    const renderAlarmSettings = () => (
-        <div className="space-y-6">
-            <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                    Configure alarm thresholds and enable/disable specific alarm types for this device group.
-                </AlertDescription>
-            </Alert>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Battery Alarms */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <Battery className="h-4 w-4" />
-                            Battery Alarms
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id="enable_battery_alarms"
-                                checked={formData.enable_battery_alarms}
-                                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enable_battery_alarms: checked as boolean }))}
-                            />
-                            <Label htmlFor="enable_battery_alarms">Enable Battery Alarms</Label>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="battery_low_threshold">Low Battery Threshold (%)</Label>
-                            <Input
-                                id="battery_low_threshold"
-                                type="number"
-                                min="1"
-                                max="100"
-                                value={formData.battery_low_threshold}
-                                onChange={(e) => setFormData(prev => ({ ...prev, battery_low_threshold: parseInt(e.target.value) }))}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Error Alarms */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <AlertTriangle className="h-4 w-4" />
-                            Error Alarms
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id="enable_error_alarms"
-                                checked={formData.enable_error_alarms}
-                                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enable_error_alarms: checked as boolean }))}
-                            />
-                            <Label htmlFor="enable_error_alarms">Enable Error Alarms</Label>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="error_count_threshold">Error Count Threshold</Label>
-                            <Input
-                                id="error_count_threshold"
-                                type="number"
-                                min="1"
-                                max="100"
-                                value={formData.error_count_threshold}
-                                onChange={(e) => setFormData(prev => ({ ...prev, error_count_threshold: parseInt(e.target.value) }))}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Offline Alarms */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <Clock className="h-4 w-4" />
-                            Offline Alarms
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id="enable_offline_alarms"
-                                checked={formData.enable_offline_alarms}
-                                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enable_offline_alarms: checked as boolean }))}
-                            />
-                            <Label htmlFor="enable_offline_alarms">Enable Offline Alarms</Label>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="offline_threshold_minutes">Offline Threshold (minutes)</Label>
-                            <Input
-                                id="offline_threshold_minutes"
-                                type="number"
-                                min="1"
-                                max="1440"
-                                value={formData.offline_threshold_minutes}
-                                onChange={(e) => setFormData(prev => ({ ...prev, offline_threshold_minutes: parseInt(e.target.value) }))}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Signal Alarms */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <Wifi className="h-4 w-4" />
-                            Signal Alarms
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id="enable_signal_alarms"
-                                checked={formData.enable_signal_alarms}
-                                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enable_signal_alarms: checked as boolean }))}
-                            />
-                            <Label htmlFor="enable_signal_alarms">Enable Signal Alarms</Label>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="signal_low_threshold">Low Signal Threshold (%)</Label>
-                            <Input
-                                id="signal_low_threshold"
-                                type="number"
-                                min="1"
-                                max="100"
-                                value={formData.signal_low_threshold}
-                                onChange={(e) => setFormData(prev => ({ ...prev, signal_low_threshold: parseInt(e.target.value) }))}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Balance Alarms */}
-                <Card className="md:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <CreditCard className="h-4 w-4" />
-                            SIM Balance Alarms
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id="enable_sim_balance_alarms"
-                                checked={formData.enable_sim_balance_alarms}
-                                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enable_sim_balance_alarms: checked as boolean }))}
-                            />
-                            <Label htmlFor="enable_sim_balance_alarms">Enable SIM Balance Alarms</Label>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="low_balance_threshold">Low Balance Threshold (₺)</Label>
-                            <Input
-                                id="low_balance_threshold"
-                                type="number"
-                                min="0"
-                                max="1000"
-                                step="0.01"
-                                value={formData.low_balance_threshold}
-                                onChange={(e) => setFormData(prev => ({ ...prev, low_balance_threshold: e.target.value }))}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div className="text-sm">
-                    <span className="font-medium">Active Alarms:</span> {getActiveAlarmsCount()}
-                </div>
-                <Badge variant={getActiveAlarmsCount() > 0 ? 'default' : 'secondary'}>
-                    {getActiveAlarmsCount() > 0 ? 'Alarms Configured' : 'No Alarms'}
-                </Badge>
-            </div>
-        </div>
-    );
-
-    const renderSmsLimits = () => (
-        <div className="space-y-6">
-            <Alert>
-                <CreditCard className="h-4 w-4" />
-                <AlertDescription>
-                    Configure SMS sending limits and throttle (guard timer) for each SIM card in this device group. Limits help control costs and prevent abuse. Guard timer enforces a minimum delay between SMS sends.
-                </AlertDescription>
-            </Alert>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <CreditCard className="h-5 w-5" />
-                        SMS Limits & Guard Timer Configuration
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox
-                            id="enable_sms_limits"
-                            checked={formData.enable_sms_limits}
-                            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enable_sms_limits: checked as boolean }))}
-                        />
-                        <Label htmlFor="enable_sms_limits">
-                            Enable SMS sending limits
-                        </Label>
-                    </div>
-                    <div className="space-y-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="sms_limit_reset_hour">Limit Reset Hour (0-23)</Label>
-                            <Input
-                                id="sms_limit_reset_hour"
-                                type="number"
-                                min="0"
-                                max="23"
-                                value={formData.sms_limit_reset_hour}
-                                onChange={(e) => setFormData(prev => ({ ...prev, sms_limit_reset_hour: parseInt(e.target.value) }))}
-                                placeholder="0"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Hour of day when daily limits reset (0 = midnight, 12 = noon, etc.)
-                            </p>
-                        </div>
-                        <Separator />
-                        {/* SIM 1 Limits & Guard Timer */}
-                        <h4 className="font-medium">Slot 1 Limits</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="sim1_daily_sms_limit">Daily SMS Limit</Label>
-                                <Input
-                                    id="sim1_daily_sms_limit"
-                                    type="number"
-                                    min="0"
-                                    max="10000"
-                                    value={formData.sim1_daily_sms_limit}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, sim1_daily_sms_limit: parseInt(e.target.value) }))}
-                                    placeholder="100"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="sim1_monthly_sms_limit">Monthly SMS Limit</Label>
-                                <Input
-                                    id="sim1_monthly_sms_limit"
-                                    type="number"
-                                    min="0"
-                                    max="100000"
-                                    value={formData.sim1_monthly_sms_limit}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, sim1_monthly_sms_limit: parseInt(e.target.value) }))}
-                                    placeholder="3000"
-                                />
-                            </div>
-                            <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="sim1_guard_interval">Guard Timer (seconds)</Label>
-                                <Input
-                                    id="sim1_guard_interval"
-                                    type="number"
-                                    min="0"
-                                    max="3600"
-                                    value={formData.sim1_guard_interval}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, sim1_guard_interval: parseInt(e.target.value) }))}
-                                    placeholder="5"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Minimum delay between two SMS sends for SIM 1 (in seconds).
-                                </p>
-                            </div>
-                        </div>
-                        <Separator />
-                        {/* SIM 2 Limits & Guard Timer */}
-                        <h4 className="font-medium">Slot 2 Limits</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="sim2_daily_sms_limit">Daily SMS Limit</Label>
-                                <Input
-                                    id="sim2_daily_sms_limit"
-                                    type="number"
-                                    min="0"
-                                    max="10000"
-                                    value={formData.sim2_daily_sms_limit}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, sim2_daily_sms_limit: parseInt(e.target.value) }))}
-                                    placeholder="100"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="sim2_monthly_sms_limit">Monthly SMS Limit</Label>
-                                <Input
-                                    id="sim2_monthly_sms_limit"
-                                    type="number"
-                                    min="0"
-                                    max="100000"
-                                    value={formData.sim2_monthly_sms_limit}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, sim2_monthly_sms_limit: parseInt(e.target.value) }))}
-                                    placeholder="3000"
-                                />
-                            </div>
-                            <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="sim2_guard_interval">Guard Timer (seconds)</Label>
-                                <Input
-                                    id="sim2_guard_interval"
-                                    type="number"
-                                    min="0"
-                                    max="3600"
-                                    value={formData.sim2_guard_interval}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, sim2_guard_interval: parseInt(e.target.value) }))}
-                                    placeholder="5"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Minimum delay between two SMS sends for SIM 2 (in seconds).
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <div className="bg-muted p-4 rounded-lg">
-                <h4 className="font-medium mb-2">SMS Limits Summary</h4>
-                <div className="space-y-2 text-sm">
-                    <div><strong>Status:</strong> {formData.enable_sms_limits ? 'Enabled' : 'Disabled'}</div>
-                    {formData.enable_sms_limits && (
-                        <>
-                            <div><strong>Reset Hour:</strong> {formData.sms_limit_reset_hour}:00</div>
-                            <div><strong>SIM1:</strong> {formData.sim1_daily_sms_limit}/day, {formData.sim1_monthly_sms_limit}/month</div>
-                            <div><strong>SIM2:</strong> {formData.sim2_daily_sms_limit}/day, {formData.sim2_monthly_sms_limit}/month</div>
-                        </>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-
-    const renderAutoActions = () => (
-        <div className="space-y-6">
-            <Alert>
-                <Settings className="h-4 w-4" />
-                <AlertDescription>
-                    Configure automatic actions that will be taken when alarms are triggered.
-                </AlertDescription>
-            </Alert>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5" />
-                        Auto-Disable SIM on Alarm
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox
-                            id="auto_disable_sim_on_alarm"
-                            checked={formData.auto_disable_sim_on_alarm}
-                            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, auto_disable_sim_on_alarm: checked as boolean }))}
-                        />
-                        <Label htmlFor="auto_disable_sim_on_alarm">
-                            Automatically disable SIM card when any alarm is triggered
-                        </Label>
-                    </div>
-                    
-                    {formData.auto_disable_sim_on_alarm && (
-                        <Alert>
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>
-                                When enabled, the system will automatically disable the SIM card if any of the configured alarms are triggered. 
-                                This helps prevent further issues and alerts.
-                            </AlertDescription>
-                        </Alert>
-                    )}
-                </CardContent>
-            </Card>
-
-            <div className="bg-muted p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Summary</h4>
-                <div className="space-y-2 text-sm">
-                    <div><strong>Group Name:</strong> {formData.device_group || 'Not set'}</div>
-                    <div><strong>Sitename:</strong> {formData.sitename || 'Not set'}</div>
-                    <div><strong>Active Alarms:</strong> {getActiveAlarmsCount()}</div>
-                    <div><strong>SMS Limits:</strong> {formData.enable_sms_limits ? 'Enabled' : 'Disabled'}</div>
-                    <div><strong>Auto-disable SIM:</strong> {formData.auto_disable_sim_on_alarm ? 'Yes' : 'No'}</div>
-                </div>
-            </div>
-        </div>
-    );
-
-    const renderReviewAndSave = () => (
-        <div className="space-y-6">
-            <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                    REVIEW STEP IS ACTIVE - Step {currentStep} of {steps.length}
-                </AlertDescription>
-            </Alert>
-            
-            <Alert>
-                <CheckCircle className="h-4 w-4" />
-                <AlertDescription>
-                    Please review all the information below before saving. You can go back to any step to make changes.
-                </AlertDescription>
-            </Alert>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Basic Information Review */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <Building2 className="h-4 w-4" />
-                            Basic Information
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                        <div><strong>Group Name:</strong> {formData.device_group || 'Not set'}</div>
-                        <div><strong>Description:</strong> {formData.description || 'No description'}</div>
-                        <div><strong>Sitename:</strong> {formData.sitename || 'Not set'}</div>
-                        <div><strong>Device Type:</strong> {formData.device_type === 'android' ? 'Android' : formData.device_type === 'usb_modem' ? 'USB Modem' : formData.device_type}</div>
-                        <div><strong>Status:</strong> {formData.status === 'active' ? 'Active' : formData.status === 'inactive' ? 'Inactive' : formData.status === 'maintenance' ? 'Maintenance' : formData.status}</div>
-                    </CardContent>
-                </Card>
-
-                {/* Alarm Settings Review */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <AlertTriangle className="h-4 w-4" />
-                            Alarm Settings
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                        <div><strong>Battery Alarms:</strong> {formData.enable_battery_alarms ? 'Enabled' : 'Disabled'}</div>
-                        {formData.enable_battery_alarms && (
-                            <div className="ml-4">Threshold: {formData.battery_low_threshold}%</div>
-                        )}
-                        <div><strong>Error Alarms:</strong> {formData.enable_error_alarms ? 'Enabled' : 'Disabled'}</div>
-                        {formData.enable_error_alarms && (
-                            <div className="ml-4">Threshold: {formData.error_count_threshold}</div>
-                        )}
-                        <div><strong>Offline Alarms:</strong> {formData.enable_offline_alarms ? 'Enabled' : 'Disabled'}</div>
-                        {formData.enable_offline_alarms && (
-                            <div className="ml-4">Threshold: {formData.offline_threshold_minutes} minutes</div>
-                        )}
-                        <div><strong>Signal Alarms:</strong> {formData.enable_signal_alarms ? 'Enabled' : 'Disabled'}</div>
-                        {formData.enable_signal_alarms && (
-                            <div className="ml-4">Threshold: {formData.signal_low_threshold}%</div>
-                        )}
-                        <div><strong>Balance Alarms:</strong> {formData.enable_sim_balance_alarms ? 'Enabled' : 'Disabled'}</div>
-                        {formData.enable_sim_balance_alarms && (
-                            <div className="ml-4">Threshold: ₺{formData.low_balance_threshold}</div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* SMS Limits Review */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <CreditCard className="h-4 w-4" />
-                            SMS Limits
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                        <div><strong>SMS Limits:</strong> {formData.enable_sms_limits ? 'Enabled' : 'Disabled'}</div>
-                        {formData.enable_sms_limits && (
-                            <>
-                                <div><strong>Reset Hour:</strong> {formData.sms_limit_reset_hour}:00</div>
-                                <div><strong>SIM1 Daily:</strong> {formData.sim1_daily_sms_limit}</div>
-                                <div><strong>SIM1 Monthly:</strong> {formData.sim1_monthly_sms_limit}</div>
-                                <div><strong>SIM1 Guard:</strong> {formData.sim1_guard_interval}s</div>
-                                <div><strong>SIM2 Daily:</strong> {formData.sim2_daily_sms_limit}</div>
-                                <div><strong>SIM2 Monthly:</strong> {formData.sim2_monthly_sms_limit}</div>
-                                <div><strong>SIM2 Guard:</strong> {formData.sim2_guard_interval}s</div>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Auto Actions Review */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-sm">
-                            <Settings className="h-4 w-4" />
-                            Auto Actions
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                        <div><strong>Auto-disable SIM:</strong> {formData.auto_disable_sim_on_alarm ? 'Yes' : 'No'}</div>
-                        {formData.auto_disable_sim_on_alarm && (
-                            <div className="text-muted-foreground">
-                                SIM will be automatically disabled when any alarm is triggered
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="bg-muted p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Final Summary</h4>
-                <div className="space-y-2 text-sm">
-                    <div><strong>Total Active Alarms:</strong> {getActiveAlarmsCount()}</div>
-                    <div><strong>SMS Limits Status:</strong> {formData.enable_sms_limits ? 'Enabled' : 'Disabled'}</div>
-                    <div><strong>Auto Actions:</strong> {formData.auto_disable_sim_on_alarm ? 'SIM Auto-disable Enabled' : 'No Auto Actions'}</div>
-                </div>
-            </div>
-        </div>
-    );
-
-    const renderCurrentStep = () => {
+    const renderStepContent = () => {
         switch (currentStep) {
             case 1:
-                return renderBasicInformation();
+                return (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="device_group" className="text-base font-medium">
+                                    Device Group Name <span className="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                    id="device_group"
+                                    value={formData.device_group}
+                                    onChange={(e) => handleInputChange('device_group', e.target.value)}
+                                    placeholder="Enter device group name"
+                                    className={errors.device_group ? 'border-destructive' : ''}
+                                />
+                                {errors.device_group && (
+                                    <p className="text-sm text-destructive">{errors.device_group}</p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="country_site" className="text-base font-medium">
+                                    Country Site <span className="text-destructive">*</span>
+                                </Label>
+                                <Select value={formData.country_site_id ? formData.country_site_id.toString() : ''} onValueChange={(value) => {
+                                    const selectedCountrySite = countrySites.find(s => s.id.toString() === value);
+                                    handleInputChange('country_site_id', value ? parseInt(value) : 0);
+                                    handleInputChange('country_site', selectedCountrySite?.country_site || '');
+                                    
+                                    // Clear error when user selects a country site
+                                    if (errors.country_site) {
+                                        setErrors(prev => ({ ...prev, country_site: '' }));
+                                    }
+                                }}>
+                                    <SelectTrigger className={errors.country_site ? 'border-destructive' : ''}>
+                                        <SelectValue placeholder="Select a country site (required)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {countrySites.length === 0 ? (
+                                            <SelectItem value="" disabled>No country sites available</SelectItem>
+                                        ) : (
+                                            countrySites.map((countrySite) => (
+                                                <SelectItem key={countrySite.id} value={countrySite.id.toString()}>{countrySite.country_site}</SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                                {countrySites.length === 0 && (
+                                    <p className="text-sm text-yellow-600">
+                                        A country site must be selected to create a device group.
+                                    </p>
+                                )}
+                                {errors.country_site && (
+                                    <p className="text-sm text-destructive">{errors.country_site}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="device_type" className="text-base font-medium">
+                                    Device Type
+                                </Label>
+                                <Select value={formData.device_type} onValueChange={(value) => handleInputChange('device_type', value)}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="android">Android</SelectItem>
+                                        <SelectItem value="usb_modem">USB Modem</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="status" className="text-base font-medium">
+                                    Status
+                                </Label>
+                                <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="active">Active</SelectItem>
+                                        <SelectItem value="inactive">Inactive</SelectItem>
+                                        <SelectItem value="maintenance">Maintenance</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="websocket_url" className="text-base font-medium">
+                                WebSocket URL <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                                id="websocket_url"
+                                value={formData.websocket_url}
+                                onChange={(e) => handleInputChange('websocket_url', e.target.value)}
+                                placeholder="wss://example.com/ws"
+                                className={errors.websocket_url ? 'border-destructive' : ''}
+                            />
+                            {errors.websocket_url && (
+                                <p className="text-sm text-destructive">{errors.websocket_url}</p>
+                            )}
+                        </div>
+                    </div>
+                );
+
             case 2:
-                return renderAlarmSettings();
+                return (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="battery_low_threshold" className="text-base font-medium">
+                                    Battery Low Threshold (%)
+                                </Label>
+                                <Input
+                                    id="battery_low_threshold"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={formData.battery_low_threshold}
+                                    onChange={(e) => handleInputChange('battery_low_threshold', parseInt(e.target.value) || 0)}
+                                    className={errors.battery_low_threshold ? 'border-destructive' : ''}
+                                />
+                                {errors.battery_low_threshold && (
+                                    <p className="text-sm text-destructive">{errors.battery_low_threshold}</p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="error_count_threshold" className="text-base font-medium">
+                                    Error Count Threshold
+                                </Label>
+                                <Input
+                                    id="error_count_threshold"
+                                    type="number"
+                                    min="1"
+                                    value={formData.error_count_threshold}
+                                    onChange={(e) => handleInputChange('error_count_threshold', parseInt(e.target.value) || 0)}
+                                    className={errors.error_count_threshold ? 'border-destructive' : ''}
+                                />
+                                {errors.error_count_threshold && (
+                                    <p className="text-sm text-destructive">{errors.error_count_threshold}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="offline_threshold_minutes" className="text-base font-medium">
+                                    Offline Threshold (minutes)
+                                </Label>
+                                <Input
+                                    id="offline_threshold_minutes"
+                                    type="number"
+                                    min="1"
+                                    value={formData.offline_threshold_minutes}
+                                    onChange={(e) => handleInputChange('offline_threshold_minutes', parseInt(e.target.value) || 0)}
+                                    className={errors.offline_threshold_minutes ? 'border-destructive' : ''}
+                                />
+                                {errors.offline_threshold_minutes && (
+                                    <p className="text-sm text-destructive">{errors.offline_threshold_minutes}</p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="signal_low_threshold" className="text-base font-medium">
+                                    Signal Low Threshold
+                                </Label>
+                                <Input
+                                    id="signal_low_threshold"
+                                    type="number"
+                                    min="0"
+                                    value={formData.signal_low_threshold}
+                                    onChange={(e) => handleInputChange('signal_low_threshold', parseInt(e.target.value) || 0)}
+                                    className={errors.signal_low_threshold ? 'border-destructive' : ''}
+                                />
+                                {errors.signal_low_threshold && (
+                                    <p className="text-sm text-destructive">{errors.signal_low_threshold}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="low_balance_threshold" className="text-base font-medium">
+                                Low Balance Threshold
+                            </Label>
+                            <Input
+                                id="low_balance_threshold"
+                                value={formData.low_balance_threshold}
+                                onChange={(e) => handleInputChange('low_balance_threshold', e.target.value)}
+                                placeholder="10.00"
+                            />
+                        </div>
+                    </div>
+                );
+
             case 3:
-                return renderSmsLimits();
+                return (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                    <Battery className="h-5 w-5 text-blue-500" />
+                                    <div>
+                                        <Label className="text-base font-medium">Battery Alarms</Label>
+                                        <p className="text-sm text-muted-foreground">Enable battery level monitoring</p>
+                                    </div>
+                                </div>
+                                <Switch
+                                    checked={formData.enable_battery_alarms}
+                                    onCheckedChange={(checked) => handleInputChange('enable_battery_alarms', checked)}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                                    <div>
+                                        <Label className="text-base font-medium">Error Alarms</Label>
+                                        <p className="text-sm text-muted-foreground">Enable error monitoring</p>
+                                    </div>
+                                </div>
+                                <Switch
+                                    checked={formData.enable_error_alarms}
+                                    onCheckedChange={(checked) => handleInputChange('enable_error_alarms', checked)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                    <Wifi className="h-5 w-5 text-orange-500" />
+                                    <div>
+                                        <Label className="text-base font-medium">Offline Alarms</Label>
+                                        <p className="text-sm text-muted-foreground">Enable offline monitoring</p>
+                                    </div>
+                                </div>
+                                <Switch
+                                    checked={formData.enable_offline_alarms}
+                                    onCheckedChange={(checked) => handleInputChange('enable_offline_alarms', checked)}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                    <Signal className="h-5 w-5 text-green-500" />
+                                    <div>
+                                        <Label className="text-base font-medium">Signal Alarms</Label>
+                                        <p className="text-sm text-muted-foreground">Enable signal monitoring</p>
+                                    </div>
+                                </div>
+                                <Switch
+                                    checked={formData.enable_signal_alarms}
+                                    onCheckedChange={(checked) => handleInputChange('enable_signal_alarms', checked)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                    <CreditCard className="h-5 w-5 text-purple-500" />
+                                    <div>
+                                        <Label className="text-base font-medium">SIM Balance Alarms</Label>
+                                        <p className="text-sm text-muted-foreground">Enable balance monitoring</p>
+                                    </div>
+                                </div>
+                                <Switch
+                                    checked={formData.enable_sim_balance_alarms}
+                                    onCheckedChange={(checked) => handleInputChange('enable_sim_balance_alarms', checked)}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between p-4 border rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                    <Lock className="h-5 w-5 text-gray-500" />
+                                    <div>
+                                        <Label className="text-base font-medium">Auto Disable SIM</Label>
+                                        <p className="text-sm text-muted-foreground">Disable SIM on alarm</p>
+                                    </div>
+                                </div>
+                                <Switch
+                                    checked={formData.auto_disable_sim_on_alarm}
+                                    onCheckedChange={(checked) => handleInputChange('auto_disable_sim_on_alarm', checked)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                );
+
             case 4:
-                return renderAutoActions();
+                return (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between p-4 border rounded-lg">
+                            <div className="flex items-center space-x-3">
+                                <MessageSquare className="h-5 w-5 text-blue-500" />
+                                <div>
+                                    <Label className="text-base font-medium">Enable SMS Limits</Label>
+                                    <p className="text-sm text-muted-foreground">Enable daily and monthly SMS limits</p>
+                                </div>
+                            </div>
+                            <Switch
+                                checked={formData.enable_sms_limits}
+                                onCheckedChange={(checked) => handleInputChange('enable_sms_limits', checked)}
+                            />
+                        </div>
+
+                        {formData.enable_sms_limits && (
+                            <>
+                                <Separator />
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sim1_daily_sms_limit" className="text-base font-medium">
+                                                SIM 1 Daily Limit
+                                            </Label>
+                                            <Input
+                                                id="sim1_daily_sms_limit"
+                                                type="number"
+                                                min="0"
+                                                value={formData.sim1_daily_sms_limit}
+                                                onChange={(e) => handleInputChange('sim1_daily_sms_limit', parseInt(e.target.value) || 0)}
+                                                className={errors.sim1_daily_sms_limit ? 'border-destructive' : ''}
+                                            />
+                                            {errors.sim1_daily_sms_limit && (
+                                                <p className="text-sm text-destructive">{errors.sim1_daily_sms_limit}</p>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sim1_monthly_sms_limit" className="text-base font-medium">
+                                                SIM 1 Monthly Limit
+                                            </Label>
+                                            <Input
+                                                id="sim1_monthly_sms_limit"
+                                                type="number"
+                                                min="0"
+                                                value={formData.sim1_monthly_sms_limit}
+                                                onChange={(e) => handleInputChange('sim1_monthly_sms_limit', parseInt(e.target.value) || 0)}
+                                                className={errors.sim1_monthly_sms_limit ? 'border-destructive' : ''}
+                                            />
+                                            {errors.sim1_monthly_sms_limit && (
+                                                <p className="text-sm text-destructive">{errors.sim1_monthly_sms_limit}</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sim2_daily_sms_limit" className="text-base font-medium">
+                                                SIM 2 Daily Limit
+                                            </Label>
+                                            <Input
+                                                id="sim2_daily_sms_limit"
+                                                type="number"
+                                                min="0"
+                                                value={formData.sim2_daily_sms_limit}
+                                                onChange={(e) => handleInputChange('sim2_daily_sms_limit', parseInt(e.target.value) || 0)}
+                                                className={errors.sim2_daily_sms_limit ? 'border-destructive' : ''}
+                                            />
+                                            {errors.sim2_daily_sms_limit && (
+                                                <p className="text-sm text-destructive">{errors.sim2_daily_sms_limit}</p>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sim2_monthly_sms_limit" className="text-base font-medium">
+                                                SIM 2 Monthly Limit
+                                            </Label>
+                                            <Input
+                                                id="sim2_monthly_sms_limit"
+                                                type="number"
+                                                min="0"
+                                                value={formData.sim2_monthly_sms_limit}
+                                                onChange={(e) => handleInputChange('sim2_monthly_sms_limit', parseInt(e.target.value) || 0)}
+                                                className={errors.sim2_monthly_sms_limit ? 'border-destructive' : ''}
+                                            />
+                                            {errors.sim2_monthly_sms_limit && (
+                                                <p className="text-sm text-destructive">{errors.sim2_monthly_sms_limit}</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sms_limit_reset_hour" className="text-base font-medium">
+                                                Reset Hour (0-23)
+                                            </Label>
+                                            <Input
+                                                id="sms_limit_reset_hour"
+                                                type="number"
+                                                min="0"
+                                                max="23"
+                                                value={formData.sms_limit_reset_hour}
+                                                onChange={(e) => handleInputChange('sms_limit_reset_hour', parseInt(e.target.value) || 0)}
+                                                className={errors.sms_limit_reset_hour ? 'border-destructive' : ''}
+                                            />
+                                            {errors.sms_limit_reset_hour && (
+                                                <p className="text-sm text-destructive">{errors.sms_limit_reset_hour}</p>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sim1_guard_interval" className="text-base font-medium">
+                                                SIM 1 Guard Interval (minutes)
+                                            </Label>
+                                            <Input
+                                                id="sim1_guard_interval"
+                                                type="number"
+                                                min="1"
+                                                value={formData.sim1_guard_interval}
+                                                onChange={(e) => handleInputChange('sim1_guard_interval', parseInt(e.target.value) || 0)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="sim2_guard_interval" className="text-base font-medium">
+                                            SIM 2 Guard Interval (minutes)
+                                        </Label>
+                                        <Input
+                                            id="sim2_guard_interval"
+                                            type="number"
+                                            min="1"
+                                            value={formData.sim2_guard_interval}
+                                            onChange={(e) => handleInputChange('sim2_guard_interval', parseInt(e.target.value) || 0)}
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                );
+
             case 5:
-                return renderReviewAndSave();
+                return (
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Building2 className="h-5 w-5" />
+                                    Basic Information
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div><strong>Device Group:</strong> {formData.device_group || 'Not set'}</div>
+                                <div><strong>Country Site:</strong> {formData.country_site || 'Not set'}</div>
+                                <div><strong>Device Type:</strong> {formData.device_type}</div>
+                                <div><strong>Status:</strong> {formData.status}</div>
+                                <div><strong>WebSocket URL:</strong> {formData.websocket_url || 'Not set'}</div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Settings className="h-5 w-5" />
+                                    Device Settings
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div><strong>Battery Threshold:</strong> {formData.battery_low_threshold}%</div>
+                                <div><strong>Error Count Threshold:</strong> {formData.error_count_threshold}</div>
+                                <div><strong>Offline Threshold:</strong> {formData.offline_threshold_minutes} minutes</div>
+                                <div><strong>Signal Threshold:</strong> {formData.signal_low_threshold}</div>
+                                <div><strong>Balance Threshold:</strong> {formData.low_balance_threshold}</div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <AlertTriangle className="h-5 w-5" />
+                                    Alarm Settings
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex items-center space-x-2">
+                                        {formData.enable_battery_alarms ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-gray-400" />}
+                                        <span>Battery Alarms</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        {formData.enable_error_alarms ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-gray-400" />}
+                                        <span>Error Alarms</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        {formData.enable_offline_alarms ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-gray-400" />}
+                                        <span>Offline Alarms</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        {formData.enable_signal_alarms ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-gray-400" />}
+                                        <span>Signal Alarms</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        {formData.enable_sim_balance_alarms ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-gray-400" />}
+                                        <span>SIM Balance Alarms</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        {formData.auto_disable_sim_on_alarm ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-gray-400" />}
+                                        <span>Auto Disable SIM</span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {formData.enable_sms_limits && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <MessageSquare className="h-5 w-5" />
+                                        SMS Limits
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><strong>SIM 1 Daily:</strong> {formData.sim1_daily_sms_limit}</div>
+                                        <div><strong>SIM 1 Monthly:</strong> {formData.sim1_monthly_sms_limit}</div>
+                                        <div><strong>SIM 2 Daily:</strong> {formData.sim2_daily_sms_limit}</div>
+                                        <div><strong>SIM 2 Monthly:</strong> {formData.sim2_monthly_sms_limit}</div>
+                                    </div>
+                                    <div><strong>Reset Hour:</strong> {formData.sms_limit_reset_hour}:00</div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><strong>SIM 1 Guard:</strong> {formData.sim1_guard_interval} min</div>
+                                        <div><strong>SIM 2 Guard:</strong> {formData.sim2_guard_interval} min</div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
+                );
+
             default:
                 return null;
         }
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
-            {renderStepIndicator()}
-            
-            {renderCurrentStep()}
+        <div className="max-w-4xl mx-auto space-y-6">
+            {/* Progress Steps */}
+            <div className="flex items-center justify-between">
+                {steps.map((step, index) => (
+                    <div key={step.id} className="flex items-center">
+                        <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                            currentStep >= step.id 
+                                ? 'bg-primary border-primary text-primary-foreground' 
+                                : 'bg-background border-muted-foreground text-muted-foreground'
+                        }`}>
+                            {currentStep > step.id ? (
+                                <CheckCircle className="h-5 w-5" />
+                            ) : (
+                                <step.icon className="h-5 w-5" />
+                            )}
+                        </div>
+                        {index < steps.length - 1 && (
+                            <div className={`w-20 h-0.5 mx-2 ${
+                                currentStep > step.id ? 'bg-primary' : 'bg-muted'
+                            }`} />
+                        )}
+                    </div>
+                ))}
+            </div>
 
-            <Separator />
+            {/* Step Title */}
+            <div className="text-center">
+                <h2 className="text-2xl font-bold">{steps[currentStep - 1].title}</h2>
+                <p className="text-muted-foreground">Step {currentStep} of {steps.length}</p>
+            </div>
 
+            {/* Step Content */}
+            <Card>
+                <CardContent className="pt-6">
+                    {renderStepContent()}
+                </CardContent>
+            </Card>
+
+            {/* Navigation Buttons */}
             <div className="flex justify-between">
                 <Button
-                    type="button"
                     variant="outline"
-                    onClick={onCancel}
+                    onClick={handlePrevious}
+                    disabled={currentStep === 1}
                 >
-                    Cancel
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Previous
                 </Button>
 
-                <div className="flex gap-2">
-                    {currentStep > 1 && (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={prevStep}
-                        >
-                            <ChevronLeft className="mr-2 h-4 w-4" />
-                            Previous
-                        </Button>
-                    )}
-
-                    {currentStep < steps.length ? (
-                        <Button type="button" onClick={nextStep}>
-                            Next
-                            <ChevronRight className="ml-2 h-4 w-4" />
-                        </Button>
-                    ) : (
-                        <Button type="submit" disabled={processing}>
-                            {processing ? 'Saving...' : 'Finish'}
-                        </Button>
-                    )}
-                </div>
+                {currentStep < steps.length ? (
+                    <Button onClick={handleNext}>
+                        Next
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                ) : (
+                    <Button onClick={handleSubmit} disabled={loading}>
+                        <Save className="mr-2 h-4 w-4" />
+                        {loading ? 'Saving...' : deviceGroup ? 'Update Device Group' : 'Create Device Group'}
+                    </Button>
+                )}
             </div>
-        </form>
+
+            {/* Cancel Button */}
+            <div className="text-center">
+                <Button variant="ghost" onClick={onCancel}>
+                    Cancel
+                </Button>
+            </div>
+        </div>
     );
 } 

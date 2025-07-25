@@ -8,8 +8,8 @@ type Device struct {
 	Name           string     `json:"name" gorm:"type:varchar(255)"` // User editable device name
 	DeviceGroupID  uint       `json:"device_group_id" gorm:"not null"`
 	DeviceGroup    string     `json:"device_group" gorm:"type:varchar(255);not null"`
-	SitenameID     uint       `json:"sitename_id" gorm:"not null"`
-	Sitename       string     `json:"sitename" gorm:"type:varchar(255);not null"`
+	CountrySiteID  uint       `json:"country_site_id" gorm:"not null"`
+	CountrySite    string     `json:"country_site" gorm:"type:varchar(255);not null"`
 	DeviceType     string     `json:"device_type" gorm:"type:varchar(50);default:'android'"`
 	Manufacturer   string     `json:"manufacturer" gorm:"type:varchar(255)"`
 	Model          string     `json:"model" gorm:"type:varchar(255)"`

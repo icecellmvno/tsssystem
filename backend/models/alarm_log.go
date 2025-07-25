@@ -10,7 +10,7 @@ type AlarmLog struct {
 	DeviceID    string `json:"device_id" gorm:"index;not null;size:255"`
 	DeviceName  string `json:"device_name" gorm:"not null;size:255"`
 	DeviceGroup string `json:"device_group" gorm:"not null;size:255"`
-	Sitename    string `json:"sitename" gorm:"not null;size:255"`
+	CountrySite string `json:"country_site" gorm:"not null;size:255"`
 	AlarmType   string `json:"alarm_type" gorm:"not null;size:100;index"`
 	Message     string `json:"message" gorm:"type:text"`
 	Severity    string `json:"severity" gorm:"not null;size:20;index"` // warning, error, critical, info

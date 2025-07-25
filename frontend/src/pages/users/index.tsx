@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, Edit, Eye, Trash2 } from 'lucide-react'
+import { Plus, Search, Edit, Eye, Trash2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { AppLayout } from '@/layouts/app-layout'
 import { type BreadcrumbItem } from '@/types'
+import { useAuthStore } from '@/stores/auth-store'
 
 const breadcrumbs: BreadcrumbItem[] = [
   {
@@ -38,39 +39,98 @@ const breadcrumbs: BreadcrumbItem[] = [
   },
 ]
 
+interface Role {
+  id: number
+  name: string
+  description?: string
+}
+
 interface User {
   id: number
   name: string
   email: string
+  username?: string
   created_at: string
-  roles: Array<{
-    id: number
-    name: string
-  }>
+  updated_at: string
+  roles: Role[]
+  permissions?: string[]
 }
 
-interface Props {
-  users?: User[]
-}
-
-export default function UsersIndex({ users = [] }: Props) {
+export default function UsersIndex() {
+  const { token } = useAuthStore();
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [localUsers, setLocalUsers] = useState<User[]>(users)
 
-  const filteredUsers = localUsers.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  // Fetch users from API
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+      } else {
+        toast.error('Failed to fetch users');
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to fetch users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const filteredUsers = users.filter(user =>
+    (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
-  const handleDelete = (userId: number) => {
-    // Handle delete logic here
-    console.log('Delete user:', userId);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLocalUsers(prev => prev.filter(user => user.id !== userId));
-      toast.success('User deleted successfully');
-    }, 500);
+  const handleDelete = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        setUsers(prev => prev.filter(user => user.id !== userId));
+        toast.success('User deleted successfully');
+      } else {
+        toast.error('Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
+    }
+  }
+
+  if (loading) {
+    return (
+      <AppLayout breadcrumbs={breadcrumbs}>
+        <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-x-auto">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading users...</p>
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
   }
 
   return (
@@ -81,12 +141,22 @@ export default function UsersIndex({ users = [] }: Props) {
             <h1 className="text-3xl font-bold tracking-tight">Users</h1>
             <p className="text-muted-foreground">Manage system users and their roles</p>
           </div>
-          <Link to="/users/create">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add User
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchUsers}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
-          </Link>
+            <Link to="/users/create">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add User
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -107,30 +177,36 @@ export default function UsersIndex({ users = [] }: Props) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Username</TableHead>
                 <TableHead>Roles</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.length === 0 ? (
+              {filteredUsers?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <p className="text-muted-foreground">No users found</p>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
+                filteredUsers?.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.username || 'N/A'}</TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        {user.roles.map((role) => (
-                          <Badge key={role.id} variant="secondary">
-                            {role.name}
-                          </Badge>
-                        ))}
+                      <div className="flex gap-1 flex-wrap">
+                        {user.roles && user.roles.length > 0 ? (
+                          user.roles.map((role) => (
+                            <Badge key={role.id} variant="secondary">
+                              {role.name}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-sm">No roles</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>

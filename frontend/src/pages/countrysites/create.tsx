@@ -5,18 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Save, Building2, User, Users } from 'lucide-react';
-import { sitenamesService, type User as SitenameUser } from '@/services/sitenames';
+import { ArrowLeft, Save, Building2, User, Users, Phone } from 'lucide-react';
+import { countrySitesService, type User as CountrySiteUser } from '@/services/countrysites';
 import { toast } from 'sonner';
 import AppLayout from '@/layouts/app-layout';
 
-export default function SitenameCreate() {
+export default function CountrySiteCreate() {
     const navigate = useNavigate();
-    const [users, setUsers] = useState<SitenameUser[]>([]);
+    const [users, setUsers] = useState<CountrySiteUser[]>([]);
     const [loading, setLoading] = useState(false);
+    const [usersLoading, setUsersLoading] = useState(true);
     
     const [formData, setFormData] = useState({
         name: '',
+        country_phone_code: '',
         manager_user: 0,
         operator_user: 0,
     });
@@ -29,10 +31,22 @@ export default function SitenameCreate() {
 
     const loadUsers = async () => {
         try {
-            const response = await sitenamesService.getUsers();
-            setUsers(response);
+            setUsersLoading(true);
+            const response = await countrySitesService.getUsers();
+            // Ensure response is an array
+            if (Array.isArray(response)) {
+                setUsers(response);
+            } else {
+                console.error('Users response is not an array:', response);
+                setUsers([]);
+                toast.error('Invalid users data received');
+            }
         } catch (error) {
+            console.error('Error loading users:', error);
+            setUsers([]);
             toast.error('Failed to load users');
+        } finally {
+            setUsersLoading(false);
         }
     };
 
@@ -53,6 +67,11 @@ export default function SitenameCreate() {
                 return;
             }
 
+            if (!formData.country_phone_code.trim()) {
+                setErrors(prev => ({ ...prev, country_phone_code: 'Country phone code is required' }));
+                return;
+            }
+
             if (formData.manager_user === 0) {
                 setErrors(prev => ({ ...prev, manager_user: 'Manager user is required' }));
                 return;
@@ -63,14 +82,14 @@ export default function SitenameCreate() {
                 return;
             }
             
-            await sitenamesService.create(formData);
-            toast.success('Sitename created successfully');
-            navigate('/sitenames');
+            await countrySitesService.create(formData);
+            toast.success('Country site created successfully');
+            navigate('/country-sites');
         } catch (error: any) {
             if (error.errors) {
                 setErrors(error.errors);
             } else {
-                toast.error('Failed to create sitename');
+                toast.error('Failed to create country site');
             }
         } finally {
             setLoading(false);
@@ -85,15 +104,15 @@ export default function SitenameCreate() {
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigate('/sitenames')}
+                    onClick={() => navigate('/country-sites')}
                 >
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Create Sitename</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Create Country Site</h1>
                     <p className="text-muted-foreground">
-                        Add a new sitename with assigned users
+                        Add a new country site with assigned users
                     </p>
                 </div>
             </div>
@@ -103,7 +122,7 @@ export default function SitenameCreate() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Building2 className="h-4 w-4" />
-                        Sitename Information
+                        Country Site Information
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -116,10 +135,28 @@ export default function SitenameCreate() {
                                     id="name"
                                     value={formData.name}
                                     onChange={(e) => handleChange('name', e.target.value)}
-                                    placeholder="e.g., Site A"
+                                    placeholder="e.g., Turkey"
                                 />
                                 {errors.name && (
                                     <p className="text-sm text-destructive">{errors.name}</p>
+                                )}
+                            </div>
+
+                            {/* Country Phone Code */}
+                            <div className="space-y-2">
+                                <Label htmlFor="country_phone_code">Country Phone Code *</Label>
+                                <div className="relative">
+                                    <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        id="country_phone_code"
+                                        value={formData.country_phone_code}
+                                        onChange={(e) => handleChange('country_phone_code', e.target.value)}
+                                        placeholder="e.g., +90"
+                                        className="pl-10"
+                                    />
+                                </div>
+                                {errors.country_phone_code && (
+                                    <p className="text-sm text-destructive">{errors.country_phone_code}</p>
                                 )}
                             </div>
 
@@ -131,11 +168,21 @@ export default function SitenameCreate() {
                                         <SelectValue placeholder="Select manager user" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {users.map((user) => (
-                                            <SelectItem key={user.id} value={user.id.toString()}>
-                                                {user.name} ({user.email})
+                                        {usersLoading ? (
+                                            <SelectItem value="" disabled>
+                                                Loading users...
                                             </SelectItem>
-                                        ))}
+                                        ) : Array.isArray(users) && users.length > 0 ? (
+                                            users.map((user) => (
+                                                <SelectItem key={user.id} value={user.id.toString()}>
+                                                    {user.name} ({user.email})
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            <SelectItem value="" disabled>
+                                                No users available
+                                            </SelectItem>
+                                        )}
                                     </SelectContent>
                                 </Select>
                                 {errors.manager_user && (
@@ -151,11 +198,21 @@ export default function SitenameCreate() {
                                         <SelectValue placeholder="Select operator user" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {users.map((user) => (
-                                            <SelectItem key={user.id} value={user.id.toString()}>
-                                                {user.name} ({user.email})
+                                        {usersLoading ? (
+                                            <SelectItem value="" disabled>
+                                                Loading users...
                                             </SelectItem>
-                                        ))}
+                                        ) : Array.isArray(users) && users.length > 0 ? (
+                                            users.map((user) => (
+                                                <SelectItem key={user.id} value={user.id.toString()}>
+                                                    {user.name} ({user.email})
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            <SelectItem value="" disabled>
+                                                No users available
+                                            </SelectItem>
+                                        )}
                                     </SelectContent>
                                 </Select>
                                 {errors.operator_user && (
@@ -168,12 +225,12 @@ export default function SitenameCreate() {
                         <div className="flex gap-4">
                             <Button type="submit" disabled={loading}>
                                 <Save className="mr-2 h-4 w-4" />
-                                {loading ? 'Creating...' : 'Create Sitename'}
+                                {loading ? 'Creating...' : 'Create Country Site'}
                             </Button>
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => navigate('/sitenames')}
+                                onClick={() => navigate('/country-sites')}
                             >
                                 Cancel
                             </Button>

@@ -13,7 +13,7 @@ interface Sitename {
 
 export default function DeviceGroupCreate() {
     const navigate = useNavigate();
-    const [sitenames, setSitenames] = useState<Sitename[]>([]);
+    const [countrySites, setCountrySites] = useState<CountrySite[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -22,10 +22,10 @@ export default function DeviceGroupCreate() {
 
     const loadSitenames = async () => {
         try {
-            const data = await apiClient.get<{ data: Sitename[] }>('/sitenames');
-            setSitenames(data.data || []);
+                    const data = await apiClient.get<{ data: CountrySite[] }>('/country-sites');
+        setCountrySites(data.data || []);
         } catch (error) {
-            console.error('Error loading sitenames:', error);
+            console.error('Error loading country sites:', error);
         } finally {
             setLoading(false);
         }
@@ -38,7 +38,7 @@ export default function DeviceGroupCreate() {
     if (loading) {
         return (
             <AppLayout breadcrumbs={[
-                { title: 'Site Management', href: '#' },
+                { title: 'Country Management', href: '#' },
                 { title: 'Device Groups', href: '/device-groups' },
                 { title: 'Create', href: '/device-groups/create' },
             ]}>
@@ -56,7 +56,7 @@ export default function DeviceGroupCreate() {
 
     return (
         <AppLayout breadcrumbs={[
-            { title: 'Site Management', href: '#' },
+                            { title: 'Country Management', href: '#' },
             { title: 'Device Groups', href: '/device-groups' },
             { title: 'Create', href: '/device-groups/create' },
         ]}>
@@ -71,12 +71,36 @@ export default function DeviceGroupCreate() {
                         Create Device Group
                     </h1>
                 </div>
-                <DeviceGroupForm 
-                    deviceGroup={null}
-                    sitenames={sitenames.map(s => ({ id: s.id, sitename: s.name }))} 
-                    onSuccess={handleSuccess}
-                    onCancel={() => navigate('/device-groups')}
-                />
+                
+                {sitenames.length === 0 ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                        <div className="flex items-center gap-3">
+                            <Building2 className="h-6 w-6 text-yellow-600" />
+                            <div>
+                                <h3 className="text-lg font-semibold text-yellow-800">No Country Sites Available</h3>
+                                <p className="text-yellow-700 mt-1">
+                                    You need to create at least one country site before creating a device group. 
+                                    Device groups must be associated with a country site.
+                                </p>
+                                <div className="mt-4">
+                                    <Button 
+                                        onClick={() => navigate('/country-sites/create')}
+                                        className="bg-yellow-600 hover:bg-yellow-700"
+                                    >
+                                        Create Sitename
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <DeviceGroupForm 
+                        deviceGroup={null}
+                        sitenames={countrySites.map(s => ({ id: s.id, sitename: s.name }))} 
+                        onSuccess={handleSuccess}
+                        onCancel={() => navigate('/device-groups')}
+                    />
+                )}
             </div>
         </AppLayout>
     );

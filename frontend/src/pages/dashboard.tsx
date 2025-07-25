@@ -258,7 +258,7 @@ export default function Dashboard({ stats, recentAlarms, systemHealth }: Props =
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {recentAlarms && recentAlarms.length > 0 ? (
+                        {recentAlarms && recentAlarms?.length > 0 ? (
                             <div className="space-y-4">
                                 {recentAlarms.slice(0, 5).map((alarm) => (
                                     <div key={alarm.id} className="flex items-center justify-between p-3 border rounded-lg">

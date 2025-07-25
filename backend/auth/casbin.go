@@ -38,6 +38,20 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/users/:id", "PUT")
 	Enforcer.AddPolicy("admin", "/api/users/:id", "DELETE")
 
+	// Admin roles policies
+	Enforcer.AddPolicy("admin", "/api/roles", "GET")
+	Enforcer.AddPolicy("admin", "/api/roles", "POST")
+	Enforcer.AddPolicy("admin", "/api/roles/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/roles/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/roles/:id", "DELETE")
+
+	// Admin permissions policies
+	Enforcer.AddPolicy("admin", "/api/permissions", "GET")
+	Enforcer.AddPolicy("admin", "/api/permissions", "POST")
+	Enforcer.AddPolicy("admin", "/api/permissions/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/permissions/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/permissions/:id", "DELETE")
+
 	// Admin sitename policies
 	Enforcer.AddPolicy("admin", "/api/sitenames", "GET")
 	Enforcer.AddPolicy("admin", "/api/sitenames", "POST")
@@ -100,6 +114,28 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/sms-logs/filter-options", "GET")
 	Enforcer.AddPolicy("admin", "/api/sms-logs/:id", "GET")
 
+	// Admin USSD logs policies
+	Enforcer.AddPolicy("admin", "/api/ussd-logs", "GET")
+	Enforcer.AddPolicy("admin", "/api/ussd-logs/filter-options", "GET")
+	Enforcer.AddPolicy("admin", "/api/ussd-logs/:id", "GET")
+
+	// Admin SIM cards policies
+	Enforcer.AddPolicy("admin", "/api/sim-cards", "GET")
+	Enforcer.AddPolicy("admin", "/api/sim-cards", "POST")
+	Enforcer.AddPolicy("admin", "/api/sim-cards/filter-options", "GET")
+	Enforcer.AddPolicy("admin", "/api/sim-cards/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/sim-cards/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/sim-cards/:id", "DELETE")
+
+	// Admin filters policies
+	Enforcer.AddPolicy("admin", "/api/filters", "GET")
+	Enforcer.AddPolicy("admin", "/api/filters", "POST")
+	Enforcer.AddPolicy("admin", "/api/filters/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/filters/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/filters/:id", "DELETE")
+	Enforcer.AddPolicy("admin", "/api/filters/bulk-delete", "DELETE")
+	Enforcer.AddPolicy("admin", "/api/filters/:id/toggle", "PATCH")
+
 	// Admin bulk SMS policies
 	Enforcer.AddPolicy("admin", "/api/bulk-sms/send", "POST")
 	Enforcer.AddPolicy("admin", "/api/bulk-sms/status", "GET")
@@ -111,6 +147,9 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/websocket-config", "GET")
 
 	// Manager policies
+	Enforcer.AddPolicy("manager", "/api/users", "GET")
+	Enforcer.AddPolicy("manager", "/api/roles", "GET")
+	Enforcer.AddPolicy("manager", "/api/permissions", "GET")
 	Enforcer.AddPolicy("manager", "/api/sitenames", "GET")
 	Enforcer.AddPolicy("manager", "/api/sitenames/:id", "GET")
 	Enforcer.AddPolicy("manager", "/api/device-groups", "GET")
@@ -142,6 +181,20 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("manager", "/api/sms-logs", "GET")
 	Enforcer.AddPolicy("manager", "/api/sms-logs/filter-options", "GET")
 	Enforcer.AddPolicy("manager", "/api/sms-logs/:id", "GET")
+
+	// Manager USSD logs policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/ussd-logs", "GET")
+	Enforcer.AddPolicy("manager", "/api/ussd-logs/filter-options", "GET")
+	Enforcer.AddPolicy("manager", "/api/ussd-logs/:id", "GET")
+
+	// Manager SIM cards policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/sim-cards", "GET")
+	Enforcer.AddPolicy("manager", "/api/sim-cards/filter-options", "GET")
+	Enforcer.AddPolicy("manager", "/api/sim-cards/:id", "GET")
+
+	// Manager filters policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/filters", "GET")
+	Enforcer.AddPolicy("manager", "/api/filters/:id", "GET")
 
 	// Manager bulk SMS policies (read-only)
 	Enforcer.AddPolicy("manager", "/api/bulk-sms/status", "GET")
@@ -182,6 +235,20 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("operator", "/api/sms-logs/filter-options", "GET")
 	Enforcer.AddPolicy("operator", "/api/sms-logs/:id", "GET")
 
+	// Operator USSD logs policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/ussd-logs", "GET")
+	Enforcer.AddPolicy("operator", "/api/ussd-logs/filter-options", "GET")
+	Enforcer.AddPolicy("operator", "/api/ussd-logs/:id", "GET")
+
+	// Operator SIM cards policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/sim-cards", "GET")
+	Enforcer.AddPolicy("operator", "/api/sim-cards/filter-options", "GET")
+	Enforcer.AddPolicy("operator", "/api/sim-cards/:id", "GET")
+
+	// Operator filters policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/filters", "GET")
+	Enforcer.AddPolicy("operator", "/api/filters/:id", "GET")
+
 	// Operator bulk SMS policies (read-only)
 	Enforcer.AddPolicy("operator", "/api/bulk-sms/status", "GET")
 
@@ -192,6 +259,9 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("user", "/api/profile", "GET")
 	Enforcer.AddPolicy("user", "/api/users/profile", "GET")
 	Enforcer.AddPolicy("user", "/api/users/profile", "PUT")
+	Enforcer.AddPolicy("user", "/api/devices", "GET")
+	Enforcer.AddPolicy("user", "/api/alarm-logs", "GET")
+	Enforcer.AddPolicy("user", "/api/websocket-config", "GET")
 	Enforcer.AddPolicy("user", "/ws", "GET")
 
 	// Public policies

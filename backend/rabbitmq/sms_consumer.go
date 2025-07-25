@@ -22,6 +22,20 @@ type SmsMessage struct {
 	MessageID   string `json:"message_id"`
 }
 
+// SmppSmsMessage represents the SMPP SMS message structure
+type SmppSmsMessage struct {
+	SystemID    string `json:"system_id"`
+	SourceAddr  string `json:"source_addr"`
+	DestAddr    string `json:"dest_addr"`
+	Message     string `json:"message"`
+	DataCoding  uint8  `json:"data_coding"`
+	ESMClass    uint8  `json:"esm_class"`
+	Priority    uint8  `json:"priority"`
+	ReplaceFlag uint8  `json:"replace_flag"`
+	SequenceNum uint32 `json:"sequence_num"`
+	MessageID   string `json:"message_id"`
+}
+
 // SmsResponse represents the SMS response structure
 type SmsResponse struct {
 	SystemID  string `json:"system_id"`
@@ -55,13 +69,25 @@ func (sc *SmsConsumer) StartConsuming(queueName string) error {
 
 // processSmsMessage processes a single SMS message
 func (sc *SmsConsumer) processSmsMessage(message []byte) error {
+	// Try to parse as regular SMS message first
 	var smsMsg SmsMessage
-	if err := json.Unmarshal(message, &smsMsg); err != nil {
-		log.Printf("Error unmarshaling SMS message: %v", err)
-		return err
+	if err := json.Unmarshal(message, &smsMsg); err == nil && smsMsg.DeviceID != "" {
+		return sc.processRegularSmsMessage(smsMsg)
 	}
 
-	log.Printf("Processing SMS message: %s to %s", smsMsg.MessageID, smsMsg.PhoneNumber)
+	// Try to parse as SMPP SMS message
+	var smppMsg SmppSmsMessage
+	if err := json.Unmarshal(message, &smppMsg); err == nil {
+		return sc.processSmppSmsMessage(smppMsg)
+	}
+
+	log.Printf("Error: Could not parse SMS message as either regular or SMPP format")
+	return nil
+}
+
+// processRegularSmsMessage processes regular SMS messages (from frontend)
+func (sc *SmsConsumer) processRegularSmsMessage(smsMsg SmsMessage) error {
+	log.Printf("Processing regular SMS message: %s to %s", smsMsg.MessageID, smsMsg.PhoneNumber)
 
 	// Get device information
 	var device models.Device
@@ -75,12 +101,28 @@ func (sc *SmsConsumer) processSmsMessage(message []byte) error {
 		smsMsg.MessageID = utils.GenerateMessageID()
 	}
 
+	// Get SIM card information for the specified slot
+	var deviceSimCard models.DeviceSimCard
+	var simcardName, simcardNumber, simcardICCID, deviceIMSI *string
+
+	if err := database.GetDB().Where("device_imei = ? AND slot_index = ?", smsMsg.DeviceID, smsMsg.SimSlot).First(&deviceSimCard).Error; err == nil {
+		simcardName = &deviceSimCard.CarrierName
+		simcardNumber = &deviceSimCard.PhoneNumber
+		simcardICCID = &deviceSimCard.ICCID
+		deviceIMSI = &deviceSimCard.IMSI
+	}
+
 	// Create SMS log entry
 	smsLog := models.SmsLog{
 		MessageID:               smsMsg.MessageID,
 		DeviceID:                &smsMsg.DeviceID,
 		DeviceName:              &device.Name,
+		DeviceIMEI:              &device.IMEI,
+		DeviceIMSI:              deviceIMSI,
+		SimcardName:             simcardName,
 		SimSlot:                 &smsMsg.SimSlot,
+		SimcardNumber:           simcardNumber,
+		SimcardICCID:            simcardICCID,
 		DestinationAddr:         &smsMsg.PhoneNumber,
 		Message:                 &smsMsg.Message,
 		MessageLength:           len(smsMsg.Message),
@@ -98,31 +140,49 @@ func (sc *SmsConsumer) processSmsMessage(message []byte) error {
 	}
 
 	// Send SMS via WebSocket
-	data := models.SendSmsData{
-		SimSlot:     smsMsg.SimSlot,
+	wsData := models.SendSmsData{
 		PhoneNumber: smsMsg.PhoneNumber,
 		Message:     smsMsg.Message,
+		SimSlot:     smsMsg.SimSlot,
 		Priority:    smsMsg.Priority,
 	}
 
-	if err := sc.wsServer.SendSms(smsMsg.DeviceID, data); err != nil {
-		// Update SMS log status to failed
-		database.GetDB().Model(&smsLog).Updates(map[string]interface{}{
-			"status":        "failed",
-			"error_message": "Failed to send SMS via WebSocket",
-		})
-
+	if err := sc.wsServer.SendSms(smsMsg.DeviceID, wsData); err != nil {
 		log.Printf("Error sending SMS via WebSocket: %v", err)
-		return sc.sendSmsResponse(smsMsg, "failed", "Failed to send SMS")
+		return sc.sendSmsResponse(smsMsg, "failed", "Failed to send via WebSocket")
 	}
 
-	// Update SMS log status to queued
-	database.GetDB().Model(&smsLog).Updates(map[string]interface{}{
-		"status": "queued",
-	})
+	log.Printf("SMS sent successfully: %s to %s", smsMsg.MessageID, smsMsg.PhoneNumber)
+	return sc.sendSmsResponse(smsMsg, "sent", "")
+}
 
-	log.Printf("SMS message sent successfully: %s", smsMsg.MessageID)
-	return sc.sendSmsResponse(smsMsg, "queued", "")
+// processSmppSmsMessage processes SMPP SMS messages
+func (sc *SmsConsumer) processSmppSmsMessage(smppMsg SmppSmsMessage) error {
+	log.Printf("Processing SMPP SMS message: %s from %s to %s", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestAddr)
+
+	// Create SMS log entry for SMPP message
+	smsLog := models.SmsLog{
+		MessageID:               smppMsg.MessageID,
+		SourceAddr:              &smppMsg.SourceAddr,
+		DestinationAddr:         &smppMsg.DestAddr,
+		Message:                 &smppMsg.Message,
+		MessageLength:           len(smppMsg.Message),
+		Direction:               "outbound",
+		Priority:                "normal",
+		Status:                  "pending",
+		DeliveryReportRequested: true,
+		QueuedAt:                &time.Time{},
+		// Add SMPP specific fields as metadata
+		Metadata: &smppMsg.SystemID, // Store system_id in metadata for now
+	}
+
+	if err := database.GetDB().Create(&smsLog).Error; err != nil {
+		log.Printf("Error creating SMPP SMS log: %v", err)
+		return err
+	}
+
+	log.Printf("SMPP SMS logged successfully: %s from %s to %s", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestAddr)
+	return nil
 }
 
 // sendSmsResponse sends a response back to RabbitMQ

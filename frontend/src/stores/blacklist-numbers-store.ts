@@ -96,7 +96,7 @@ export const useBlacklistNumbersStore = create<BlacklistNumbersState>()(
                 try {
                     const response = await blacklistNumbersService.getAll(currentFilters);
                     set({
-                        blacklistNumbers: response.data,
+                        blacklistNumbers: response.data || [],
                         pagination: {
                             current_page: response.current_page,
                             last_page: response.last_page,

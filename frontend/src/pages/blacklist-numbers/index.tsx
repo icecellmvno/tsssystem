@@ -489,7 +489,7 @@ export default function BlacklistNumbersIndex() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {blacklistNumbers.data.length === 0 ? (
+                                    {blacklistNumbers?.data?.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={5} className="text-center py-8">
                                                 <div className="flex flex-col items-center gap-2">
@@ -499,7 +499,7 @@ export default function BlacklistNumbersIndex() {
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        blacklistNumbers.data.map((item) => (
+                                        blacklistNumbers?.data?.map((item) => (
                                             <TableRow key={item.id}>
                                                 <TableCell>
                                                     <Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => handleSelectRow(item.id, checked)} />

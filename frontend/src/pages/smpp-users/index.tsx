@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -10,20 +10,7 @@ import { Plus, Search, Eye, Edit, Trash2, Wifi, WifiOff, CheckCircle, XCircle, C
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { apiClient } from '@/services/api-client';
-
-interface SmppUser {
-  id: number;
-  system_id: string;
-  password: string;
-  max_connection_speed: number;
-  is_active: boolean;
-  is_online: boolean;
-  last_connected_at: string | null;
-  last_disconnected_at: string | null;
-  last_ip_address: string | null;
-  created_at: string;
-  updated_at: string;
-}
+import type { SmppUser } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -33,7 +20,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function SmppUsersIndex() {
-  const navigate = useNavigate();
+
   const [searchParams, setSearchParams] = useSearchParams();
   
   const [smppUsers, setSmppUsers] = useState({
@@ -51,41 +38,74 @@ export default function SmppUsersIndex() {
   const [activeFilter, setActiveFilter] = useState(searchParams.get('is_active') || 'all');
 
   // Fetch SMPP users data
-  useEffect(() => {
-    const fetchSmppUsers = async () => {
-      setIsLoading(true);
-      try {
-        const params: Record<string, any> = {};
-        if (search) params.search = search;
-        if (onlineFilter && onlineFilter !== 'all') params.is_online = onlineFilter;
-        if (activeFilter && activeFilter !== 'all') params.is_active = activeFilter;
-        
-        const data = await apiClient.get<{
-          data: SmppUser[];
-          meta: {
-            current_page: number;
-            last_page: number;
-            per_page: number;
-            total: number;
-          };
-        }>('/smpp-users', params);
-        setSmppUsers({
-          data: data.data,
-          current_page: data.meta.current_page,
-          last_page: data.meta.last_page,
-          per_page: data.meta.per_page,
-          total: data.meta.total,
-          links: [],
-        });
-      } catch (error) {
-        console.error('Error fetching SMPP users:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const fetchSmppUsers = async () => {
+    setIsLoading(true);
+    try {
+      const params: Record<string, any> = {};
+      if (search) params.search = search;
+      if (onlineFilter && onlineFilter !== 'all') params.is_online = onlineFilter;
+      if (activeFilter && activeFilter !== 'all') params.is_active = activeFilter;
+      
+      const data = await apiClient.get<{
+        data: SmppUser[];
+        meta: {
+          current_page: number;
+          last_page: number;
+          per_page: number;
+          total: number;
+        };
+      }>('/smpp-users', params);
+      setSmppUsers({
+        data: data.data,
+        current_page: data.meta.current_page,
+        last_page: data.meta.last_page,
+        per_page: data.meta.per_page,
+        total: data.meta.total,
+        links: [],
+      });
+    } catch (error) {
+      console.error('Error fetching SMPP users:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchSmppUsers();
   }, [search, onlineFilter, activeFilter]);
+
+  // Listen for realtime SMPP user status updates
+  useEffect(() => {
+    const handleSmppUserStatusUpdate = (event: CustomEvent) => {
+      const updateData = event.detail;
+      console.log('Realtime SMPP user status update:', updateData);
+      
+      // Update the user in the current list
+      setSmppUsers(prev => ({
+        ...prev,
+        data: prev.data.map(user => {
+          if (user.system_id === updateData.system_id) {
+            return {
+              ...user,
+              is_online: updateData.is_online,
+              last_connected_at: updateData.is_online ? updateData.timestamp : user.last_connected_at,
+              last_disconnected_at: !updateData.is_online ? updateData.timestamp : user.last_disconnected_at,
+              last_ip_address: updateData.is_online ? updateData.remote_addr : user.last_ip_address,
+            };
+          }
+          return user;
+        })
+      }));
+    };
+
+    // Add event listener
+    window.addEventListener('smpp-user-status-update', handleSmppUserStatusUpdate as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('smpp-user-status-update', handleSmppUserStatusUpdate as EventListener);
+    };
+  }, []);
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -108,7 +128,7 @@ export default function SmppUsersIndex() {
       try {
         await apiClient.delete(`/smpp-users/${smppUser.id}`);
         // Refresh the data
-        window.location.reload();
+        fetchSmppUsers();
       } catch (error) {
         console.error('Error deleting SMPP user:', error);
       }
@@ -245,6 +265,7 @@ export default function SmppUsersIndex() {
                     <TableHead>Password</TableHead>
                     <TableHead>Active</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>MT Source Address</TableHead>
                     <TableHead>Last Connected</TableHead>
                     <TableHead>Last IP</TableHead>
                     <TableHead>Max Speed</TableHead>
@@ -259,8 +280,11 @@ export default function SmppUsersIndex() {
                       <TableCell className="font-mono text-sm">{smppUser.password}</TableCell>
                       <TableCell>{getActiveBadge(smppUser.is_active)}</TableCell>
                       <TableCell>{getStatusBadge(smppUser.is_online)}</TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {smppUser.mt_src_addr || 'None'}
+                      </TableCell>
                       <TableCell className="text-sm">
-                        {formatDateTime(smppUser.last_connected_at)}
+                        {formatDateTime(smppUser.last_connected_at || null)}
                       </TableCell>
                       <TableCell className="font-mono text-sm">
                         {smppUser.last_ip_address || '-'}
@@ -295,7 +319,7 @@ export default function SmppUsersIndex() {
                 </TableBody>
               </Table>
 
-              {smppUsers.data.length === 0 && (
+              {smppUsers?.data?.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No SMPP users found.
                 </div>

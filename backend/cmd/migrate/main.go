@@ -31,6 +31,8 @@ func main() {
 func runMigrations() error {
 	return database.GetDB().AutoMigrate(
 		&models.User{},
+		&models.Role{},
+		&models.Permission{},
 		&models.Sitename{},
 		&models.DeviceGroup{},
 		&models.Device{},
@@ -38,5 +40,6 @@ func runMigrations() error {
 		&models.AlarmLog{},
 		&models.SmppUser{},
 		&models.SmsLog{},
+		&models.Filter{},
 	)
 }

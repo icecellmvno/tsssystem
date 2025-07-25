@@ -95,6 +95,21 @@ func (h *DeviceGroupHandler) CreateDeviceGroup(c *fiber.Ctx) error {
 		})
 	}
 
+	// Validate sitename is required
+	if req.SitenameID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Sitename is required",
+		})
+	}
+
+	// Check if sitename exists
+	var sitename models.Sitename
+	if err := database.GetDB().First(&sitename, req.SitenameID).Error; err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Sitename not found",
+		})
+	}
+
 	// Check if device group already exists
 	var existingDeviceGroup models.DeviceGroup
 	if err := database.GetDB().Where("device_group = ?", req.DeviceGroup).First(&existingDeviceGroup).Error; err == nil {
@@ -387,6 +402,21 @@ func (h *DeviceGroupHandler) UpdateDeviceGroup(c *fiber.Ctx) error {
 		}
 	}
 	if req.SitenameID != nil {
+		// Validate sitename is required
+		if *req.SitenameID == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Sitename is required",
+			})
+		}
+
+		// Check if sitename exists
+		var sitename models.Sitename
+		if err := database.GetDB().First(&sitename, *req.SitenameID).Error; err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Sitename not found",
+			})
+		}
+
 		deviceGroup.SitenameID = *req.SitenameID
 	}
 	if req.Sitename != nil {

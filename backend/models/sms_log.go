@@ -22,8 +22,8 @@ type SmsLog struct {
 	SimcardICCID             *string    `json:"simcard_iccid" gorm:"size:255"`
 	DeviceGroupID            *uint      `json:"device_group_id" gorm:"index"`
 	DeviceGroup              *string    `json:"device_group" gorm:"size:255"`
-	SitenameID               *uint      `json:"sitename_id" gorm:"index"`
-	Sitename                 *string    `json:"sitename" gorm:"size:255"`
+	CountrySiteID            *uint      `json:"country_site_id" gorm:"index"`
+	CountrySite              *string    `json:"country_site" gorm:"size:255"`
 	SourceAddr               *string    `json:"source_addr" gorm:"size:255"`
 	SourceUsername           *string    `json:"source_username" gorm:"size:255"`
 	DestinationAddr          *string    `json:"destination_addr" gorm:"size:255"`

@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings, User, Lock, Palette, Database } from 'lucide-react';
 

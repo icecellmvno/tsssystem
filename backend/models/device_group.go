@@ -7,8 +7,8 @@ import (
 type DeviceGroup struct {
 	ID                      uint      `json:"id" gorm:"primaryKey"`
 	DeviceGroup             string    `json:"device_group" gorm:"not null;unique"`
-	SitenameID              uint      `json:"sitename_id" gorm:"not null"`
-	Sitename                string    `json:"sitename" gorm:"not null"`
+	CountrySiteID           uint      `json:"country_site_id" gorm:"not null"`
+	CountrySite             string    `json:"country_site" gorm:"not null"`
 	DeviceType              string    `json:"device_type" gorm:"default:'android'"`
 	Status                  string    `json:"status" gorm:"default:'inactive'"`
 	WebsocketURL            string    `json:"websocket_url" gorm:"not null"`
@@ -39,8 +39,8 @@ type DeviceGroup struct {
 
 type DeviceGroupCreateRequest struct {
 	DeviceGroup             string `json:"device_group" validate:"required"`
-	SitenameID              uint   `json:"sitename_id" validate:"required"`
-	Sitename                string `json:"sitename" validate:"required"`
+	CountrySiteID           uint   `json:"country_site_id" validate:"required"`
+	CountrySite             string `json:"country_site" validate:"required"`
 	DeviceType              string `json:"device_type"`
 	Status                  string `json:"status"`
 	WebsocketURL            string `json:"websocket_url" validate:"required"`
@@ -69,8 +69,8 @@ type DeviceGroupCreateRequest struct {
 
 type DeviceGroupUpdateRequest struct {
 	DeviceGroup             *string `json:"device_group"`
-	SitenameID              *uint   `json:"sitename_id"`
-	Sitename                *string `json:"sitename"`
+	CountrySiteID           *uint   `json:"country_site_id"`
+	CountrySite             *string `json:"country_site"`
 	DeviceType              *string `json:"device_type"`
 	Status                  *string `json:"status"`
 	WebsocketURL            *string `json:"websocket_url"`

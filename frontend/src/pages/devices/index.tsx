@@ -74,7 +74,7 @@ interface AlarmLog {
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
-  { title: 'Site Management', href: '#' },
+                  { title: 'Country Management', href: '#' },
   { title: 'Devices', href: '/devices' },
 ];
 
@@ -345,12 +345,12 @@ export default function DevicesIndex() {
 
   // Device statistics - update in real-time
   const deviceStats = useMemo(() => {
-    const total = devices.length;
-    const online = devices.filter(d => d.is_online).length;
-    const active = devices.filter(d => d.is_active).length;
-    const inactive = devices.filter(d => !d.is_active).length;
-    const offline = devices.filter(d => !d.is_online).length;
-    const maintenance = devices.filter(d => d.maintenance_mode).length;
+    const total = devices?.length || 0;
+    const online = devices?.filter(d => d.is_online).length || 0;
+    const active = devices?.filter(d => d.is_active).length || 0;
+    const inactive = devices?.filter(d => !d.is_active).length || 0;
+    const offline = devices?.filter(d => !d.is_online).length || 0;
+    const maintenance = devices?.filter(d => d.maintenance_mode).length || 0;
     
     return {
       total,
@@ -366,50 +366,50 @@ export default function DevicesIndex() {
 
   // Get unique sitenames and device groups for filters
   const uniqueSitenames = useMemo(() => {
-    const sitenames = devices.map(d => d.sitename).filter(Boolean);
+    const sitenames = devices?.map(d => d.sitename).filter(Boolean) || [];
     return [...new Set(sitenames)];
   }, [devices]);
 
   const uniqueDeviceGroups = useMemo(() => {
-    const groups = devices.map(d => d.device_group).filter(Boolean);
+    const groups = devices?.map(d => d.device_group).filter(Boolean) || [];
     return [...new Set(groups)];
   }, [devices]);
 
   // Get unique alarm log filters
   const uniqueAlarmDevices = useMemo(() => {
-    const deviceNames = alarmLogs.map(a => a.device_name).filter(Boolean);
+    const deviceNames = alarmLogs?.map(a => a.device_name).filter(Boolean) || [];
     return [...new Set(deviceNames)];
   }, [alarmLogs]);
 
   const uniqueAlarmTypes = useMemo(() => {
-    const types = alarmLogs.map(a => a.alarm_type).filter(Boolean);
+    const types = alarmLogs?.map(a => a.alarm_type).filter(Boolean) || [];
     return [...new Set(types)];
   }, [alarmLogs]);
 
   const uniqueAlarmSeverities = useMemo(() => {
-    const severities = alarmLogs.map(a => a.severity).filter(Boolean);
+    const severities = alarmLogs?.map(a => a.severity).filter(Boolean) || [];
     return [...new Set(severities)];
   }, [alarmLogs]);
 
   const uniqueAlarmStatuses = useMemo(() => {
-    const statuses = alarmLogs.map(a => a.status).filter(Boolean);
+    const statuses = alarmLogs?.map(a => a.status).filter(Boolean) || [];
     return [...new Set(statuses)];
   }, [alarmLogs]);
 
   // Add new filter arrays
   const uniqueAlarmSitenames = useMemo(() => {
-    const sitenames = alarmLogs.map(a => a.sitename).filter(Boolean);
+    const sitenames = alarmLogs?.map(a => a.sitename).filter(Boolean) || [];
     return [...new Set(sitenames)];
   }, [alarmLogs]);
 
   const uniqueAlarmDeviceGroups = useMemo(() => {
-    const groups = alarmLogs.map(a => a.device_group).filter(Boolean);
+    const groups = alarmLogs?.map(a => a.device_group).filter(Boolean) || [];
     return [...new Set(groups)];
   }, [alarmLogs]);
 
   // Filtered devices
   const filteredDevices = useMemo(() => {
-    return devices.filter(device => {
+    return devices?.filter(device => {
       const matchesSearch = globalFilter === '' || 
         device.name.toLowerCase().includes(globalFilter.toLowerCase()) ||
         device.imei.toLowerCase().includes(globalFilter.toLowerCase());
@@ -427,12 +427,12 @@ export default function DevicesIndex() {
         (maintenanceFilter === 'inactive' && !device.maintenance_mode);
       
       return matchesSearch && matchesSitename && matchesGroup && matchesStatus && matchesOnline && matchesMaintenance;
-    });
+    }) || [];
   }, [devices, globalFilter, sitenameFilter, deviceGroupFilter, statusFilter, onlineFilter, maintenanceFilter]);
 
   // Filtered alarm logs
   const filteredAlarmLogs = useMemo(() => {
-    return alarmLogs.filter(alarm => {
+    return alarmLogs?.filter(alarm => {
       const matchesDevice = alarmDeviceFilter === 'all' || alarm.device_name === alarmDeviceFilter;
       const matchesType = alarmTypeFilter === 'all' || alarm.alarm_type === alarmTypeFilter;
       const matchesSeverity = alarmSeverityFilter === 'all' || alarm.severity === alarmSeverityFilter;
@@ -441,7 +441,7 @@ export default function DevicesIndex() {
       const matchesDeviceGroup = alarmDeviceGroupFilter === 'all' || alarm.device_group === alarmDeviceGroupFilter;
       
       return matchesDevice && matchesType && matchesSeverity && matchesStatus && matchesSitename && matchesDeviceGroup;
-    });
+    }) || [];
   }, [alarmLogs, alarmDeviceFilter, alarmTypeFilter, alarmSeverityFilter, alarmStatusFilter, alarmSitenameFilter, alarmDeviceGroupFilter]);
 
   // TanStack Table columns for devices

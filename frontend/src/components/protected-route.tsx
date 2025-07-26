@@ -11,7 +11,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     useEffect(() => {
         checkAuth();
-    }, []);
+    }, [checkAuth]);
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;

@@ -95,18 +95,18 @@ func (h *DeviceGroupHandler) CreateDeviceGroup(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate sitename is required
-	if req.SitenameID == 0 {
+	// Validate country site is required
+	if req.CountrySiteID == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Sitename is required",
+			"error": "Country site is required",
 		})
 	}
 
-	// Check if sitename exists
-	var sitename models.Sitename
-	if err := database.GetDB().First(&sitename, req.SitenameID).Error; err != nil {
+	// Check if country site exists
+	var countrySite models.CountrySite
+	if err := database.GetDB().First(&countrySite, req.CountrySiteID).Error; err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Sitename not found",
+			"error": "Country site not found",
 		})
 	}
 
@@ -133,8 +133,8 @@ func (h *DeviceGroupHandler) CreateDeviceGroup(c *fiber.Ctx) error {
 
 	deviceGroup := models.DeviceGroup{
 		DeviceGroup:             req.DeviceGroup,
-		SitenameID:              req.SitenameID,
-		Sitename:                req.Sitename,
+		CountrySiteID:           req.CountrySiteID,
+		CountrySite:             req.CountrySite,
 		DeviceType:              req.DeviceType,
 		Status:                  req.Status,
 		WebsocketURL:            req.WebsocketURL,
@@ -191,7 +191,7 @@ func (h *DeviceGroupHandler) GetAllDeviceGroups(c *fiber.Ctx) error {
 
 	// Get query parameters
 	search := c.Query("search")
-	sitenameID := c.Query("sitename_id")
+	countrySiteID := c.Query("country_site_id")
 	sortBy := c.Query("sort_by", "device_group")
 	sortOrder := c.Query("sort_order", "asc")
 	page, _ := strconv.Atoi(c.Query("page", "1"))
@@ -210,12 +210,12 @@ func (h *DeviceGroupHandler) GetAllDeviceGroups(c *fiber.Ctx) error {
 
 	// Apply search filter
 	if search != "" {
-		query = query.Where("device_group LIKE ? OR sitename LIKE ?", "%"+search+"%", "%"+search+"%")
+		query = query.Where("device_group LIKE ? OR country_site LIKE ?", "%"+search+"%", "%"+search+"%")
 	}
 
-	// Apply sitename filter
-	if sitenameID != "" {
-		query = query.Where("sitename_id = ?", sitenameID)
+	// Apply country site filter
+	if countrySiteID != "" {
+		query = query.Where("country_site_id = ?", countrySiteID)
 	}
 
 	// Apply sorting
@@ -397,30 +397,30 @@ func (h *DeviceGroupHandler) UpdateDeviceGroup(c *fiber.Ctx) error {
 
 			// Delete old queue (optional - you might want to keep it for existing messages)
 			// if err := h.rabbitMQ.DeleteQueue(oldQueueName); err != nil {
-			//     log.Printf("Warning: Failed to delete old RabbitMQ queue %s: %v", oldQueueName, err)
+			//     fmt.Printf("Warning: Failed to delete old RabbitMQ queue %s: %v", oldQueueName, err)
 			// }
 		}
 	}
-	if req.SitenameID != nil {
-		// Validate sitename is required
-		if *req.SitenameID == 0 {
+	if req.CountrySiteID != nil {
+		// Validate country site is required
+		if *req.CountrySiteID == 0 {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Sitename is required",
+				"error": "Country site is required",
 			})
 		}
 
-		// Check if sitename exists
-		var sitename models.Sitename
-		if err := database.GetDB().First(&sitename, *req.SitenameID).Error; err != nil {
+		// Check if country site exists
+		var countrySite models.CountrySite
+		if err := database.GetDB().First(&countrySite, *req.CountrySiteID).Error; err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Sitename not found",
+				"error": "Country site not found",
 			})
 		}
 
-		deviceGroup.SitenameID = *req.SitenameID
+		deviceGroup.CountrySiteID = *req.CountrySiteID
 	}
-	if req.Sitename != nil {
-		deviceGroup.Sitename = *req.Sitename
+	if req.CountrySite != nil {
+		deviceGroup.CountrySite = *req.CountrySite
 	}
 	if req.DeviceType != nil {
 		deviceGroup.DeviceType = *req.DeviceType
@@ -585,11 +585,11 @@ func (h *DeviceGroupHandler) GenerateQRCode(c *fiber.Ctx) error {
 	// Generate QR code data
 	qrData := fmt.Sprintf(`{
 		"device_group": "%s",
-		"sitename": "%s",
+		"country_site": "%s",
 		"api_key": "%s",
 		"websocket_url": "%s",
 		"queue_name": "%s"
-	}`, deviceGroup.DeviceGroup, deviceGroup.Sitename, deviceGroup.APIKey, h.cfg.WebSocketURL, deviceGroup.QueueName)
+	}`, deviceGroup.DeviceGroup, deviceGroup.CountrySite, deviceGroup.APIKey, h.cfg.WebSocketURL, deviceGroup.QueueName)
 
 	return c.JSON(fiber.Map{
 		"success": true,

@@ -1,9 +1,8 @@
 import React from 'react';
-import { Bell, X, Check, Trash2 } from 'lucide-react';
+import { Bell, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   Popover,
   PopoverContent,
@@ -25,20 +24,6 @@ const getSeverityColor = (severity: string) => {
       return 'bg-blue-500';
     default:
       return 'bg-gray-500';
-  }
-};
-
-const getSeverityIcon = (severity: string) => {
-  switch (severity) {
-    case 'critical':
-    case 'error':
-      return '🔴';
-    case 'warning':
-      return '🟡';
-    case 'info':
-      return '🔵';
-    default:
-      return '⚪';
   }
 };
 

@@ -73,7 +73,7 @@ export default function SimCardEdit() {
             try {
                 setLoading(true);
                 const response = await simCardsService.getSimCard(parseInt(id));
-                const simCard = response.data;
+                const simCard = response;
                 
                 setFormData({
                     slot_index: simCard.slot_index,

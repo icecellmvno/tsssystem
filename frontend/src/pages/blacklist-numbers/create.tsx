@@ -70,7 +70,7 @@ export default function BlacklistNumbersCreate() {
 
     const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const formatted = formatNumber(e.target.value);
-        setData('number', formatted);
+        setData(prev => ({ ...prev, number: formatted }));
     };
 
     return (
@@ -127,7 +127,7 @@ export default function BlacklistNumbersCreate() {
                                 {/* Type */}
                                 <div className="space-y-2">
                                     <Label htmlFor="type">Type *</Label>
-                                    <Select value={data.type} onValueChange={(value) => setData('type', value)}>
+                                    <Select value={data.type} onValueChange={(value) => setData(prev => ({ ...prev, type: value as 'sms' | 'manual' }))}>
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
@@ -161,7 +161,7 @@ export default function BlacklistNumbersCreate() {
                                         id="reason"
                                         placeholder="Enter the reason for blacklisting this number..."
                                         value={data.reason}
-                                        onChange={(e) => setData('reason', e.target.value)}
+                                        onChange={(e) => setData(prev => ({ ...prev, reason: e.target.value }))}
                                         rows={4}
                                         className={errors.reason ? 'border-destructive' : ''}
                                     />

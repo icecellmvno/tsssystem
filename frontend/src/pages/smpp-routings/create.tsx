@@ -24,6 +24,7 @@ export default function SmppRoutingCreate({ deviceGroups = [], smppUsers = [], s
         target_url: '',
         target_queue_name: '',
         target_system_id: '',
+        destination_address: '',
         priority: 0,
         is_active: true,
     });

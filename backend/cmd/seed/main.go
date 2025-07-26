@@ -194,21 +194,21 @@ func runSeeds() error {
 		log.Println("Sample users created successfully")
 	}
 
-	// Check if sitenames already exist
-	var sitenameCount int64
-	db.Model(&models.Sitename{}).Count(&sitenameCount)
-	if sitenameCount > 0 {
-		log.Println("Sitenames already exist, skipping sitename seeding")
+	// Check if country sites already exist
+	var countrySiteCount int64
+	db.Model(&models.CountrySite{}).Count(&countrySiteCount)
+	if countrySiteCount > 0 {
+		log.Println("Country sites already exist, skipping country site seeding")
 	} else {
-		// Get user IDs for sitenames
+		// Get user IDs for country sites
 		var manager1, manager2, operator1, operator2 models.User
 		db.Where("username = ?", "manager1").First(&manager1)
 		db.Where("username = ?", "manager2").First(&manager2)
 		db.Where("username = ?", "operator1").First(&operator1)
 		db.Where("username = ?", "operator2").First(&operator2)
 
-		// Create sample sitenames
-		sitenames := []models.Sitename{
+		// Create sample country sites
+		countrySites := []models.CountrySite{
 			{
 				Name:         "Site A - Downtown",
 				ManagerUser:  manager1.ID,
@@ -231,12 +231,12 @@ func runSeeds() error {
 			},
 		}
 
-		for _, sitename := range sitenames {
-			if err := db.Create(&sitename).Error; err != nil {
+		for _, countrySite := range countrySites {
+			if err := db.Create(&countrySite).Error; err != nil {
 				return err
 			}
 		}
-		log.Println("Sample sitenames created successfully")
+		log.Println("Sample country sites created successfully")
 	}
 
 	return nil

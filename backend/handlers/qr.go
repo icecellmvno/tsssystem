@@ -23,7 +23,7 @@ func NewQRHandler(cfg *config.Config) *QRHandler {
 func (h *QRHandler) GenerateQRConfig(c *fiber.Ctx) error {
 	var request struct {
 		DeviceGroup             string `json:"device_group"`
-		Sitename                string `json:"sitename"`
+		CountrySite             string `json:"country_site"`
 		APIKey                  string `json:"api_key"`
 		QueueName               string `json:"queue_name"`
 		BatteryLowThreshold     int    `json:"battery_low_threshold"`
@@ -55,10 +55,10 @@ func (h *QRHandler) GenerateQRConfig(c *fiber.Ctx) error {
 	}
 
 	// Validate required fields
-	if request.DeviceGroup == "" || request.Sitename == "" || request.APIKey == "" {
+	if request.DeviceGroup == "" || request.CountrySite == "" || request.APIKey == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device group, sitename, and API key are required",
+			"message": "Device group, country site, and API key are required",
 		})
 	}
 
@@ -103,7 +103,7 @@ func (h *QRHandler) GenerateQRConfig(c *fiber.Ctx) error {
 	// Create QR config data
 	qrConfig := models.QRConfigData{
 		DeviceGroup:             request.DeviceGroup,
-		Sitename:                request.Sitename,
+		CountrySite:             request.CountrySite,
 		WebsocketURL:            wsURL,
 		APIKey:                  request.APIKey,
 		QueueName:               request.QueueName,

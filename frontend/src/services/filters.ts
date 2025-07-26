@@ -1,5 +1,5 @@
 import { apiClient } from './api-client';
-import type { FilterItem, PaginatedFilters, CreateFilterData, UpdateFilterData } from '@/types/filters';
+import type { FilterItem, PaginatedFilters, CreateFilterData } from '@/types/filters';
 
 export const filtersService = {
     // Get all filters with pagination and filters
@@ -29,7 +29,7 @@ export const filtersService = {
 
     // Bulk delete filters
     bulkDeleteFilters: async (ids: number[]): Promise<void> => {
-        return apiClient.delete('/filters/bulk', { ids });
+        return apiClient.delete(`/filters/bulk?ids=${ids.join(',')}`);
     },
 
     // Toggle filter status

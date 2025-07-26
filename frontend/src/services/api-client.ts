@@ -8,7 +8,14 @@ class ApiClient {
     }
 
     private getAuthHeaders(): HeadersInit {
-        const token = useAuthStore.getState().token;
+        // First try to get token from Zustand store
+        let token = useAuthStore.getState().token;
+        
+        // If not found in store, try localStorage as fallback
+        if (!token) {
+            token = localStorage.getItem('token');
+        }
+        
         const headers: HeadersInit = {
             'Content-Type': 'application/json',
         };
@@ -48,6 +55,11 @@ class ApiClient {
             // Handle 401 Unauthorized
             if (error instanceof Error && error.message.includes('401')) {
                 useAuthStore.getState().logout();
+                // Also clear localStorage
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                // Redirect to login
+                window.location.href = '/login';
             }
             throw error;
         }
@@ -74,6 +86,13 @@ class ApiClient {
 
     async delete<T>(endpoint: string): Promise<T> {
         return this.request<T>(endpoint, { method: 'DELETE' });
+    }
+
+    async patch<T>(endpoint: string, data?: any): Promise<T> {
+        return this.request<T>(endpoint, {
+            method: 'PATCH',
+            body: data ? JSON.stringify(data) : undefined,
+        });
     }
 
     private buildUrlWithParams(endpoint: string, params: Record<string, any>): string {

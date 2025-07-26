@@ -29,17 +29,32 @@ func main() {
 }
 
 func runMigrations() error {
-	return database.GetDB().AutoMigrate(
+	log.Println("Starting database migration...")
+
+	err := database.GetDB().AutoMigrate(
 		&models.User{},
 		&models.Role{},
 		&models.Permission{},
-		&models.Sitename{},
+		&models.CountrySite{},
 		&models.DeviceGroup{},
 		&models.Device{},
 		&models.DeviceSimCard{},
+		&models.SmsLog{},
 		&models.AlarmLog{},
 		&models.SmppUser{},
-		&models.SmsLog{},
+		&models.BlacklistNumber{},
 		&models.Filter{},
+		&models.ScheduleTask{},
+		&models.ScheduleTaskExecution{},
+		&models.UssdLog{},
+		&models.SimCardRecord{},
 	)
+
+	if err != nil {
+		log.Printf("Migration failed: %v", err)
+		return err
+	}
+
+	log.Println("Database migration completed successfully")
+	return nil
 }

@@ -471,7 +471,7 @@ func enhanceSimCardWithAdditionalData(simCard models.SimCardRecord) map[string]i
 		"sms_limit":                     simCard.SmsLimit,
 		"device_id":                     simCard.DeviceID,
 		"device_name":                   simCard.DeviceName,
-		"sitename":                      simCard.Sitename,
+		"country_site":                  simCard.CountrySite,
 		"device_group_name":             simCard.DeviceGroupName,
 		"created_at":                    simCard.CreatedAt,
 		"updated_at":                    simCard.UpdatedAt,

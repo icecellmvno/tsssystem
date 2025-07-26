@@ -5,7 +5,6 @@ import {
   Battery, 
   BatteryCharging, 
   Signal, 
-  MapPin, 
   Smartphone, 
   AlertTriangle,
   CheckCircle,
@@ -16,7 +15,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -34,15 +32,10 @@ export const DevicesDashboard: React.FC<DevicesDashboardProps> = ({ className })
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [groupFilter, setGroupFilter] = useState<string>('all');
 
-  // Get unique device groups and sitenames for filters
+  // Get unique device groups for filters
   const deviceGroups = useMemo(() => {
     const groups = new Set(devices.map(device => device.device_group));
     return Array.from(groups).sort();
-  }, [devices]);
-
-  const sitenames = useMemo(() => {
-    const sites = new Set(devices.map(device => device.sitename));
-    return Array.from(sites).sort();
   }, [devices]);
 
   // Filter devices

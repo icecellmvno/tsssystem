@@ -56,6 +56,7 @@ export default function DeviceGroupsIndex() {
     const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<DeviceGroup | null>(null);
     const [showQRDialog, setShowQRDialog] = useState(false);
     const [copiedApiKey, setCopiedApiKey] = useState<string | null>(null);
+    const [websocketConfig, setWebsocketConfig] = useState<any>(null);
 
     const { user } = useAuthStore();
     const navigate = useNavigate();
@@ -83,18 +84,21 @@ export default function DeviceGroupsIndex() {
     useEffect(() => {
         const filters: DeviceGroupFilters = {
             search: undefined,
-            sitename_id: selectedCountrySite === 'all' ? undefined : parseInt(selectedCountrySite),
+            country_site_id: selectedCountrySite === 'all' ? undefined : parseInt(selectedCountrySite),
             sort_by: sorting.length > 0 ? sorting[0].id : 'created_at',
             sort_order: sorting.length > 0 ? sorting[0].desc ? 'desc' : 'asc' : 'desc',
             page: 1,
             per_page: 50,
         };
-        loadDeviceGroups(filters);
+        loadDeviceGroups();
     }, [selectedCountrySite, sorting, loadDeviceGroups]);
 
+    // Load country sites on mount
     useEffect(() => {
         loadCountrySites();
     }, [loadCountrySites]);
+
+
 
     const handleDelete = useCallback(async (id: number) => {
         try {
@@ -128,11 +132,11 @@ export default function DeviceGroupsIndex() {
             ),
         },
         {
-            accessorKey: "sitename",
-            header: "Sitename",
+            accessorKey: "country_site",
+            header: "Country Site",
             cell: ({ row }) => (
                 <div className="text-sm text-muted-foreground">
-                    {row.getValue("sitename") || 'N/A'}
+                    {row.getValue("country_site") || 'N/A'}
                 </div>
             ),
         },
@@ -372,7 +376,7 @@ export default function DeviceGroupsIndex() {
         globalFilterFn: 'includesString',
     })
 
-    if (loading) {
+    if (deviceGroupsLoading) {
         return <div>Loading...</div>;
     }
 
@@ -395,7 +399,7 @@ export default function DeviceGroupsIndex() {
                     )}
                 </div>
 
-                {/* Sitename Warning */}
+                {/* Country Site Warning */}
                                                     {countrySites?.length === 0 && (
                     <Card className="border-yellow-200 bg-yellow-50">
                         <CardContent className="p-4">
@@ -409,11 +413,11 @@ export default function DeviceGroupsIndex() {
                                     </p>
                                     <div className="mt-3">
                                         <Button 
-                                            onClick={() => navigate('/country-sites/create')}
+                                            onClick={() => navigate('/countrysites/create')}
                                             size="sm"
                                             className="bg-yellow-600 hover:bg-yellow-700"
                                         >
-                                            Create Sitename
+                                            Create Country Site
                                         </Button>
                                     </div>
                                 </div>
@@ -540,7 +544,7 @@ export default function DeviceGroupsIndex() {
                                         <QRCodeComponent
                                             value={JSON.stringify({
                                                 device_group: selectedDeviceGroup.device_group,
-                                                sitename: selectedDeviceGroup.sitename,
+                                                country_site: selectedDeviceGroup.country_site,
                                                 websocket_url: (websocketConfig?.device_websocket_url || 'ws://localhost:7001/ws') + '?type=android',
                                                 api_key: selectedDeviceGroup.api_key,
                                             })}
@@ -549,7 +553,7 @@ export default function DeviceGroupsIndex() {
                                     </div>
                                     <div className="text-sm text-muted-foreground space-y-2">
                                         <div><strong>Device Group:</strong> {selectedDeviceGroup.device_group}</div>
-                                        <div><strong>Sitename:</strong> {selectedDeviceGroup.sitename}</div>
+                                        <div><strong>Country Site:</strong> {selectedDeviceGroup.country_site}</div>
                                         <div><strong>API Key:</strong> {selectedDeviceGroup.api_key}</div>
                                         <div><strong>WebSocket URL:</strong> {websocketConfig?.device_websocket_url || 'ws://localhost:7001/ws'} (Direct connection)</div>
                                     </div>

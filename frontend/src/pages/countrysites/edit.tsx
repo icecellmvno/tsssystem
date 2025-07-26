@@ -205,17 +205,17 @@ export default function CountrySiteEdit() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {usersLoading ? (
-                                            <SelectItem value="" disabled>
+                                            <SelectItem value="loading" disabled>
                                                 Loading users...
                                             </SelectItem>
                                         ) : Array.isArray(users) && users.length > 0 ? (
                                             users.map((user) => (
                                                 <SelectItem key={user.id} value={user.id.toString()}>
-                                                    {user.name} ({user.email})
+                                                    {user.username} ({user.email})
                                                 </SelectItem>
                                             ))
                                         ) : (
-                                            <SelectItem value="" disabled>
+                                            <SelectItem value="no-users" disabled>
                                                 No users available
                                             </SelectItem>
                                         )}
@@ -235,17 +235,17 @@ export default function CountrySiteEdit() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {usersLoading ? (
-                                            <SelectItem value="" disabled>
+                                            <SelectItem value="loading" disabled>
                                                 Loading users...
                                             </SelectItem>
                                         ) : Array.isArray(users) && users.length > 0 ? (
                                             users.map((user) => (
                                                 <SelectItem key={user.id} value={user.id.toString()}>
-                                                    {user.name} ({user.email})
+                                                    {user.username} ({user.email})
                                                 </SelectItem>
                                             ))
                                         ) : (
-                                            <SelectItem value="" disabled>
+                                            <SelectItem value="no-users" disabled>
                                                 No users available
                                             </SelectItem>
                                         )}

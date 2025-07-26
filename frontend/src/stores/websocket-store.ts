@@ -259,7 +259,7 @@ export const useWebSocketStore = create<WebSocketStore>()(
       });
     };
 
-    const handleAlarmStopped = (data: AlarmStoppedData) => {
+    const handleAlarmStopped = (_data: AlarmStoppedData) => {
       useNotificationStore.getState().addNotification({
         type: 'alarm',
         title: 'Alarm Stopped',

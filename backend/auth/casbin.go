@@ -52,12 +52,13 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/permissions/:id", "PUT")
 	Enforcer.AddPolicy("admin", "/api/permissions/:id", "DELETE")
 
-	// Admin sitename policies
-	Enforcer.AddPolicy("admin", "/api/sitenames", "GET")
-	Enforcer.AddPolicy("admin", "/api/sitenames", "POST")
-	Enforcer.AddPolicy("admin", "/api/sitenames/:id", "GET")
-	Enforcer.AddPolicy("admin", "/api/sitenames/:id", "PUT")
-	Enforcer.AddPolicy("admin", "/api/sitenames/:id", "DELETE")
+
+	// Admin country-sites policies
+	Enforcer.AddPolicy("admin", "/api/country-sites", "GET")
+	Enforcer.AddPolicy("admin", "/api/country-sites", "POST")
+	Enforcer.AddPolicy("admin", "/api/country-sites/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/country-sites/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/country-sites/:id", "DELETE")
 
 	// Admin device group policies
 	Enforcer.AddPolicy("admin", "/api/device-groups", "GET")
@@ -152,6 +153,11 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("manager", "/api/permissions", "GET")
 	Enforcer.AddPolicy("manager", "/api/sitenames", "GET")
 	Enforcer.AddPolicy("manager", "/api/sitenames/:id", "GET")
+	Enforcer.AddPolicy("manager", "/api/country-sites", "GET")
+	Enforcer.AddPolicy("manager", "/api/country-sites", "POST")
+	Enforcer.AddPolicy("manager", "/api/country-sites/:id", "GET")
+	Enforcer.AddPolicy("manager", "/api/country-sites/:id", "PUT")
+	Enforcer.AddPolicy("manager", "/api/country-sites/:id", "DELETE")
 	Enforcer.AddPolicy("manager", "/api/device-groups", "GET")
 	Enforcer.AddPolicy("manager", "/api/device-groups/:id", "GET")
 	Enforcer.AddPolicy("manager", "/api/device-groups/:id/qr", "GET")
@@ -205,6 +211,11 @@ func loadDefaultPolicies() error {
 	// Operator policies
 	Enforcer.AddPolicy("operator", "/api/sitenames", "GET")
 	Enforcer.AddPolicy("operator", "/api/sitenames/:id", "GET")
+	Enforcer.AddPolicy("operator", "/api/country-sites", "GET")
+	Enforcer.AddPolicy("operator", "/api/country-sites", "POST")
+	Enforcer.AddPolicy("operator", "/api/country-sites/:id", "GET")
+	Enforcer.AddPolicy("operator", "/api/country-sites/:id", "PUT")
+	Enforcer.AddPolicy("operator", "/api/country-sites/:id", "DELETE")
 	Enforcer.AddPolicy("operator", "/api/device-groups", "GET")
 	Enforcer.AddPolicy("operator", "/api/device-groups/:id", "GET")
 	Enforcer.AddPolicy("operator", "/api/device-groups/:id/qr", "GET")

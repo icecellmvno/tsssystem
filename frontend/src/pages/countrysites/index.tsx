@@ -8,7 +8,7 @@ import { ArrowLeft, Plus, Search, Edit, Trash2, Building2, Phone, User, Users } 
 import { countrySitesService, type CountrySite } from '@/services/countrysites';
 import { toast } from 'sonner';
 import AppLayout from '@/layouts/app-layout';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/stores/auth-store';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function CountrySitesIndex() {
-    const { user } = useAuth();
+    const { user } = useAuthStore();
     const [countrySites, setCountrySites] = useState<CountrySite[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

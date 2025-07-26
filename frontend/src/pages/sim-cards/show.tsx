@@ -40,7 +40,7 @@ export default function SimCardShow() {
             try {
                 setLoading(true);
                 const response = await simCardsService.getSimCard(parseInt(id));
-                setSimCard(response.data);
+                setSimCard(response);
             } catch (error) {
                 console.error('Error fetching SIM card:', error);
                 toast.error('Failed to fetch SIM card details');
@@ -375,7 +375,7 @@ export default function SimCardShow() {
                 </div>
 
                 {/* Device Information */}
-                                    {(simCard.device_name || simCard.country_site || simCard.device_group_name) && (
+                                    {(simCard.device_name || simCard.sitename || simCard.device_group_name) && (
                     <Card>
                         <CardHeader>
                             <CardTitle>Device Information</CardTitle>
@@ -388,10 +388,10 @@ export default function SimCardShow() {
                                         <p className="text-sm">{simCard.device_name}</p>
                                     </div>
                                 )}
-                                                    {simCard.country_site && (
+                                                    {simCard.sitename && (
                         <div>
                             <label className="text-sm font-medium text-muted-foreground">Country Site</label>
-                            <p className="text-sm">{simCard.country_site}</p>
+                            <p className="text-sm">{simCard.sitename}</p>
                         </div>
                     )}
                                 {simCard.device_group_name && (

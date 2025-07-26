@@ -173,6 +173,13 @@ export default function SmsLogsIndex() {
     to: new Date(), // Today
   });
 
+  // Handle date range selection
+  const handleDateRangeSelect = (range: { from: Date | undefined; to: Date | undefined } | undefined) => {
+    if (range) {
+      setDateRange(range);
+    }
+  };
+
   // Check authentication
   useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -588,7 +595,7 @@ export default function SmsLogsIndex() {
                                                     mode="range"
                                                     defaultMonth={dateRange.from}
                                                     selected={dateRange}
-                                                    onSelect={setDateRange}
+                                                    onSelect={handleDateRangeSelect}
                                                     numberOfMonths={2}
                                                   />
                                                 </PopoverContent>

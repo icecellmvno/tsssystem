@@ -189,4 +189,13 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 			"message": "Server is running",
 		})
 	})
+
+	// Serve static files for assets (CSS, JS, images, etc.)
+	app.Static("/assets", "./static/assets")
+	app.Static("/vite.svg", "./static/vite.svg")
+
+	// Catch-all route for React Router - must be last
+	app.Get("*", func(c *fiber.Ctx) error {
+		return c.SendFile("./static/index.html")
+	})
 }

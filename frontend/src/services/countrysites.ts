@@ -3,8 +3,12 @@ import { useState, useEffect } from 'react';
 
 export interface User {
   id: number;
-  name: string;
+  username: string;
   email: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CountrySite {
@@ -74,7 +78,8 @@ class CountrySitesService {
   }
 
   async getUsers(): Promise<User[]> {
-    return apiClient.get<User[]>('/users');
+    const response = await apiClient.get<{users: User[]}>('/users');
+    return response.users;
   }
 }
 

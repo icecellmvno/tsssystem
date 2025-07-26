@@ -37,7 +37,7 @@ func LogAlarmToDatabase(deviceID string, data models.AlarmData) {
 		Severity:    data.Severity,
 		Status:      "started",
 		DeviceGroup: data.DeviceGroup,
-		Sitename:    data.Sitename,
+		CountrySite: data.CountrySite,
 	}
 
 	// Try to get device info including battery and signal data
@@ -114,7 +114,7 @@ func LogAlarmStoppedToDatabase(deviceID string, data models.AlarmStoppedData) {
 	if err := db.Where("imei = ?", deviceID).First(&device).Error; err == nil {
 		alarmLog.DeviceName = device.Name
 		alarmLog.DeviceGroup = device.DeviceGroup
-		alarmLog.Sitename = device.Sitename
+		alarmLog.CountrySite = device.CountrySite
 		alarmLog.BatteryLevel = device.BatteryLevel
 		alarmLog.BatteryStatus = device.BatteryStatus
 		alarmLog.SignalStrength = device.SignalStrength
@@ -123,7 +123,7 @@ func LogAlarmStoppedToDatabase(deviceID string, data models.AlarmStoppedData) {
 	} else {
 		alarmLog.DeviceName = "Unknown Device"
 		alarmLog.DeviceGroup = "Unknown"
-		alarmLog.Sitename = "Unknown"
+		alarmLog.CountrySite = "Unknown"
 	}
 
 	// Create alarm log
@@ -171,7 +171,7 @@ func LogSimCardChangeAlarmToDatabase(deviceID string, data models.AlarmData) {
 		Severity:    data.Severity,
 		Status:      "started",
 		DeviceGroup: data.DeviceGroup,
-		Sitename:    data.Sitename,
+		CountrySite: data.CountrySite,
 	}
 
 	// Try to get device info including battery and signal data

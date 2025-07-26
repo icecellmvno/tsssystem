@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
+import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,6 +46,7 @@ const breadcrumbs = [
 ];
 
 export default function MessagingIndex({ deviceGroups, devices }: Props) {
+    const { token } = useAuthStore();
     const [activeTab, setActiveTab] = useState('sms');
     const [bulkSmsDialog, setBulkSmsDialog] = useState(false);
     const [isBulkSmsLoading, setIsBulkSmsLoading] = useState(false);
@@ -162,7 +164,7 @@ export default function MessagingIndex({ deviceGroups, devices }: Props) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(data)
             });
@@ -558,7 +560,11 @@ export default function MessagingIndex({ deviceGroups, devices }: Props) {
                         </DialogDescription>
                     </DialogHeader>
                     <BulkSmsForm
-                        deviceGroups={deviceGroups}
+                        deviceGroups={deviceGroups.map(group => ({
+                            id: group.id,
+                            device_group: group.device_group,
+                            sitename: group.country_site
+                        }))}
                         onSubmit={handleBulkSmsSubmit}
                         onCancel={() => setBulkSmsDialog(false)}
                         isLoading={isBulkSmsLoading}

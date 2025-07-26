@@ -31,7 +31,7 @@ import CountrySiteEdit from '@/pages/countrysites/edit'
 import DeviceGroupsIndex from '@/pages/device-groups/index'
 import DeviceGroupCreate from '@/pages/device-groups/create'
 import DeviceGroupEdit from '@/pages/device-groups/edit'
-import WebSocketTest from '@/pages/websocket-test'
+
 import QRGenerator from '@/pages/qr-generator'
 import BlacklistNumbersIndex from '@/pages/blacklist-numbers/index'
 import BlacklistNumbersCreate from '@/pages/blacklist-numbers/create'
@@ -203,11 +203,7 @@ function App() {
               </ProtectedRoute>
             } />
             
-            <Route path="/websocket-test" element={
-              <ProtectedRoute>
-                <WebSocketTest />
-              </ProtectedRoute>
-            } />
+
             
             <Route path="/qr-generator" element={
               <ProtectedRoute>

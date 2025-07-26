@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { blacklistNumbersService, type BlacklistNumber, type BlacklistNumbersFilters, type PaginatedResponse } from '@/services/blacklist-numbers';
+import { blacklistNumbersService, type BlacklistNumber, type BlacklistNumbersFilters } from '@/services/blacklist-numbers';
 
 interface BlacklistNumbersState {
     // Data
@@ -79,7 +79,7 @@ export const useBlacklistNumbersStore = create<BlacklistNumbersState>()(
             },
             
             clearFilters: () => {
-                set((state) => ({
+                set(() => ({
                     filters: initialState.filters,
                 }));
             },

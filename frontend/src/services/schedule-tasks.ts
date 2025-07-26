@@ -99,26 +99,26 @@ export const scheduleTasksService = {
       }
     });
 
-    const response = await apiClient.get(`/schedule-tasks?${params}`);
-    return response.data;
+    const response = await apiClient.get<ScheduleTasksResponse>(`/schedule-tasks?${params}`);
+    return response;
   },
 
   // Get a single schedule task by ID
   async getScheduleTask(id: number): Promise<ScheduleTask> {
-    const response = await apiClient.get(`/schedule-tasks/${id}`);
-    return response.data.data;
+    const response = await apiClient.get<{ data: ScheduleTask }>(`/schedule-tasks/${id}`);
+    return response.data;
   },
 
   // Create a new schedule task
   async createScheduleTask(data: CreateScheduleTaskData): Promise<ScheduleTask> {
-    const response = await apiClient.post('/schedule-tasks', data);
-    return response.data.data;
+    const response = await apiClient.post<{ data: ScheduleTask }>('/schedule-tasks', data);
+    return response.data;
   },
 
   // Update an existing schedule task
   async updateScheduleTask(id: number, data: UpdateScheduleTaskData): Promise<ScheduleTask> {
-    const response = await apiClient.put(`/schedule-tasks/${id}`, data);
-    return response.data.data;
+    const response = await apiClient.put<{ data: ScheduleTask }>(`/schedule-tasks/${id}`, data);
+    return response.data;
   },
 
   // Delete a schedule task
@@ -128,19 +128,19 @@ export const scheduleTasksService = {
 
   // Execute a schedule task
   async executeScheduleTask(id: number): Promise<{ message: string }> {
-    const response = await apiClient.post(`/schedule-tasks/${id}/execute`);
-    return response.data;
+    const response = await apiClient.post<{ message: string }>(`/schedule-tasks/${id}/execute`);
+    return response;
   },
 
   // Pause a schedule task
   async pauseScheduleTask(id: number): Promise<{ message: string }> {
-    const response = await apiClient.post(`/schedule-tasks/${id}/pause`);
-    return response.data;
+    const response = await apiClient.post<{ message: string }>(`/schedule-tasks/${id}/pause`);
+    return response;
   },
 
   // Resume a schedule task
   async resumeScheduleTask(id: number): Promise<{ message: string }> {
-    const response = await apiClient.post(`/schedule-tasks/${id}/resume`);
-    return response.data;
+    const response = await apiClient.post<{ message: string }>(`/schedule-tasks/${id}/resume`);
+    return response;
   },
 }; 

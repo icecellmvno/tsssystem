@@ -1,4 +1,4 @@
-import { ValidationRules, ValidationRule } from '@/types/blacklist-numbers';
+import type { ValidationRules } from '@/types/blacklist-numbers';
 
 // Phone number validation regex
 const PHONE_REGEX = /^\+[1-9]\d{1,14}$/;
@@ -58,7 +58,7 @@ export const validateField = (field: keyof ValidationRules, value: any): string 
     }
     
     if (rule.custom) {
-        return rule.custom(value);
+        return rule.custom(value) as string | true;
     }
     
     return true;

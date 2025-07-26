@@ -5,11 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Building2, ChevronLeft } from 'lucide-react';
 import DeviceGroupForm from './device-group-form';
 import { apiClient } from '@/services/api-client';
-
-interface Sitename {
-    id: number;
-    name: string;
-}
+import { countrySitesService, type CountrySite } from '@/services/countrysites';
 
 export default function DeviceGroupCreate() {
     const navigate = useNavigate();
@@ -17,13 +13,13 @@ export default function DeviceGroupCreate() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        loadSitenames();
+        loadCountrySites();
     }, []);
 
-    const loadSitenames = async () => {
+    const loadCountrySites = async () => {
         try {
-                    const data = await apiClient.get<{ data: CountrySite[] }>('/country-sites');
-        setCountrySites(data.data || []);
+            const data = await countrySitesService.getAll();
+            setCountrySites(data.data || []);
         } catch (error) {
             console.error('Error loading country sites:', error);
         } finally {
@@ -72,7 +68,7 @@ export default function DeviceGroupCreate() {
                     </h1>
                 </div>
                 
-                {sitenames.length === 0 ? (
+                {countrySites.length === 0 ? (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                         <div className="flex items-center gap-3">
                             <Building2 className="h-6 w-6 text-yellow-600" />
@@ -96,7 +92,7 @@ export default function DeviceGroupCreate() {
                 ) : (
                     <DeviceGroupForm 
                         deviceGroup={null}
-                        sitenames={countrySites.map(s => ({ id: s.id, sitename: s.name }))} 
+                        countrySites={countrySites.map(s => ({ id: s.id, country_site: s.name }))} 
                         onSuccess={handleSuccess}
                         onCancel={() => navigate('/device-groups')}
                     />

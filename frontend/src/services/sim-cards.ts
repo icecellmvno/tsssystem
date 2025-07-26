@@ -143,26 +143,26 @@ export const simCardsService = {
       }
     });
 
-    const response = await apiClient.get(`/sim-cards?${params}`);
-    return response.data;
+    const response = await apiClient.get<SimCardsResponse>(`/sim-cards?${params}`);
+    return response;
   },
 
   // Get a single SIM card by ID
   async getSimCard(id: number): Promise<SimCard> {
-    const response = await apiClient.get(`/sim-cards/${id}`);
-    return response.data.data;
+    const response = await apiClient.get<{ data: SimCard }>(`/sim-cards/${id}`);
+    return response.data;
   },
 
   // Create a new SIM card
   async createSimCard(data: CreateSimCardData): Promise<SimCard> {
-    const response = await apiClient.post('/sim-cards', data);
-    return response.data.data;
+    const response = await apiClient.post<{ data: SimCard }>('/sim-cards', data);
+    return response.data;
   },
 
   // Update an existing SIM card
   async updateSimCard(id: number, data: UpdateSimCardData): Promise<SimCard> {
-    const response = await apiClient.put(`/sim-cards/${id}`, data);
-    return response.data.data;
+    const response = await apiClient.put<{ data: SimCard }>(`/sim-cards/${id}`, data);
+    return response.data;
   },
 
   // Delete a SIM card
@@ -172,7 +172,7 @@ export const simCardsService = {
 
   // Get filter options for SIM cards
   async getFilterOptions(): Promise<SimCardFilterOptions> {
-    const response = await apiClient.get('/sim-cards/filter-options');
-    return response.data;
+    const response = await apiClient.get<SimCardFilterOptions>('/sim-cards/filter-options');
+    return response;
   },
 }; 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
@@ -71,34 +72,16 @@ export default function MccMncIndex({ mccMncList, filters, filterOptions }: Prop
     const [sortOrder, setSortOrder] = useState(filters.sort_order || 'desc');
 
     const handleSearch = () => {
-        router.get('/mcc-mnc', {
-            search,
-            type,
-            status,
-            country_code: countryCode,
-            sort_by: sortBy,
-            sort_order: sortOrder,
-        }, {
-            preserveState: true,
-            replace: true,
-        });
+        // TODO: Implement search functionality
+        console.log('Search:', { search, type, status, country_code: countryCode, sort_by: sortBy, sort_order: sortOrder });
     };
 
     const handleSort = (field: string) => {
         const newOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
         setSortBy(field);
         setSortOrder(newOrder);
-        router.get('/mcc-mnc', {
-            search,
-            type,
-            status,
-            country_code: countryCode,
-            sort_by: field,
-            sort_order: newOrder,
-        }, {
-            preserveState: true,
-            replace: true,
-        });
+        // TODO: Implement sort functionality
+        console.log('Sort:', { field, order: newOrder });
     };
 
     const clearFilters = () => {
@@ -108,10 +91,8 @@ export default function MccMncIndex({ mccMncList, filters, filterOptions }: Prop
         setCountryCode('all');
         setSortBy('id');
         setSortOrder('desc');
-        router.get('/mcc-mnc', {}, {
-            preserveState: true,
-            replace: true,
-        });
+        // TODO: Implement clear filters functionality
+        console.log('Clear filters');
     };
 
     const getStatusBadgeVariant = (status: string) => {
@@ -142,7 +123,6 @@ export default function MccMncIndex({ mccMncList, filters, filterOptions }: Prop
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="MCC-MNC List" />
             
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
                 {/* Header */}
@@ -153,7 +133,7 @@ export default function MccMncIndex({ mccMncList, filters, filterOptions }: Prop
                             Total records: {mccMncList.total}
                         </p>
                     </div>
-                    <Link href="/mcc-mnc/create">
+                    <Link to="/mcc-mnc/create">
                         <Button>
                             <Plus className="mr-2 h-4 w-4" />
                             Add New
@@ -295,12 +275,12 @@ export default function MccMncIndex({ mccMncList, filters, filterOptions }: Prop
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex gap-2">
-                                                    <Link href={`/mcc-mnc/${item.id}`}>
+                                                    <Link to={`/mcc-mnc/${item.id}`}>
                                                         <Button variant="outline" size="sm">
                                                             View
                                                         </Button>
                                                     </Link>
-                                                    <Link href={`/mcc-mnc/${item.id}/edit`}>
+                                                    <Link to={`/mcc-mnc/${item.id}/edit`}>
                                                         <Button variant="outline" size="sm">
                                                             Edit
                                                         </Button>
@@ -325,7 +305,7 @@ export default function MccMncIndex({ mccMncList, filters, filterOptions }: Prop
                                     {mccMncList.links.map((link, index) => (
                                         <Link
                                             key={index}
-                                            href={link.url}
+                                            to={link.url}
                                             className={`px-3 py-1 rounded border ${
                                                 link.active
                                                     ? 'bg-primary text-primary-foreground'

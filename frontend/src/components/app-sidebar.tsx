@@ -1,9 +1,8 @@
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { Link } from 'react-router-dom';
-import { BookOpen, Folder, LayoutGrid, Smartphone, Users, Database, MessageSquare, AlertTriangle, Building2, Wifi, Route, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, PhoneOff, Send, Filter } from 'lucide-react';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
+import { LayoutGrid, Users, Database, Building2, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, Send, Filter, PhoneOff } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems = [
@@ -130,7 +129,7 @@ export function AppSidebar() {
             </SidebarContent>
             <SidebarFooter>
                 <NavUser />
-                <NavFooter />
+                <NavFooter items={[]} />
             </SidebarFooter>
         </Sidebar>
     );

@@ -123,7 +123,7 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	ws.connections[deviceID] = &models.DeviceConnection{
 		DeviceID:    deviceID,
 		DeviceGroup: deviceGroup.DeviceGroup,
-		Sitename:    deviceGroup.Sitename,
+		CountrySite: deviceGroup.CountrySite,
 		Conn:        conn,
 		IsHandicap:  false, // All devices use same authentication now
 	}
@@ -132,7 +132,7 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	log.Printf("=== CONNECTION ESTABLISHED ===")
 	log.Printf("Device ID: %s", deviceID)
 	log.Printf("Device Group: %s", deviceGroup.DeviceGroup)
-	log.Printf("Sitename: %s", deviceGroup.Sitename)
+	log.Printf("Country Site: %s", deviceGroup.CountrySite)
 	log.Printf("Connection registered at: %s", time.Now().Format("2006-01-02 15:04:05.000"))
 
 	// Save device info to database
@@ -147,7 +147,7 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	})
 	log.Printf("Connection confirmation sent to device: %s", deviceID)
 
-	log.Printf("Device connected: %s (Group: %s, Site: %s)", deviceID, deviceGroup.DeviceGroup, deviceGroup.Sitename)
+	log.Printf("Device connected: %s (Group: %s, Site: %s)", deviceID, deviceGroup.DeviceGroup, deviceGroup.CountrySite)
 
 	// Handle messages
 	for {

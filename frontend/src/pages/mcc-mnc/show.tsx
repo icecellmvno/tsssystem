@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { type BreadcrumbItem } from '@/types';
-import { ArrowLeft, Edit, Calendar, Hash, Plus, MessageSquare, Phone } from 'lucide-react';
+import { ArrowLeft, Edit, Calendar, Hash, Plus, MessageSquare } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -93,7 +94,6 @@ export default function MccMncShow({ mccMnc }: Props) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`MCC-MNC: ${mccMnc.mcc}-${mccMnc.mnc}`} />
             
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
                 {/* Header */}
@@ -116,7 +116,7 @@ export default function MccMncShow({ mccMnc }: Props) {
                             </p>
                         </div>
                     </div>
-                    <Link href={`/mcc-mnc/${mccMnc.id}/edit`}>
+                    <Link to={`/mcc-mnc/${mccMnc.id}/edit`}>
                         <Button>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
@@ -247,7 +247,7 @@ export default function MccMncShow({ mccMnc }: Props) {
                                 <MessageSquare className="h-4 w-4" />
                                 Operator Commands
                             </CardTitle>
-                            <Link href={`/operator-commands/create?mcc_mnc_id=${mccMnc.id}`}>
+                            <Link to={`/operator-commands/create?mcc_mnc_id=${mccMnc.id}`}>
                                 <Button size="sm">
                                     <Plus className="mr-2 h-4 w-4" />
                                     Add Command
@@ -271,7 +271,7 @@ export default function MccMncShow({ mccMnc }: Props) {
                                                 </Badge>
                                             </div>
                                             <div className="flex gap-2">
-                                                <Link href={`/operator-commands/${command.id}/edit`}>
+                                                <Link to={`/operator-commands/${command.id}/edit`}>
                                                     <Button variant="outline" size="sm">
                                                         Edit
                                                     </Button>
@@ -307,7 +307,7 @@ export default function MccMncShow({ mccMnc }: Props) {
                             <div className="text-center py-8 text-muted-foreground">
                                 <MessageSquare className="mx-auto h-12 w-12 mb-4 opacity-50" />
                                 <p>No operator commands found.</p>
-                                <Link href={`/operator-commands/create?mcc_mnc_id=${mccMnc.id}`}>
+                                <Link to={`/operator-commands/create?mcc_mnc_id=${mccMnc.id}`}>
                                     <Button variant="outline" className="mt-2">
                                         <Plus className="mr-2 h-4 w-4" />
                                         Add First Command

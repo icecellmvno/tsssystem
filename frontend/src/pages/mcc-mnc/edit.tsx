@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ interface Props {
 }
 
 export default function MccMncEdit({ mccMnc }: Props) {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         type: mccMnc.type || '',
         country_name: mccMnc.country_name || '',
@@ -71,11 +73,9 @@ export default function MccMncEdit({ mccMnc }: Props) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        router.put(`/mcc-mnc/${mccMnc.id}`, formData, {
-            onError: (errors) => {
-                setErrors(errors);
-            },
-        });
+        // TODO: Implement API call
+        console.log('Form submitted:', formData);
+        navigate(`/mcc-mnc/${mccMnc.id}`);
     };
 
     const statusOptions = [
@@ -92,7 +92,6 @@ export default function MccMncEdit({ mccMnc }: Props) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`Edit MCC-MNC: ${mccMnc.mcc}-${mccMnc.mnc}`} />
             
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
                 {/* Header */}
@@ -100,7 +99,7 @@ export default function MccMncEdit({ mccMnc }: Props) {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => router.get(`/mcc-mnc/${mccMnc.id}`)}
+                        onClick={() => navigate(`/mcc-mnc/${mccMnc.id}`)}
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back

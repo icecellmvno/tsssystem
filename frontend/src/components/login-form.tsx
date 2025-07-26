@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth } from "@/hooks/useAuth"
+import { useAuthStore } from "@/stores/auth-store"
 
 export function LoginForm({
   className,
@@ -20,14 +20,14 @@ export function LoginForm({
   const [password, setPassword] = useState("")
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [forgotEmail, setForgotEmail] = useState("")
-  const { login, forgotPassword, loading, error, success } = useAuth()
+  const { login, forgotPassword, loading, error, success } = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     try {
       await login({ username, password })
-    } catch (err) {
+    } catch {
       // Error is handled by useAuth hook
     }
   }
@@ -37,7 +37,7 @@ export function LoginForm({
     
     try {
       await forgotPassword(forgotEmail)
-    } catch (err) {
+    } catch {
       // Error is handled by useAuth hook
     }
   }

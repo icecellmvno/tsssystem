@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function MccMncCreate() {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         type: '',
         country_name: '',
@@ -51,11 +53,9 @@ export default function MccMncCreate() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        router.post('/mcc-mnc', formData, {
-            onError: (errors) => {
-                setErrors(errors);
-            },
-        });
+        // TODO: Implement API call
+        console.log('Form submitted:', formData);
+        navigate('/mcc-mnc');
     };
 
     const statusOptions = [
@@ -72,7 +72,6 @@ export default function MccMncCreate() {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Create MCC-MNC" />
             
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
                 {/* Header */}
@@ -80,7 +79,7 @@ export default function MccMncCreate() {
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => router.get('/mcc-mnc')}
+                        onClick={() => navigate('/mcc-mnc')}
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Back

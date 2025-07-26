@@ -18,8 +18,8 @@ export interface UssdLog {
   metadata: any;
   device_group_id: number | null;
   device_group: string | null;
-  sitename_id: number | null;
-  sitename: string | null;
+  country_site_id: number | null;
+  country_site: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -66,19 +66,19 @@ export const ussdLogsService = {
       }
     });
 
-    const response = await apiClient.get(`/ussd-logs?${params}`);
-    return response.data;
+    const response = await apiClient.get<UssdLogsResponse>(`/ussd-logs?${params}`);
+    return response;
   },
 
   // Get a single USSD log by ID
   async getUssdLog(id: number): Promise<UssdLog> {
-    const response = await apiClient.get(`/ussd-logs/${id}`);
-    return response.data.data;
+    const response = await apiClient.get<{ data: UssdLog }>(`/ussd-logs/${id}`);
+    return response.data;
   },
 
   // Get filter options for USSD logs
   async getFilterOptions(): Promise<UssdLogFilterOptions> {
-    const response = await apiClient.get('/ussd-logs/filter-options');
-    return response.data;
+    const response = await apiClient.get<UssdLogFilterOptions>('/ussd-logs/filter-options');
+    return response;
   },
 }; 

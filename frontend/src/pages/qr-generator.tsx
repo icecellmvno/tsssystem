@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AppLayout } from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { toast } from 'sonner';
@@ -11,9 +11,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QRCodeComponent } from '@/components/ui/qr-code';
-import { Download, Copy, RefreshCw } from 'lucide-react';
 import { type DeviceGroup } from '@/services/device-groups';
 
 interface QRConfig {
@@ -48,12 +45,10 @@ export default function QRGenerator() {
   const { token } = useAuthStore();
   const [qrConfig, setQrConfig] = useState<QRConfig | null>(null);
   const [qrJson, setQrJson] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
+  const [deviceGroups] = useState<DeviceGroup[]>([]);
   const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<string>('');
   const [qrData, setQrData] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [websocketConfig, setWebsocketConfig] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     device_group: '',

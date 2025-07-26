@@ -10,7 +10,7 @@ jwt:
 
 server:
   port: 7001
-websocket_url: ws://192.168.9.4:7001/ws
+websocket_url: ws://192.168.9.24:7001/ws
 
 
 rabbitmq:

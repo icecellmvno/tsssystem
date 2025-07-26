@@ -3,8 +3,8 @@ import { apiClient } from './api-client';
 export interface DeviceGroup {
     id: number;
     device_group: string;
-    sitename_id: number;
-    sitename: string;
+    country_site_id: number;
+    country_site: string;
     device_type: string;
     status: string;
     websocket_url: string;
@@ -35,8 +35,8 @@ export interface DeviceGroup {
 
 export interface DeviceGroupCreateRequest {
     device_group: string;
-    sitename_id: number;
-    sitename: string;
+    country_site_id: number;
+    country_site: string;
     device_type?: string;
     status?: string;
     websocket_url?: string;
@@ -64,8 +64,8 @@ export interface DeviceGroupCreateRequest {
 
 export interface DeviceGroupUpdateRequest {
     device_group?: string;
-    sitename_id?: number;
-    sitename?: string;
+    country_site_id?: number;
+    country_site?: string;
     device_type?: string;
     status?: string;
     websocket_url?: string;
@@ -94,7 +94,7 @@ export interface DeviceGroupUpdateRequest {
 
 export interface DeviceGroupFilters {
     search?: string;
-    sitename_id?: number;
+    country_site_id?: number;
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
     page?: number;

@@ -61,7 +61,7 @@ export default function DeviceGroupForm({ deviceGroup, countrySites, onSuccess, 
         country_site: deviceGroup?.country_site || '',
         country_site_id: deviceGroup?.country_site_id || 0,
         device_type: deviceGroup?.device_type || 'android',
-        status: deviceGroup?.status || 'inactive',
+        status: deviceGroup?.status || 'active',
         websocket_url: deviceGroup?.websocket_url || '',
         api_key: deviceGroup?.api_key || '',
         queue_name: deviceGroup?.queue_name || '',
@@ -103,9 +103,6 @@ export default function DeviceGroupForm({ deviceGroup, countrySites, onSuccess, 
                 }
                 if (!formData.country_site_id) {
                     newErrors.country_site = 'Country site is required';
-                }
-                if (!formData.websocket_url.trim()) {
-                    newErrors.websocket_url = 'WebSocket URL is required';
                 }
                 break;
             case 2:
@@ -229,7 +226,7 @@ export default function DeviceGroupForm({ deviceGroup, countrySites, onSuccess, 
                                     </SelectTrigger>
                                     <SelectContent>
                                         {countrySites.length === 0 ? (
-                                            <SelectItem value="" disabled>No country sites available</SelectItem>
+                                            <SelectItem value="no-country-sites" disabled>No country sites available</SelectItem>
                                         ) : (
                                             countrySites.map((countrySite) => (
                                                 <SelectItem key={countrySite.id} value={countrySite.id.toString()}>{countrySite.country_site}</SelectItem>
@@ -242,8 +239,8 @@ export default function DeviceGroupForm({ deviceGroup, countrySites, onSuccess, 
                                         A country site must be selected to create a device group.
                                     </p>
                                 )}
-                                {errors.country_site && (
-                                    <p className="text-sm text-destructive">{errors.country_site}</p>
+                                {errors.sitename && (
+                                    <p className="text-sm text-destructive">{errors.sitename}</p>
                                 )}
                             </div>
                         </div>
@@ -281,21 +278,7 @@ export default function DeviceGroupForm({ deviceGroup, countrySites, onSuccess, 
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="websocket_url" className="text-base font-medium">
-                                WebSocket URL <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                                id="websocket_url"
-                                value={formData.websocket_url}
-                                onChange={(e) => handleInputChange('websocket_url', e.target.value)}
-                                placeholder="wss://example.com/ws"
-                                className={errors.websocket_url ? 'border-destructive' : ''}
-                            />
-                            {errors.websocket_url && (
-                                <p className="text-sm text-destructive">{errors.websocket_url}</p>
-                            )}
-                        </div>
+
                     </div>
                 );
 

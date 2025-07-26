@@ -11,30 +11,30 @@ import { toast } from 'sonner';
 export default function DeviceGroupEdit() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
-    const [sitenames, setSitenames] = useState<Array<{ id: number; sitename: string }>>([]);
+    const [countrySites, setCountrySites] = useState<Array<{ id: number; country_site: string }>>([]);
 
     // Use store
     const { 
-        selectedDeviceGroup: deviceGroup, 
-        sitenames: storeSitenames, 
-        loading, 
-        error,
-        getDeviceGroup, 
-        loadSitenames 
+        currentDeviceGroup: deviceGroup, 
+        countrySites: storeSitenames, 
+        currentDeviceGroupLoading: loading, 
+        currentDeviceGroupError: error,
+        loadDeviceGroup, 
+        loadCountrySites 
     } = useDeviceGroupsStore();
 
     useEffect(() => {
         if (id) {
             loadData();
         }
-    }, [id]); // Remove getDeviceGroup and loadSitenames from dependencies
+    }, [id]); // Remove loadDeviceGroup and loadCountrySites from dependencies
 
     const loadData = async () => {
         try {
-            // Load device group and sitenames in parallel
+            // Load device group and country sites in parallel
             await Promise.all([
-                getDeviceGroup(parseInt(id!)),
-                loadSitenames()
+                loadDeviceGroup(parseInt(id!)),
+                loadCountrySites()
             ]);
         } catch (error) {
             console.error('Error loading data:', error);
@@ -43,14 +43,14 @@ export default function DeviceGroupEdit() {
         }
     };
 
-    // Transform sitenames when store data changes
+    // Transform country sites when store data changes
     useEffect(() => {
         if (storeSitenames.length > 0) {
-            const transformedSitenames = storeSitenames.map(sitename => ({
+            const transformedCountrySites = storeSitenames.map(sitename => ({
                 id: sitename.id,
-                sitename: sitename.name // Transform 'name' to 'sitename'
+                country_site: sitename.name // Transform 'name' to 'country_site'
             }));
-            setSitenames(transformedSitenames);
+            setCountrySites(transformedCountrySites);
         }
     }, [storeSitenames]);
 
@@ -123,7 +123,7 @@ export default function DeviceGroupEdit() {
                 </div>
                 <DeviceGroupForm 
                     deviceGroup={deviceGroup}
-                    sitenames={sitenames} 
+                    countrySites={countrySites} 
                     onSuccess={handleSuccess}
                     onCancel={() => navigate('/device-groups')}
                 />

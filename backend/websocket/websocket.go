@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -345,11 +346,66 @@ func (ws *WebSocketServer) handleMessage(deviceID string, message models.WebSock
 
 		// Check if it's a SIM card change alarm
 		if alarmData.AlarmType == "sim_card_change" {
+			log.Printf("=== SIM CARD CHANGE ALARM DETECTED ===")
+			log.Printf("Device ID: %s", deviceID)
+			log.Printf("Message: %s", alarmData.Message)
+			log.Printf("Severity: %s", alarmData.Severity)
+
+			// Check for specific SIM tray scenarios
+			if strings.Contains(alarmData.Message, "SIM tray opened") {
+				log.Printf("SIM TRAY SCENARIO: Tray opened - all SIM cards removed")
+			} else if strings.Contains(alarmData.Message, "SIM tray closed") {
+				log.Printf("SIM TRAY SCENARIO: Tray closed - SIM cards reinserted")
+			} else if strings.Contains(alarmData.Message, "IMSI changed") {
+				log.Printf("SIM TRAY SCENARIO: IMSI change detected - different SIM cards")
+			} else if strings.Contains(alarmData.Message, "SIM card count changed") {
+				log.Printf("SIM TRAY SCENARIO: Card count change - partial tray operation")
+			} else {
+				log.Printf("SIM TRAY SCENARIO: General configuration change")
+			}
+
 			websocket_handlers.HandleSimCardChangeAlarm(ws, deviceID, alarmData)
 		} else {
 			websocket_handlers.HandleAlarm(ws, deviceID, alarmData)
 		}
 		log.Printf("Alarm processed for %s", deviceID)
+
+	case "alarm_resolved":
+		log.Printf("Processing ALARM_RESOLVED request from %s", deviceID)
+		// Handle alarm resolved message
+		var alarmData models.AlarmData
+		if data, ok := message.Data.(map[string]interface{}); ok {
+			jsonData, _ := json.Marshal(data)
+			json.Unmarshal(jsonData, &alarmData)
+			log.Printf("Alarm resolved data parsed: Type=%s, Message=%s, Severity=%s",
+				alarmData.AlarmType, alarmData.Message, alarmData.Severity)
+		}
+
+		// Check if it's a SIM card change alarm resolution
+		if alarmData.AlarmType == "sim_card_change" {
+			log.Printf("=== SIM CARD CHANGE ALARM RESOLVED ===")
+			log.Printf("Device ID: %s", deviceID)
+			log.Printf("Message: %s", alarmData.Message)
+			log.Printf("Severity: %s", alarmData.Severity)
+
+			// Check for specific resolution scenarios
+			if strings.Contains(alarmData.Message, "SIM tray closed with same IMSIs") {
+				log.Printf("RESOLUTION SCENARIO: Same IMSIs detected - normal operation resumed")
+			} else if strings.Contains(alarmData.Message, "SIM card reinserted") {
+				log.Printf("RESOLUTION SCENARIO: Cards reinserted - tray operation completed")
+			} else if strings.Contains(alarmData.Message, "SIM card configuration resolved") {
+				log.Printf("RESOLUTION SCENARIO: Configuration resolved - system stable")
+			} else {
+				log.Printf("RESOLUTION SCENARIO: General resolution")
+			}
+
+			websocket_handlers.HandleSimCardChangeAlarmResolved(ws, deviceID, alarmData)
+		} else {
+			// Handle other alarm resolutions
+			log.Printf("Other alarm resolved: %s", alarmData.AlarmType)
+			websocket_handlers.LogAlarmResolvedToDatabase(deviceID, alarmData)
+		}
+		log.Printf("Alarm resolved processed for %s", deviceID)
 
 	case "sms_log":
 		log.Printf("Processing SMS_LOG request from %s", deviceID)

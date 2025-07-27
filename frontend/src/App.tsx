@@ -59,10 +59,17 @@ import SimCardsIndex from '@/pages/sim-cards/index'
 import SimCardsCreate from '@/pages/sim-cards/create'
 import SimCardsShow from '@/pages/sim-cards/show'
 import SimCardsEdit from '@/pages/sim-cards/edit'
-// import SmppRoutingsIndex from '@/pages/smpp-routings/index'
-// import SmppRoutingsCreate from '@/pages/smpp-routings/create'
-// import SmppRoutingsShow from '@/pages/smpp-routings/show'
-// import SmppRoutingsEdit from '@/pages/smpp-routings/edit'
+import MccMncIndex from '@/pages/mcc-mnc/index'
+import MccMncCreate from '@/pages/mcc-mnc/create'
+import MccMncShow from '@/pages/mcc-mnc/show'
+import MccMncEdit from '@/pages/mcc-mnc/edit'
+
+
+
+import SmppRoutingsIndex from '@/pages/smpp-routings/index'
+import SmppRoutingsCreate from '@/pages/smpp-routings/create'
+import SmppRoutingsShow from '@/pages/smpp-routings/show'
+import SmppRoutingsEdit from '@/pages/smpp-routings/edit'
 
 function App() {
   const { checkAuth } = useAuthStore();
@@ -204,6 +211,7 @@ function App() {
             } />
             
 
+
             
             <Route path="/qr-generator" element={
               <ProtectedRoute>
@@ -254,6 +262,7 @@ function App() {
                 <SmppUsersEdit />
               </ProtectedRoute>
             } />
+
             
             {/* SMS Logs routes */}
             <Route path="/sms-logs" element={
@@ -357,8 +366,32 @@ function App() {
               </ProtectedRoute>
             } />
             
-            {/* SMPP Routings routes - TODO: Convert from Inertia.js to React Router */}
-            {/* <Route path="/smpp-routings" element={
+            {/* MCC-MNC routes */}
+            <Route path="/mcc-mnc" element={
+              <ProtectedRoute>
+                <MccMncIndex />
+              </ProtectedRoute>
+            } />
+            <Route path="/mcc-mnc/create" element={
+              <ProtectedRoute>
+                <MccMncCreate />
+              </ProtectedRoute>
+            } />
+            <Route path="/mcc-mnc/:id" element={
+              <ProtectedRoute>
+                <MccMncShow />
+              </ProtectedRoute>
+            } />
+            <Route path="/mcc-mnc/:id/edit" element={
+              <ProtectedRoute>
+                <MccMncEdit />
+              </ProtectedRoute>
+            } />
+            
+
+
+            {/* SMPP Routings routes */}
+            <Route path="/smpp-routings" element={
               <ProtectedRoute>
                 <SmppRoutingsIndex />
               </ProtectedRoute>
@@ -377,7 +410,8 @@ function App() {
               <ProtectedRoute>
                 <SmppRoutingsEdit />
               </ProtectedRoute>
-            } /> */}
+            } />
+
             
             <Route path="/" element={<Navigate to="/login" replace />} />
           </Routes>

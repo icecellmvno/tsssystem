@@ -52,7 +52,6 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/permissions/:id", "PUT")
 	Enforcer.AddPolicy("admin", "/api/permissions/:id", "DELETE")
 
-
 	// Admin country-sites policies
 	Enforcer.AddPolicy("admin", "/api/country-sites", "GET")
 	Enforcer.AddPolicy("admin", "/api/country-sites", "POST")
@@ -66,11 +65,12 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/device-groups/:id", "GET")
 	Enforcer.AddPolicy("admin", "/api/device-groups/:id", "PUT")
 	Enforcer.AddPolicy("admin", "/api/device-groups/:id", "DELETE")
-	Enforcer.AddPolicy("admin", "/api/device-groups/:id/qr", "GET")
+	Enforcer.AddPolicy("admin", "/api/device-groups/:id/qr-code", "GET")
 
 	// Admin devices policies
 	Enforcer.AddPolicy("admin", "/api/devices", "GET")
 	Enforcer.AddPolicy("admin", "/api/devices/connected", "GET")
+	Enforcer.AddPolicy("admin", "/api/devices/active", "GET")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id", "GET")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id/sms", "POST")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id/ussd", "POST")
@@ -82,11 +82,29 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id/maintenance/enter", "POST")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id/maintenance/exit", "POST")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id", "DELETE")
-	Enforcer.AddPolicy("admin", "/api/devices/:device_id/name", "PUT")
+	Enforcer.AddPolicy("admin", "/api/devices/:device_id/rename", "PUT")
+
+	// Admin schedule tasks policies
+	Enforcer.AddPolicy("admin", "/api/schedule-tasks", "GET")
+	Enforcer.AddPolicy("admin", "/api/schedule-tasks", "POST")
+	Enforcer.AddPolicy("admin", "/api/schedule-tasks/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/schedule-tasks/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/schedule-tasks/:id", "DELETE")
+	Enforcer.AddPolicy("admin", "/api/schedule-tasks/:id/execute", "POST")
+	Enforcer.AddPolicy("admin", "/api/schedule-tasks/:id/pause", "POST")
+	Enforcer.AddPolicy("admin", "/api/schedule-tasks/:id/resume", "POST")
+
+	// Admin MCC-MNC policies
+	Enforcer.AddPolicy("admin", "/api/mcc-mnc", "GET")
+	Enforcer.AddPolicy("admin", "/api/mcc-mnc", "POST")
+	Enforcer.AddPolicy("admin", "/api/mcc-mnc/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/mcc-mnc/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/mcc-mnc/:id", "DELETE")
+	Enforcer.AddPolicy("admin", "/api/mcc-mnc/filter-options", "GET")
+	Enforcer.AddPolicy("admin", "/api/mcc-mnc/bulk-delete", "DELETE")
 
 	// Admin alarm logs policies
 	Enforcer.AddPolicy("admin", "/api/alarm-logs", "GET")
-	Enforcer.AddPolicy("admin", "/api/alarm-logs/stats", "GET")
 	Enforcer.AddPolicy("admin", "/api/alarm-logs/:id", "GET")
 	Enforcer.AddPolicy("admin", "/api/alarm-logs/:id", "DELETE")
 	Enforcer.AddPolicy("admin", "/api/alarm-logs", "DELETE")
@@ -100,6 +118,18 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/smpp-users/:id", "DELETE")
 	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/connection-status", "PUT")
 
+	// Admin SMPP user anti-detection policies
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/anti-detection-config", "GET")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/anti-detection-config", "PUT")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/sim-pool-configs", "GET")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/sim-pool-configs", "POST")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/sim-pool-configs/:config_id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/sim-pool-configs/:config_id", "DELETE")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/delay-configs", "GET")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/delay-configs", "POST")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/delay-configs/:config_id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/smpp-users/:id/delay-configs/:config_id", "DELETE")
+
 	// Admin blacklist numbers policies
 	Enforcer.AddPolicy("admin", "/api/blacklist-numbers", "GET")
 	Enforcer.AddPolicy("admin", "/api/blacklist-numbers", "POST")
@@ -108,7 +138,7 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/blacklist-numbers/:id", "GET")
 	Enforcer.AddPolicy("admin", "/api/blacklist-numbers/:id", "PUT")
 	Enforcer.AddPolicy("admin", "/api/blacklist-numbers/:id", "DELETE")
-	Enforcer.AddPolicy("admin", "/api/blacklist-numbers/bulk-delete", "DELETE")
+	Enforcer.AddPolicy("admin", "/api/blacklist-numbers/bulk-delete", "POST")
 
 	// Admin SMS logs policies
 	Enforcer.AddPolicy("admin", "/api/sms-logs", "GET")
@@ -141,6 +171,18 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/bulk-sms/send", "POST")
 	Enforcer.AddPolicy("admin", "/api/bulk-sms/status", "GET")
 
+	// Admin SMS routing rules policies
+	Enforcer.AddPolicy("admin", "/api/sms-routing-rules", "GET")
+	Enforcer.AddPolicy("admin", "/api/sms-routing-rules", "POST")
+	Enforcer.AddPolicy("admin", "/api/sms-routing-rules/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/sms-routing-rules/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/sms-routing-rules/:id", "DELETE")
+
+	// Admin SMS routing policies
+	Enforcer.AddPolicy("admin", "/api/sms-routing/send", "POST")
+	Enforcer.AddPolicy("admin", "/api/sms-routing/stats", "GET")
+	Enforcer.AddPolicy("admin", "/api/sms-routing/active-devices", "GET")
+
 	// Admin QR generation policies
 	Enforcer.AddPolicy("admin", "/api/qr/generate", "POST")
 
@@ -151,8 +193,6 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("manager", "/api/users", "GET")
 	Enforcer.AddPolicy("manager", "/api/roles", "GET")
 	Enforcer.AddPolicy("manager", "/api/permissions", "GET")
-	Enforcer.AddPolicy("manager", "/api/sitenames", "GET")
-	Enforcer.AddPolicy("manager", "/api/sitenames/:id", "GET")
 	Enforcer.AddPolicy("manager", "/api/country-sites", "GET")
 	Enforcer.AddPolicy("manager", "/api/country-sites", "POST")
 	Enforcer.AddPolicy("manager", "/api/country-sites/:id", "GET")
@@ -160,17 +200,20 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("manager", "/api/country-sites/:id", "DELETE")
 	Enforcer.AddPolicy("manager", "/api/device-groups", "GET")
 	Enforcer.AddPolicy("manager", "/api/device-groups/:id", "GET")
-	Enforcer.AddPolicy("manager", "/api/device-groups/:id/qr", "GET")
+	Enforcer.AddPolicy("manager", "/api/device-groups/:id/qr-code", "GET")
 	Enforcer.AddPolicy("manager", "/api/devices", "GET")
 	Enforcer.AddPolicy("manager", "/api/devices/connected", "GET")
+	Enforcer.AddPolicy("manager", "/api/devices/active", "GET")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id", "GET")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/sms", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/ussd", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/find", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/maintenance/enter", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/maintenance/exit", "POST")
+	Enforcer.AddPolicy("manager", "/api/devices/maintenance/enter", "POST")
+	Enforcer.AddPolicy("manager", "/api/devices/maintenance/exit", "POST")
+	Enforcer.AddPolicy("manager", "/api/devices/:device_id/rename", "PUT")
 	Enforcer.AddPolicy("manager", "/api/alarm-logs", "GET")
-	Enforcer.AddPolicy("manager", "/api/alarm-logs/stats", "GET")
 	Enforcer.AddPolicy("manager", "/api/alarm-logs/:id", "GET")
 	Enforcer.AddPolicy("manager", "/api/websocket-config", "GET")
 
@@ -178,6 +221,11 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("manager", "/api/smpp-users", "GET")
 	Enforcer.AddPolicy("manager", "/api/smpp-users/stats", "GET")
 	Enforcer.AddPolicy("manager", "/api/smpp-users/:id", "GET")
+
+	// Manager SMPP user anti-detection policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/smpp-users/:id/anti-detection-config", "GET")
+	Enforcer.AddPolicy("manager", "/api/smpp-users/:id/sim-pool-configs", "GET")
+	Enforcer.AddPolicy("manager", "/api/smpp-users/:id/delay-configs", "GET")
 
 	// Manager blacklist numbers policies (read-only)
 	Enforcer.AddPolicy("manager", "/api/blacklist-numbers", "GET")
@@ -205,12 +253,27 @@ func loadDefaultPolicies() error {
 	// Manager bulk SMS policies (read-only)
 	Enforcer.AddPolicy("manager", "/api/bulk-sms/status", "GET")
 
+	// Manager SMS routing rules policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/sms-routing-rules", "GET")
+	Enforcer.AddPolicy("manager", "/api/sms-routing-rules/:id", "GET")
+
+	// Manager SMS routing policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/sms-routing/stats", "GET")
+	Enforcer.AddPolicy("manager", "/api/sms-routing/active-devices", "GET")
+
 	// Manager QR generation policies (read-only)
 	Enforcer.AddPolicy("manager", "/api/qr/generate", "POST")
 
+	// Manager schedule tasks policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/schedule-tasks", "GET")
+	Enforcer.AddPolicy("manager", "/api/schedule-tasks/:id", "GET")
+
+	// Manager MCC-MNC policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/mcc-mnc", "GET")
+	Enforcer.AddPolicy("manager", "/api/mcc-mnc/:id", "GET")
+	Enforcer.AddPolicy("manager", "/api/mcc-mnc/filter-options", "GET")
+
 	// Operator policies
-	Enforcer.AddPolicy("operator", "/api/sitenames", "GET")
-	Enforcer.AddPolicy("operator", "/api/sitenames/:id", "GET")
 	Enforcer.AddPolicy("operator", "/api/country-sites", "GET")
 	Enforcer.AddPolicy("operator", "/api/country-sites", "POST")
 	Enforcer.AddPolicy("operator", "/api/country-sites/:id", "GET")
@@ -218,17 +281,20 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("operator", "/api/country-sites/:id", "DELETE")
 	Enforcer.AddPolicy("operator", "/api/device-groups", "GET")
 	Enforcer.AddPolicy("operator", "/api/device-groups/:id", "GET")
-	Enforcer.AddPolicy("operator", "/api/device-groups/:id/qr", "GET")
+	Enforcer.AddPolicy("operator", "/api/device-groups/:id/qr-code", "GET")
 	Enforcer.AddPolicy("operator", "/api/devices", "GET")
 	Enforcer.AddPolicy("operator", "/api/devices/connected", "GET")
+	Enforcer.AddPolicy("operator", "/api/devices/active", "GET")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id", "GET")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/sms", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/ussd", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/find", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/maintenance/enter", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/maintenance/exit", "POST")
+	Enforcer.AddPolicy("operator", "/api/devices/maintenance/enter", "POST")
+	Enforcer.AddPolicy("operator", "/api/devices/maintenance/exit", "POST")
+	Enforcer.AddPolicy("operator", "/api/devices/:device_id/rename", "PUT")
 	Enforcer.AddPolicy("operator", "/api/alarm-logs", "GET")
-	Enforcer.AddPolicy("operator", "/api/alarm-logs/stats", "GET")
 	Enforcer.AddPolicy("operator", "/api/alarm-logs/:id", "GET")
 	Enforcer.AddPolicy("operator", "/api/websocket-config", "GET")
 
@@ -236,6 +302,11 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("operator", "/api/smpp-users", "GET")
 	Enforcer.AddPolicy("operator", "/api/smpp-users/stats", "GET")
 	Enforcer.AddPolicy("operator", "/api/smpp-users/:id", "GET")
+
+	// Operator SMPP user anti-detection policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/smpp-users/:id/anti-detection-config", "GET")
+	Enforcer.AddPolicy("operator", "/api/smpp-users/:id/sim-pool-configs", "GET")
+	Enforcer.AddPolicy("operator", "/api/smpp-users/:id/delay-configs", "GET")
 
 	// Operator blacklist numbers policies (read-only)
 	Enforcer.AddPolicy("operator", "/api/blacklist-numbers", "GET")
@@ -263,21 +334,33 @@ func loadDefaultPolicies() error {
 	// Operator bulk SMS policies (read-only)
 	Enforcer.AddPolicy("operator", "/api/bulk-sms/status", "GET")
 
+	// Operator SMS routing policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/sms-routing/stats", "GET")
+	Enforcer.AddPolicy("operator", "/api/sms-routing/active-devices", "GET")
+
 	// Operator QR generation policies (read-only)
 	Enforcer.AddPolicy("operator", "/api/qr/generate", "POST")
 
+	// Operator schedule tasks policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/schedule-tasks", "GET")
+	Enforcer.AddPolicy("operator", "/api/schedule-tasks/:id", "GET")
+
+	// Operator MCC-MNC policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/mcc-mnc", "GET")
+	Enforcer.AddPolicy("operator", "/api/mcc-mnc/:id", "GET")
+	Enforcer.AddPolicy("operator", "/api/mcc-mnc/filter-options", "GET")
+
 	// User policies
-	Enforcer.AddPolicy("user", "/api/profile", "GET")
 	Enforcer.AddPolicy("user", "/api/users/profile", "GET")
 	Enforcer.AddPolicy("user", "/api/users/profile", "PUT")
 	Enforcer.AddPolicy("user", "/api/devices", "GET")
+	Enforcer.AddPolicy("user", "/api/devices/active", "GET")
 	Enforcer.AddPolicy("user", "/api/alarm-logs", "GET")
 	Enforcer.AddPolicy("user", "/api/websocket-config", "GET")
 	Enforcer.AddPolicy("user", "/ws", "GET")
 
 	// Public policies
 	Enforcer.AddPolicy("public", "/api/auth/login", "POST")
-	Enforcer.AddPolicy("public", "/api/auth/register", "POST")
 	Enforcer.AddPolicy("public", "/api/auth/forgot-password", "POST")
 	Enforcer.AddPolicy("public", "/health", "GET")
 

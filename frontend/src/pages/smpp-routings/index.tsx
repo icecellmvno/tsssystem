@@ -1,5 +1,5 @@
-import { useState } from 'react';
-
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
 import { Search, Plus, ArrowUpDown, Settings, Route, Edit, Trash2, Eye } from 'lucide-react';
+import { smsRoutingsService, type SmsRoutingItem, type SmsRoutingsListResponse } from '@/services/sms-routings';
+import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -21,97 +23,60 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-interface SmppRoutingItem {
-    id: number;
-    name: string;
-    description: string;
-    source_type: 'smpp' | 'http';
-    direction: 'inbound' | 'outbound';
-    system_id: string | null;
-    destination_address: string | null;
-    target_type: 'http' | 'device_group' | 'smpp';
-    target_url: string | null;
-    device_group_id: number | null;
-    is_active: boolean;
-    priority: number;
-    conditions: any;
-    created_at: string;
-    updated_at: string;
-    status_badge_variant: "default" | "secondary" | "destructive" | "outline";
-    source_type_badge_variant: "default" | "secondary" | "destructive" | "outline";
-    direction_badge_variant: "default" | "secondary" | "destructive" | "outline";
-    target_type_badge_variant: "default" | "secondary" | "destructive" | "outline";
-    source_display_name: string;
-    target_display_name: string;
-    routing_summary: string;
-    device_group?: { id: number; name: string };
-}
+export default function SmppRoutingsIndex() {
+    const navigate = useNavigate();
+    const [routings, setRoutings] = useState<SmsRoutingsListResponse | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    
+    // Filters
+    const [search, setSearch] = useState('');
+    const [sourceType, setSourceType] = useState('all');
+    const [direction, setDirection] = useState('all');
+    const [targetType, setTargetType] = useState('all');
+    const [isActive, setIsActive] = useState('all');
+    const [sortBy, setSortBy] = useState('priority');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-interface PaginatedData {
-    data: SmppRoutingItem[];
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-    links: any[];
-}
+    // Fetch routings
+    const fetchRoutings = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const params = {
+                search: search || undefined,
+                source_type: sourceType !== 'all' ? sourceType : undefined,
+                direction: direction !== 'all' ? direction : undefined,
+                target_type: targetType !== 'all' ? targetType : undefined,
+                is_active: isActive !== 'all' ? isActive : undefined,
+                sort_by: sortBy,
+                sort_order: sortOrder,
+            };
 
-interface Props {
-    routings: PaginatedData;
-    filters: {
-        search: string;
-        source_type: string;
-        direction: string;
-        target_type: string;
-        is_active: string;
-        sort_by: string;
-        sort_order: string;
+            const response = await smsRoutingsService.getAll(params);
+            setRoutings(response);
+        } catch (error) {
+            console.error('Error fetching SMS routings:', error);
+            setError(error instanceof Error ? error.message : 'Failed to fetch SMS routings');
+            toast.error('Failed to fetch SMS routings');
+        } finally {
+            setLoading(false);
+        }
     };
-    deviceGroups: Array<{ id: number; name: string; queue_name: string | null }>;
-    smppUsers: string[];
-    smppClients: string[];
-}
 
-export default function SmppRoutingsIndex({ routings, filters, deviceGroups, smppUsers, smppClients }: Props) {
-    const [search, setSearch] = useState(filters.search || '');
-    const [sourceType, setSourceType] = useState(filters.source_type || 'all');
-    const [direction, setDirection] = useState(filters.direction || 'all');
-    const [targetType, setTargetType] = useState(filters.target_type || 'all');
-    const [isActive, setIsActive] = useState(filters.is_active || 'all');
-    const [sortBy, setSortBy] = useState(filters.sort_by || 'priority');
-    const [sortOrder, setSortOrder] = useState(filters.sort_order || 'desc');
+    useEffect(() => {
+        fetchRoutings();
+    }, [search, sourceType, direction, targetType, isActive, sortBy, sortOrder]);
 
     const handleSearch = () => {
-        router.get('/smpp-routings', {
-            search,
-            source_type: sourceType,
-            direction,
-            target_type: targetType,
-            is_active: isActive,
-            sort_by: sortBy,
-            sort_order: sortOrder,
-        }, {
-            preserveState: true,
-            replace: true,
-        });
+        fetchRoutings();
     };
 
     const handleSort = (field: string) => {
         const newOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
         setSortBy(field);
         setSortOrder(newOrder);
-        router.get('/smpp-routings', {
-            search,
-            source_type: sourceType,
-            direction,
-            target_type: targetType,
-            is_active: isActive,
-            sort_by: field,
-            sort_order: newOrder,
-        }, {
-            preserveState: true,
-            replace: true,
-        });
     };
 
     const clearFilters = () => {
@@ -122,32 +87,61 @@ export default function SmppRoutingsIndex({ routings, filters, deviceGroups, smp
         setIsActive('all');
         setSortBy('priority');
         setSortOrder('desc');
-        router.get('/smpp-routings', {}, {
-            preserveState: true,
-            replace: true,
-        });
     };
 
-    const handleDelete = (routing: SmppRoutingItem) => {
+    const handleDelete = async (routing: SmsRoutingItem) => {
         if (confirm(`Are you sure you want to delete "${routing.name}"?`)) {
-            router.delete(`/smpp-routings/${routing.id}`);
+            try {
+                await smsRoutingsService.delete(routing.id);
+                toast.success('SMS routing deleted successfully');
+                fetchRoutings();
+            } catch (error) {
+                console.error('Error deleting SMS routing:', error);
+                toast.error('Failed to delete SMS routing');
+            }
         }
     };
 
+    if (loading) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                        <p className="text-muted-foreground">Loading SMS routings...</p>
+                    </div>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    if (error) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <p className="text-destructive">Error loading SMS routings: {error}</p>
+                        <Button onClick={fetchRoutings} className="mt-4">
+                            Retry
+                        </Button>
+                    </div>
+                </div>
+            </AppLayout>
+        );
+    }
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="SMPP Routings" />
-            
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">SMPP Routings</h1>
                         <p className="text-muted-foreground">
-                            Total records: {routings.total}
+                            Total records: {routings?.meta.total || 0}
                         </p>
                     </div>
-                    <Button onClick={() => router.get('/smpp-routings/create')}>
+                    <Button onClick={() => navigate('/smpp-routings/create')}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Routing
                     </Button>
@@ -246,7 +240,7 @@ export default function SmppRoutingsIndex({ routings, filters, deviceGroups, smp
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {routings.data.map((item) => (
+                                    {routings?.data.map((item) => (
                                         <TableRow key={item.id}>
                                             <TableCell>
                                                 <div className="space-y-1">
@@ -307,7 +301,7 @@ export default function SmppRoutingsIndex({ routings, filters, deviceGroups, smp
                                                         variant="outline" 
                                                         size="sm" 
                                                         className="h-7 px-2 text-xs"
-                                                        onClick={() => router.get(`/smpp-routings/${item.id}`)}
+                                                        onClick={() => navigate(`/smpp-routings/${item.id}`)}
                                                     >
                                                         <Eye className="h-3 w-3" />
                                                     </Button>
@@ -315,7 +309,7 @@ export default function SmppRoutingsIndex({ routings, filters, deviceGroups, smp
                                                         variant="outline" 
                                                         size="sm" 
                                                         className="h-7 px-2 text-xs"
-                                                        onClick={() => router.get(`/smpp-routings/${item.id}/edit`)}
+                                                        onClick={() => navigate(`/smpp-routings/${item.id}/edit`)}
                                                     >
                                                         <Edit className="h-3 w-3" />
                                                     </Button>
@@ -336,25 +330,28 @@ export default function SmppRoutingsIndex({ routings, filters, deviceGroups, smp
                         </div>
 
                         {/* Pagination */}
-                        {routings.last_page > 1 && (
+                        {routings && routings.meta.last_page > 1 && (
                             <div className="flex items-center justify-between p-4 border-t bg-muted/30">
                                 <div className="text-sm text-muted-foreground">
-                                    Showing {((routings.current_page - 1) * routings.per_page) + 1} to{' '}
-                                    {Math.min(routings.current_page * routings.per_page, routings.total)} of{' '}
-                                    {routings.total} results
+                                    Showing {((routings.meta.current_page - 1) * routings.meta.per_page) + 1} to{' '}
+                                    {Math.min(routings.meta.current_page * routings.meta.per_page, routings.meta.total)} of{' '}
+                                    {routings.meta.total} results
                                 </div>
                                 <div className="flex gap-1">
-                                    {routings.links.map((link, index) => (
+                                    {Array.from({ length: routings.meta.last_page }, (_, i) => i + 1).map((page) => (
                                         <button
-                                            key={index}
-                                            onClick={() => router.get(link.url)}
+                                            key={page}
+                                            onClick={() => {
+                                                // TODO: Implement pagination
+                                            }}
                                             className={`px-3 py-2 text-sm rounded-md border transition-colors ${
-                                                link.active
+                                                page === routings.meta.current_page
                                                     ? 'bg-primary text-primary-foreground border-primary'
                                                     : 'hover:bg-muted hover:text-foreground'
-                                            } ${!link.url ? 'pointer-events-none opacity-50' : ''}`}
-                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                        />
+                                            }`}
+                                        >
+                                            {page}
+                                        </button>
                                     ))}
                                 </div>
                             </div>

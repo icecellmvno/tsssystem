@@ -582,14 +582,13 @@ func (h *DeviceGroupHandler) GenerateQRCode(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate QR code data
+	// Generate QR code data - only essential information for device connection
 	qrData := fmt.Sprintf(`{
 		"device_group": "%s",
 		"country_site": "%s",
 		"api_key": "%s",
-		"websocket_url": "%s",
-		"queue_name": "%s"
-	}`, deviceGroup.DeviceGroup, deviceGroup.CountrySite, deviceGroup.APIKey, h.cfg.WebSocketURL, deviceGroup.QueueName)
+		"websocket_url": "%s"
+	}`, deviceGroup.DeviceGroup, deviceGroup.CountrySite, deviceGroup.APIKey, h.cfg.WebSocketURL)
 
 	return c.JSON(fiber.Map{
 		"success": true,

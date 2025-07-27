@@ -17,6 +17,8 @@ export interface CountrySite {
   country_phone_code: string;
   manager_user: number;
   operator_user: number;
+  manager_user_name: string;
+  operator_user_name: string;
   created_at: string;
   updated_at: string;
 }
@@ -49,11 +51,6 @@ export interface CountrySiteResponse {
   current_page: number;
   last_page: number;
   per_page: number;
-  links: Array<{
-    url: string;
-    label: string;
-    active: boolean;
-  }>;
 }
 
 class CountrySitesService {

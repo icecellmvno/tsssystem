@@ -1,15 +1,32 @@
 import { create } from 'zustand';
 import { filtersService } from '@/services/filters';
-import type { FilterItem, PaginatedFilters, CreateFilterData } from '@/types/filters';
+import type { Filter } from '@/services/filters';
+
+interface PaginatedFilters {
+    data: Filter[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    links: any[];
+}
+
+interface CreateFilterData {
+    name: string;
+    type: string;
+    description?: string;
+    conditions?: any;
+    is_active?: boolean;
+}
 
 interface FiltersState {
     filters: PaginatedFilters;
-    currentFilter: FilterItem | null;
+    currentFilter: Filter | null;
     isLoading: boolean;
     error: string | null;
     
     // Actions
-    fetchFilters: (params?: Record<string, any>) => Promise<void>;
+    fetchFilters: () => Promise<void>;
     fetchFilter: (id: number) => Promise<void>;
     createFilter: (data: CreateFilterData) => Promise<void>;
     updateFilter: (id: number, data: CreateFilterData) => Promise<void>;
@@ -33,10 +50,19 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
     isLoading: false,
     error: null,
 
-    fetchFilters: async (params?: Record<string, any>) => {
+    fetchFilters: async () => {
         set({ isLoading: true, error: null });
         try {
-            const filters = await filtersService.getFilters(params);
+            const response = await filtersService.getFilters();
+            // Transform the response to match PaginatedFilters interface
+            const filters: PaginatedFilters = {
+                data: response.filters,
+                current_page: 1,
+                last_page: 1,
+                per_page: response.filters.length,
+                total: response.filters.length,
+                links: [],
+            };
             set({ filters, isLoading: false });
         } catch (error) {
             set({ 

@@ -39,7 +39,95 @@ func (r *RabbitMQHandler) Connect(url string) error {
 		return err
 	}
 
+	// Set up exchange and queues for SMPP integration
+	if err := r.setupSmppQueues(); err != nil {
+		log.Printf("Warning: Failed to setup SMPP queues: %v", err)
+	}
+
 	log.Println("Successfully connected to RabbitMQ")
+	return nil
+}
+
+// setupSmppQueues sets up the exchange and queues for SMPP integration
+func (r *RabbitMQHandler) setupSmppQueues() error {
+	// Declare exchange
+	err := r.channel.ExchangeDeclare(
+		"tsimcloudrouter", // name
+		"direct",          // type
+		true,              // durable
+		false,             // auto-deleted
+		false,             // internal
+		false,             // no-wait
+		nil,               // arguments
+	)
+	if err != nil {
+		return err
+	}
+
+	// Declare tsimcloudrouter queue for SMPP messages
+	_, err = r.channel.QueueDeclare(
+		"tsimcloudrouter", // name
+		true,              // durable
+		false,             // delete when unused
+		false,             // exclusive
+		false,             // no-wait
+		nil,               // arguments
+	)
+	if err != nil {
+		return err
+	}
+
+	// Bind tsimcloudrouter queue to exchange
+	err = r.channel.QueueBind(
+		"tsimcloudrouter", // queue name
+		"submit_sm",       // routing key
+		"tsimcloudrouter", // exchange
+		false,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Declare delivery report queue
+	_, err = r.channel.QueueDeclare(
+		"tsimcloud_delivery_report", // name
+		true,                        // durable
+		false,                       // delete when unused
+		false,                       // exclusive
+		false,                       // no-wait
+		nil,                         // arguments
+	)
+	if err != nil {
+		return err
+	}
+
+	// Declare sms_queue for regular SMS messages
+	_, err = r.channel.QueueDeclare(
+		"sms_queue", // name
+		true,        // durable
+		false,       // delete when unused
+		false,       // exclusive
+		false,       // no-wait
+		nil,         // arguments
+	)
+	if err != nil {
+		return err
+	}
+
+	// Bind delivery report queue to exchange
+	err = r.channel.QueueBind(
+		"tsimcloud_delivery_report", // queue name
+		"delivery_report",           // routing key
+		"tsimcloudrouter",           // exchange
+		false,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	log.Println("Successfully set up SMPP queues and exchange")
 	return nil
 }
 

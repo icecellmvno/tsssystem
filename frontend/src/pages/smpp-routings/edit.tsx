@@ -1,12 +1,14 @@
-
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { useState } from 'react';
 import { type BreadcrumbItem } from '@/types';
+import { smsRoutingsService, type SmsRoutingItem, type SmsRoutingsFilterOptions } from '@/services/sms-routings';
+import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -14,16 +16,70 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Edit', href: '#' },
 ];
 
-export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers = [], smppClients = [], users = [] }: any) {
-    const [form, setForm] = useState({
-        ...routing,
-        target_queue_name: routing.target_queue_name ? String(routing.target_queue_name) : '',
-        target_system_id: routing.target_system_id ? String(routing.target_system_id) : '',
-        user_id: routing.user_id ? String(routing.user_id) : '',
-    });
-    const [errors, setErrors] = useState<any>({});
+export default function SmppRoutingEdit() {
+    const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
+    const [loading, setLoading] = useState(false);
+    const [routing, setRouting] = useState<SmsRoutingItem | null>(null);
+    const [filterOptions, setFilterOptions] = useState<SmsRoutingsFilterOptions | null>(null);
+    const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const handleChange = (e: any) => {
+    const [form, setForm] = useState({
+        name: '',
+        description: '',
+        source_type: 'smpp',
+        direction: 'inbound',
+        system_id: '',
+        destination_address: '',
+        target_type: 'http',
+        target_url: '',
+        target_queue_name: '',
+        target_system_id: '',
+        user_id: '',
+        is_active: true,
+        priority: 50,
+    });
+
+    // Fetch routing data and filter options
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!id) return;
+
+            try {
+                const [routingData, options] = await Promise.all([
+                    smsRoutingsService.getById(parseInt(id)),
+                    smsRoutingsService.getFilterOptions()
+                ]);
+
+                setRouting(routingData);
+                setFilterOptions(options);
+
+                // Set form data
+                setForm({
+                    name: routingData.name,
+                    description: routingData.description,
+                    source_type: routingData.source_type,
+                    direction: routingData.direction,
+                    system_id: routingData.system_id || '',
+                    destination_address: routingData.destination_address || '',
+                    target_type: routingData.target_type,
+                    target_url: routingData.target_url || '',
+                    target_queue_name: routingData.device_group?.name || '',
+                    target_system_id: routingData.target_system_id || '',
+                    user_id: routingData.user_id ? String(routingData.user_id) : '',
+                    is_active: routingData.is_active,
+                    priority: routingData.priority,
+                });
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                toast.error('Failed to fetch routing data');
+            }
+        };
+
+        fetchData();
+    }, [id]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value, type, checked } = e.target;
         setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     };
@@ -41,17 +97,78 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
         });
     };
 
-    const handleSubmit = (e: any) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!id) return;
+
+        setLoading(true);
         setErrors({});
-        router.put(`/smpp-routings/${routing.id}`, form, {
-            onError: (err) => setErrors(err),
-        });
+
+        try {
+            // Prepare data for API
+            const submitData: any = {
+                name: form.name,
+                description: form.description,
+                source_type: form.source_type,
+                direction: form.direction,
+                destination_address: form.destination_address,
+                target_type: form.target_type,
+                is_active: form.is_active,
+                priority: form.priority,
+            };
+
+            // Add source-specific fields
+            if (form.source_type === 'smpp' && form.system_id) {
+                submitData.system_id = form.system_id;
+            }
+            if (form.source_type === 'http' && form.user_id) {
+                submitData.user_id = parseInt(form.user_id);
+            }
+
+            // Add target-specific fields
+            if (form.target_type === 'http' && form.target_url) {
+                submitData.target_url = form.target_url;
+            }
+            if (form.target_type === 'device_group' && form.target_queue_name) {
+                const deviceGroup = filterOptions?.device_groups.find(g => g.name === form.target_queue_name);
+                if (deviceGroup) {
+                    submitData.device_group_id = deviceGroup.id;
+                }
+            }
+            if (form.target_type === 'smpp' && form.target_system_id) {
+                submitData.target_system_id = form.target_system_id;
+            }
+
+            await smsRoutingsService.update(parseInt(id), submitData);
+            toast.success('SMS routing updated successfully');
+            navigate('/smpp-routings');
+        } catch (error: any) {
+            console.error('Error updating SMS routing:', error);
+            if (error.response?.data?.errors) {
+                setErrors(error.response.data.errors);
+            } else {
+                toast.error(error.message || 'Failed to update SMS routing');
+            }
+        } finally {
+            setLoading(false);
+        }
     };
+
+    if (!routing || !filterOptions) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                        <p className="text-muted-foreground">Loading...</p>
+                    </div>
+                </div>
+            </AppLayout>
+        );
+    }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Edit SMPP Routing" />
             <div className="max-w-2xl mx-auto p-4">
                 <Card>
                     <CardHeader>
@@ -61,17 +178,33 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <Label htmlFor="name">Name</Label>
-                                <Input id="name" name="name" placeholder="Routing name" value={form.name} onChange={handleChange} required />
+                                <Input 
+                                    id="name" 
+                                    name="name" 
+                                    placeholder="Routing name" 
+                                    value={form.name} 
+                                    onChange={handleChange} 
+                                    required 
+                                />
+                                {errors.name && <p className="text-sm text-destructive mt-1">{errors.name}</p>}
                             </div>
                             <div>
                                 <Label htmlFor="description">Description</Label>
-                                <Input id="description" name="description" placeholder="Description" value={form.description} onChange={handleChange} />
+                                <Input 
+                                    id="description" 
+                                    name="description" 
+                                    placeholder="Description" 
+                                    value={form.description} 
+                                    onChange={handleChange} 
+                                />
                             </div>
                             <div className="flex gap-2">
                                 <div className="flex-1">
                                     <Label htmlFor="source_type">Source Type</Label>
                                     <Select value={form.source_type} onValueChange={(v) => handleSelect('source_type', v)}>
-                                        <SelectTrigger id="source_type" className="w-full"><SelectValue placeholder="Source Type" /></SelectTrigger>
+                                        <SelectTrigger id="source_type" className="w-full">
+                                            <SelectValue placeholder="Source Type" />
+                                        </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="smpp">SMPP</SelectItem>
                                             <SelectItem value="http">HTTP</SelectItem>
@@ -81,7 +214,9 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                                 <div className="flex-1">
                                     <Label htmlFor="direction">Direction</Label>
                                     <Select value={form.direction} onValueChange={(v) => handleSelect('direction', v)}>
-                                        <SelectTrigger id="direction" className="w-full"><SelectValue placeholder="Direction" /></SelectTrigger>
+                                        <SelectTrigger id="direction" className="w-full">
+                                            <SelectValue placeholder="Direction" />
+                                        </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="inbound">Inbound</SelectItem>
                                             <SelectItem value="outbound">Outbound</SelectItem>
@@ -93,9 +228,11 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                                 <div>
                                     <Label htmlFor="system_id">System ID</Label>
                                     <Select value={form.system_id} onValueChange={(v) => handleSelect('system_id', v)}>
-                                        <SelectTrigger id="system_id" className="w-full"><SelectValue placeholder="Select System ID" /></SelectTrigger>
+                                        <SelectTrigger id="system_id" className="w-full">
+                                            <SelectValue placeholder="Select System ID" />
+                                        </SelectTrigger>
                                         <SelectContent>
-                                            {smppUsers.map((systemId: string) => (
+                                            {filterOptions.smpp_users.map((systemId: string) => (
                                                 <SelectItem key={systemId} value={systemId}>{systemId}</SelectItem>
                                             ))}
                                         </SelectContent>
@@ -106,10 +243,12 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                                 <div>
                                     <Label htmlFor="user_id">User</Label>
                                     <Select value={form.user_id} onValueChange={(v) => handleSelect('user_id', v)}>
-                                        <SelectTrigger id="user_id" className="w-full"><SelectValue placeholder="Select User" /></SelectTrigger>
+                                        <SelectTrigger id="user_id" className="w-full">
+                                            <SelectValue placeholder="Select User" />
+                                        </SelectTrigger>
                                         <SelectContent>
-                                            {users.map((u: any) => (
-                                                <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                                            {filterOptions.users.map((u: any) => (
+                                                <SelectItem key={u.id} value={String(u.id)}>{u.username}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -117,12 +256,22 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                             )}
                             <div>
                                 <Label htmlFor="destination_address">Destination Address</Label>
-                                <Input id="destination_address" name="destination_address" placeholder="Destination address pattern (required)" value={form.destination_address} onChange={handleChange} required />
+                                <Input 
+                                    id="destination_address" 
+                                    name="destination_address" 
+                                    placeholder="Destination address pattern (required)" 
+                                    value={form.destination_address} 
+                                    onChange={handleChange} 
+                                    required 
+                                />
+                                {errors.destination_address && <p className="text-sm text-destructive mt-1">{errors.destination_address}</p>}
                             </div>
                             <div>
                                 <Label htmlFor="target_type">Target Type</Label>
                                 <Select value={form.target_type} onValueChange={(v) => handleSelect('target_type', v)}>
-                                    <SelectTrigger id="target_type" className="w-full"><SelectValue placeholder="Target Type" /></SelectTrigger>
+                                    <SelectTrigger id="target_type" className="w-full">
+                                        <SelectValue placeholder="Target Type" />
+                                    </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="http">HTTP</SelectItem>
                                         <SelectItem value="device_group">Device Group</SelectItem>
@@ -133,17 +282,27 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                             {form.target_type === 'http' && (
                                 <div>
                                     <Label htmlFor="target_url">Target URL</Label>
-                                    <Input id="target_url" name="target_url" placeholder="https://..." value={form.target_url} onChange={handleChange} required />
+                                    <Input 
+                                        id="target_url" 
+                                        name="target_url" 
+                                        placeholder="https://..." 
+                                        value={form.target_url} 
+                                        onChange={handleChange} 
+                                        required 
+                                    />
+                                    {errors.target_url && <p className="text-sm text-destructive mt-1">{errors.target_url}</p>}
                                 </div>
                             )}
                             {form.target_type === 'device_group' && (
                                 <div>
                                     <Label htmlFor="target_queue_name">Device Group</Label>
                                     <Select value={form.target_queue_name} onValueChange={(v) => handleSelect('target_queue_name', v)}>
-                                        <SelectTrigger id="target_queue_name" className="w-full"><SelectValue placeholder="Select Device Group" /></SelectTrigger>
+                                        <SelectTrigger id="target_queue_name" className="w-full">
+                                            <SelectValue placeholder="Select Device Group" />
+                                        </SelectTrigger>
                                         <SelectContent>
-                                            {deviceGroups.map((g: any) => (
-                                                <SelectItem key={g.id} value={g.queue_name || `group-${g.id}`}>
+                                            {filterOptions.device_groups.map((g: any) => (
+                                                <SelectItem key={g.id} value={g.name}>
                                                     {g.name} {g.queue_name && `(${g.queue_name})`}
                                                 </SelectItem>
                                             ))}
@@ -155,9 +314,11 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                                 <div>
                                     <Label htmlFor="target_system_id">Target System ID</Label>
                                     <Select value={form.target_system_id} onValueChange={(v) => handleSelect('target_system_id', v)}>
-                                        <SelectTrigger id="target_system_id" className="w-full"><SelectValue placeholder="Select Target System ID" /></SelectTrigger>
+                                        <SelectTrigger id="target_system_id" className="w-full">
+                                            <SelectValue placeholder="Select Target System ID" />
+                                        </SelectTrigger>
                                         <SelectContent>
-                                            {smppClients.map((cid: string) => (
+                                            {filterOptions.smpp_users.map((cid: string) => (
                                                 <SelectItem key={cid} value={cid}>{cid}</SelectItem>
                                             ))}
                                         </SelectContent>
@@ -166,10 +327,25 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                             )}
                             <div>
                                 <Label htmlFor="priority">Priority</Label>
-                                <Input id="priority" name="priority" type="number" min={0} max={100} value={form.priority} onChange={handleChange} required />
+                                <Input 
+                                    id="priority" 
+                                    name="priority" 
+                                    type="number" 
+                                    min={0} 
+                                    max={100} 
+                                    value={form.priority} 
+                                    onChange={handleChange} 
+                                    required 
+                                />
                             </div>
                             <div className="flex items-center gap-2">
-                                <input type="checkbox" name="is_active" checked={form.is_active} onChange={handleChange} id="is_active" />
+                                <input 
+                                    type="checkbox" 
+                                    name="is_active" 
+                                    checked={form.is_active} 
+                                    onChange={handleChange} 
+                                    id="is_active" 
+                                />
                                 <Label htmlFor="is_active">Active</Label>
                             </div>
                             {Object.keys(errors).length > 0 && (
@@ -179,7 +355,19 @@ export default function SmppRoutingEdit({ routing, deviceGroups = [], smppUsers 
                                     ))}
                                 </div>
                             )}
-                            <Button type="submit" className="w-full">Update Routing</Button>
+                            <div className="flex gap-2">
+                                <Button type="submit" className="flex-1" disabled={loading}>
+                                    {loading ? 'Updating...' : 'Update Routing'}
+                                </Button>
+                                <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    onClick={() => navigate('/smpp-routings')}
+                                    disabled={loading}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
                         </form>
                     </CardContent>
                 </Card>

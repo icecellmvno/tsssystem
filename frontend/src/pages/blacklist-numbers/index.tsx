@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
@@ -8,17 +8,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+
 import { type BreadcrumbItem } from '@/types';
 import { Search, Filter, ArrowUpDown, Plus, Phone, MessageSquare, User, Calendar, Trash2, Upload, Download, ChevronDown, Eye, Edit } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { apiClient } from '@/services/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
+import { DataTable } from '@/components/ui/data-table';
+import {
+    createIdColumn, 
+    createCreatedAtColumn, 
+    createActionsColumn,
+    type BaseRecord 
+} from '@/components/ui/data-table-columns';
+import { blacklistNumbersService, type BlacklistNumber, type PaginatedBlacklistNumbers } from '@/services/blacklist-numbers';
+
+interface BlacklistNumberWithBase extends BlacklistNumber, BaseRecord {}
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -31,410 +40,359 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-interface BlacklistNumberItem {
-    id: number;
-    number: string;
-    type: 'sms' | 'manual';
-    reason: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-interface PaginatedData {
-    data: BlacklistNumberItem[];
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-    links: any[];
-}
-
 export default function BlacklistNumbersIndex() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const { token } = useAuthStore();
     
-    const [blacklistNumbers, setBlacklistNumbers] = useState<PaginatedData>({
-        data: [],
-        current_page: 1,
-        last_page: 1,
-        per_page: 10,
-        total: 0,
-        links: [],
-    });
-    const [isLoading, setIsLoading] = useState(true);
-    
-    const [search, setSearch] = useState(searchParams.get('search') || '');
-    const [type, setType] = useState(searchParams.get('type') || 'all');
+    // Server-side pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
     const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'created_at');
-    const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(searchParams.get('sort_order') as 'asc' | 'desc' || 'desc');
+    
+    // Filter states
+    const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || 'all');
+    
+    // Data states
+    const [blacklistNumbers, setBlacklistNumbers] = useState<BlacklistNumberWithBase[]>([]);
+    const [loading, setLoading] = useState(true);
+    
+    // Dialog states
     const [importDialogOpen, setImportDialogOpen] = useState(false);
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState<any>(null);
-    const [selectedIds, setSelectedIds] = useState<number[]>([]);
-    const [selectAll, setSelectAll] = useState(false);
     const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
     const [pasteText, setPasteText] = useState('');
     const [pasting, setPasting] = useState(false);
     const [pasteResult, setPasteResult] = useState<any>(null);
 
-    // Fetch blacklist numbers
+
+    // Fetch blacklist numbers with server-side pagination
+    const fetchBlacklistNumbers = useCallback(async () => {
+        try {
+            setLoading(true);
+            const params: Record<string, any> = {
+                page: currentPage,
+                per_page: pageSize,
+                sort_by: sortBy,
+                sort_order: sortOrder,
+            };
+            
+            if (searchTerm) params.search = searchTerm;
+            if (typeFilter && typeFilter !== 'all') params.type = typeFilter;
+            
+            const data = await blacklistNumbersService.getBlacklistNumbers(params);
+            
+            // Transform data to include BaseRecord properties
+            const transformedData: BlacklistNumberWithBase[] = data.data.map(item => ({
+                ...item,
+                id: item.id,
+                created_at: item.created_at,
+                updated_at: item.updated_at,
+            }));
+            
+            setBlacklistNumbers(transformedData);
+            setTotalRecords(data.total);
+            setTotalPages(data.last_page);
+            
+            // Update URL params
+            const newSearchParams = new URLSearchParams();
+            if (searchTerm) newSearchParams.set('search', searchTerm);
+            if (typeFilter !== 'all') newSearchParams.set('type', typeFilter);
+            if (sortBy) newSearchParams.set('sort_by', sortBy);
+            if (sortOrder) newSearchParams.set('sort_order', sortOrder);
+            setSearchParams(newSearchParams);
+            
+        } catch (error) {
+            console.error('Error fetching blacklist numbers:', error);
+            toast.error('Failed to fetch blacklist numbers');
+        } finally {
+            setLoading(false);
+        }
+    }, [currentPage, pageSize, searchTerm, typeFilter, sortBy, sortOrder, setSearchParams]);
+
+    // Initial fetch
     useEffect(() => {
-        const fetchBlacklistNumbers = async () => {
-            setIsLoading(true);
-            try {
-                const params: Record<string, any> = {};
-                if (search) params.search = search;
-                if (type && type !== 'all') params.type = type;
-                if (sortBy) params.sort_by = sortBy;
-                if (sortOrder) params.sort_order = sortOrder;
-                
-                const data = await apiClient.get<PaginatedData>('/blacklist-numbers', params);
-                setBlacklistNumbers(data);
-            } catch (error) {
-                console.error('Error fetching blacklist numbers:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchBlacklistNumbers();
-    }, [search, type, sortBy, sortOrder]);
+    }, [fetchBlacklistNumbers]);
 
-    const handleSearch = () => {
-        const params = new URLSearchParams();
-        if (search) params.append('search', search);
-        if (type && type !== 'all') params.append('type', type);
-        if (sortBy) params.append('sort_by', sortBy);
-        if (sortOrder) params.append('sort_order', sortOrder);
-        
-        setSearchParams(params);
-    };
+    // Handle search
+    const handleSearch = useCallback(() => {
+        setCurrentPage(1);
+        fetchBlacklistNumbers();
+    }, [fetchBlacklistNumbers]);
 
-    const handleSort = (field: string) => {
-        const newOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
-        setSortBy(field);
-        setSortOrder(newOrder);
-    };
-
-    const clearFilters = () => {
-        setSearch('');
-        setType('all');
+    // Handle clear filters
+    const clearFilters = useCallback(() => {
+        setSearchTerm('');
+        setTypeFilter('all');
         setSortBy('created_at');
         setSortOrder('desc');
-        setSearchParams({});
-    };
+        setCurrentPage(1);
+    }, []);
 
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [deleteId, setDeleteId] = useState<number | null>(null);
-
-    const deleteBlacklistNumber = (id: number) => {
-        setDeleteId(id);
-        setDeleteDialogOpen(true);
-    };
-
-    const confirmDelete = async () => {
-        if (deleteId) {
-            try {
-                await apiClient.delete(`/blacklist-numbers/${deleteId}`);
-                // Refresh the data
-                window.location.reload();
-            } catch (error) {
-                console.error('Error deleting blacklist number:', error);
-            }
-            
-            setDeleteDialogOpen(false);
-            setDeleteId(null);
+    // Handle delete
+    const handleDelete = useCallback(async (blacklistNumber: BlacklistNumberWithBase) => {
+        try {
+            await blacklistNumbersService.deleteBlacklistNumber(blacklistNumber.id);
+            toast.success('Blacklist number deleted successfully');
+            fetchBlacklistNumbers();
+        } catch (error) {
+            console.error('Error deleting blacklist number:', error);
+            toast.error('Failed to delete blacklist number');
         }
-    };
+    }, [fetchBlacklistNumbers]);
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleString('tr-TR');
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Handle file import
+    const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             setImportFile(file);
-            setImportResult(null);
         }
-    };
+    }, []);
 
-    const handleImport = async () => {
+    const handleImport = useCallback(async () => {
         if (!importFile) return;
-
+        
         setImporting(true);
-        const formData = new FormData();
-        formData.append('file', importFile);
-
         try {
-            const result = await apiClient.post<{ success: boolean; message: string }>('/blacklist-numbers/bulk-import', { file: importFile });
+            const result = await blacklistNumbersService.importBlacklistNumbers(importFile);
             setImportResult(result);
-
-            if (result.success) {
-                // Refresh the page to show new data
-                window.location.reload();
-            }
+            toast.success('Import completed successfully');
+            setImportDialogOpen(false);
+            setImportFile(null);
+            fetchBlacklistNumbers();
         } catch (error) {
-            setImportResult({
-                success: false,
-                message: 'Import failed. Please try again.',
-            });
+            console.error('Error importing file:', error);
+            toast.error('Failed to import file');
         } finally {
             setImporting(false);
         }
-    };
+    }, [importFile, fetchBlacklistNumbers]);
 
-    const handleSelectAll = (checked: boolean | string) => {
-        setSelectAll(checked === true);
-        if (checked === true) {
-            setSelectedIds(blacklistNumbers.data.map((item) => item.id));
-        } else {
-            setSelectedIds([]);
-        }
-    };
-
-    const handleSelectRow = (id: number, checked: boolean | string) => {
-        if (checked === true) {
-            setSelectedIds((prev) => [...prev, id]);
-        } else {
-            setSelectedIds((prev) => prev.filter((i) => i !== id));
-        }
-    };
-
-    const handleBulkDelete = async () => {
-        if (selectedIds.length === 0) return;
-        if (!confirm('Are you sure you want to delete selected numbers?')) return;
-        try {
-            await apiClient.post('/blacklist-numbers/bulk-delete', { ids: selectedIds });
-            window.location.reload();
-        } catch (error) {
-            console.error('Error bulk deleting blacklist numbers:', error);
-        }
-    };
-
-    const handlePasteImport = async () => {
+    // Handle paste import
+    const handlePasteImport = useCallback(async () => {
+        if (!pasteText.trim()) return;
+        
         setPasting(true);
-        setPasteResult(null);
         try {
-            const result = await apiClient.post<{ success: boolean; message: string }>('/blacklist-numbers/bulk-paste', { lines: pasteText });
+            const result = await blacklistNumbersService.pasteImportBlacklistNumbers(pasteText);
             setPasteResult(result);
-            if (result.success) {
-                setPasteText('');
-                setTimeout(() => window.location.reload(), 1000);
-            }
-        } catch (e) {
-            setPasteResult({ success: false, message: 'Import failed.' });
+            toast.success('Paste import completed successfully');
+            setPasteDialogOpen(false);
+            setPasteText('');
+            fetchBlacklistNumbers();
+        } catch (error) {
+            console.error('Error importing pasted text:', error);
+            toast.error('Failed to import pasted text');
         } finally {
             setPasting(false);
         }
-    };
+    }, [pasteText, fetchBlacklistNumbers]);
+
+    // Format date helper
+    const formatDate = useCallback((dateString: string) => {
+        return new Date(dateString).toLocaleDateString();
+    }, []);
+
+    // TanStack Table columns
+    const columns = useMemo(() => [
+        {
+            accessorKey: 'number',
+            header: 'Number',
+            cell: ({ row }) => (
+                <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-mono">{row.getValue('number')}</span>
+                </div>
+            ),
+        },
+        {
+            accessorKey: 'type',
+            header: 'Type',
+            cell: ({ row }) => {
+                const type = row.getValue('type') as string;
+                return (
+                    <Badge variant={type === 'sms' ? 'destructive' : 'default'}>
+                        {type === 'sms' ? (
+                            <MessageSquare className="mr-1 h-3 w-3" />
+                        ) : (
+                            <User className="mr-1 h-3 w-3" />
+                        )}
+                        {type.toUpperCase()}
+                    </Badge>
+                );
+            },
+        },
+        {
+            accessorKey: 'reason',
+            header: 'Reason',
+            cell: ({ row }) => (
+                <span className="text-sm text-muted-foreground">
+                    {row.getValue('reason') || 'No reason provided'}
+                </span>
+            ),
+        },
+        createCreatedAtColumn<BlacklistNumberWithBase>(),
+        createActionsColumn<BlacklistNumberWithBase>({
+            onDelete: handleDelete,
+            editPath: (record) => `/blacklist-numbers/${record.id}/edit`,
+            deleteConfirmMessage: "Are you sure you want to delete this blacklist number?",
+        }),
+    ], [handleDelete, formatDate]);
+
+    // Custom pagination component
+    const CustomPagination = () => (
+        <div className="flex items-center justify-between space-x-2 py-4">
+            <div className="flex items-center space-x-2">
+                <p className="text-sm font-medium">Rows per page</p>
+                <Select
+                    value={pageSize.toString()}
+                    onValueChange={(value) => {
+                        setPageSize(Number(value));
+                        setCurrentPage(1);
+                    }}
+                >
+                    <SelectTrigger className="h-8 w-[70px]">
+                        <SelectValue placeholder={pageSize} />
+                    </SelectTrigger>
+                    <SelectContent side="top">
+                        {[5, 10, 20, 50, 100].map((size) => (
+                            <SelectItem key={size} value={size.toString()}>
+                                {size}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="flex items-center space-x-6 lg:space-x-8">
+                <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                    Page {currentPage} of {totalPages}
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Button
+                        variant="outline"
+                        className="hidden h-8 w-8 p-0 lg:flex"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                    >
+                        <span className="sr-only">Go to first page</span>
+                        <ChevronDown className="h-4 w-4 rotate-90" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        className="h-8 w-8 p-0"
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                    >
+                        <span className="sr-only">Go to previous page</span>
+                        <ChevronDown className="h-4 w-4 rotate-90" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        className="h-8 w-8 p-0"
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                    >
+                        <span className="sr-only">Go to next page</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        className="hidden h-8 w-8 p-0 lg:flex"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                    >
+                        <span className="sr-only">Go to last page</span>
+                        <ChevronDown className="h-4 w-4 -rotate-90" />
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
+            <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-hidden">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex-1 min-w-0">
                         <h1 className="text-3xl font-bold tracking-tight">Blacklist Numbers</h1>
-                        <p className="text-muted-foreground">
-                            Total records: {blacklistNumbers.total}
-                        </p>
+                        <p className="text-muted-foreground">Manage blacklisted phone numbers</p>
                     </div>
-                    <div className="flex gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline">
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Add Options
-                                    <ChevronDown className="ml-2 h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                    <Link to="/blacklist-numbers/create">
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Add Single Number
-                                    </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setPasteDialogOpen(true)}>
-                                    <Upload className="mr-2 h-4 w-4" />
-                                    Paste to Add
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setImportDialogOpen(true)}>
-                                    <Upload className="mr-2 h-4 w-4" />
-                                    Bulk Import
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild>
-                                    <Link to="/blacklist-numbers/template">
-                                        <Download className="mr-2 h-4 w-4" />
-                                        Download Template
-                                    </Link>
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        {selectedIds.length > 0 && (
-                            <Button variant="destructive" onClick={handleBulkDelete}>
-                                Bulk Delete ({selectedIds.length})
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setPasteDialogOpen(true)}
+                        >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Paste Import
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => setImportDialogOpen(true)}
+                        >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Import File
+                        </Button>
+                        <Link to="/blacklist-numbers/create">
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Number
                             </Button>
-                        )}
+                        </Link>
                     </div>
-
-                    {/* Bulk Import Dialog */}
-                    <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle>Bulk Import Blacklist Numbers</DialogTitle>
-                                <DialogDescription>
-                                    Upload an Excel or CSV file to import multiple blacklist numbers at once.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="import-file">Select File</Label>
-                                    <Input
-                                        id="import-file"
-                                        type="file"
-                                        accept=".xlsx,.xls,.csv"
-                                        onChange={handleFileChange}
-                                    />
-                                    <p className="text-sm text-muted-foreground">
-                                        Supported formats: Excel (.xlsx, .xls) and CSV (.csv)
-                                    </p>
-                                </div>
-
-                                {importResult && (
-                                    <Alert variant={importResult.success ? 'default' : 'destructive'}>
-                                        <AlertDescription>{importResult.message}</AlertDescription>
-                                    </Alert>
-                                )}
-
-                                <div className="flex justify-end gap-2">
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setImportDialogOpen(false)}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        onClick={handleImport}
-                                        disabled={!importFile || importing}
-                                    >
-                                        {importing ? (
-                                            <>
-                                                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                                Importing...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Upload className="mr-2 h-4 w-4" />
-                                                Import
-                                            </>
-                                        )}
-                                    </Button>
-                                </div>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-
-                    {/* Delete Confirmation Dialog */}
-                    <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle>Confirm Delete</DialogTitle>
-                                <DialogDescription>
-                                    Are you sure you want to remove this number from blacklist? This action cannot be undone.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="flex justify-end gap-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setDeleteDialogOpen(false)}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    onClick={confirmDelete}
-                                >
-                                    Delete
-                                </Button>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
                 </div>
 
                 {/* Filters */}
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <Filter className="h-5 w-5" />
+                            <Filter className="h-4 w-4" />
                             Filters
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="search">Search</Label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        id="search"
-                                        placeholder="Search by number or reason..."
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                    />
-                                    <Button onClick={handleSearch} size="sm">
-                                        <Search className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                        <div className="flex flex-wrap gap-4 items-center">
+                            <div className="relative min-w-[200px]">
+                                <Input
+                                    placeholder="Search numbers..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                    className="w-full"
+                                />
                             </div>
+                            
+                            <Select value={typeFilter} onValueChange={setTypeFilter}>
+                                <SelectTrigger className="h-8 min-w-[120px]">
+                                    <SelectValue placeholder="All Types" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Types</SelectItem>
+                                    <SelectItem value="sms">SMS</SelectItem>
+                                    <SelectItem value="manual">Manual</SelectItem>
+                                </SelectContent>
+                            </Select>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="type">Type</Label>
-                                <Select value={type} onValueChange={setType}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Types</SelectItem>
-                                        <SelectItem value="sms">SMS</SelectItem>
-                                        <SelectItem value="manual">Manual</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Sort By</Label>
-                                <Select value={sortBy} onValueChange={setSortBy}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="created_at">Created Date</SelectItem>
-                                        <SelectItem value="number">Number</SelectItem>
-                                        <SelectItem value="type">Type</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Sort Order</Label>
-                                <Select value={sortOrder} onValueChange={setSortOrder}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="desc">Descending</SelectItem>
-                                        <SelectItem value="asc">Ascending</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end mt-4">
-                            <Button variant="outline" onClick={clearFilters}>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleSearch}
+                            >
+                                <Search className="mr-2 h-4 w-4" />
+                                Search
+                            </Button>
+                            
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={clearFilters}
+                            >
                                 Clear Filters
                             </Button>
                         </div>
@@ -447,176 +405,111 @@ export default function BlacklistNumbersIndex() {
                         <CardTitle>Blacklist Numbers</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>
-                                            <Checkbox checked={selectAll} onCheckedChange={handleSelectAll} />
-                                        </TableHead>
-                                        <TableHead>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleSort('number')}
-                                                className="flex items-center gap-1 p-0 h-auto font-semibold"
-                                            >
-                                                Number
-                                                <ArrowUpDown className="h-4 w-4" />
-                                            </Button>
-                                        </TableHead>
-                                        <TableHead>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleSort('type')}
-                                                className="flex items-center gap-1 p-0 h-auto font-semibold"
-                                            >
-                                                Type
-                                                <ArrowUpDown className="h-4 w-4" />
-                                            </Button>
-                                        </TableHead>
-                                        <TableHead>Reason</TableHead>
-                                        <TableHead>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleSort('created_at')}
-                                                className="flex items-center gap-1 p-0 h-auto font-semibold"
-                                            >
-                                                Created Date
-                                                <ArrowUpDown className="h-4 w-4" />
-                                            </Button>
-                                        </TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {blacklistNumbers?.data?.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="text-center py-8">
-                                                <div className="flex flex-col items-center gap-2">
-                                                    <Phone className="h-8 w-8 text-muted-foreground" />
-                                                    <p className="text-muted-foreground">No blacklist numbers found</p>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        blacklistNumbers?.data?.map((item) => (
-                                            <TableRow key={item.id}>
-                                                <TableCell>
-                                                    <Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => handleSelectRow(item.id, checked)} />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-2">
-                                                        <Phone className="h-4 w-4 text-muted-foreground" />
-                                                        <span className="font-mono">{item.number}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={item.type === 'sms' ? 'destructive' : 'default'}>
-                                                        {item.type === 'sms' ? (
-                                                            <MessageSquare className="mr-1 h-3 w-3" />
-                                                        ) : (
-                                                            <User className="mr-1 h-3 w-3" />
-                                                        )}
-                                                        {item.type.toUpperCase()}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <span className="text-sm text-muted-foreground">
-                                                        {item.reason || 'No reason provided'}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                                        <Calendar className="h-3 w-3" />
-                                                        {formatDate(item.created_at)}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <Link to={`/blacklist-numbers/${item.id}`}>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                            >
-                                                                <Eye className="h-4 w-4" />
-                                                            </Button>
-                                                        </Link>
-                                                        <Link to={`/blacklist-numbers/${item.id}/edit`}>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                            >
-                                                                <Edit className="h-4 w-4" />
-                                                            </Button>
-                                                        </Link>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => deleteBlacklistNumber(item.id)}
-                                                            className="text-destructive hover:text-destructive"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-
-                        {/* Pagination */}
-                        {blacklistNumbers.last_page > 1 && (
-                            <div className="flex items-center justify-between mt-4">
-                                <p className="text-sm text-muted-foreground">
-                                    Showing {((blacklistNumbers.current_page - 1) * blacklistNumbers.per_page) + 1} to{' '}
-                                    {Math.min(blacklistNumbers.current_page * blacklistNumbers.per_page, blacklistNumbers.total)} of{' '}
-                                    {blacklistNumbers.total} results
-                                </p>
-                                <div className="flex gap-2">
-                                    {blacklistNumbers.links.map((link, index) => (
-                                        <Button
-                                            key={index}
-                                            variant={link.active ? 'default' : 'outline'}
-                                            size="sm"
-                                            disabled={!link.url}
-                                            onClick={() => {
-                                                if (link.url) {
-                                                    const url = new URL(link.url);
-                                                    setSearchParams(url.searchParams);
-                                                }
-                                            }}
-                                        >
-                                            <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                        </Button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        <DataTable
+                            columns={columns}
+                            data={blacklistNumbers}
+                            title="Blacklist Numbers"
+                            description={`Showing ${blacklistNumbers.length} of ${totalRecords} blacklist numbers`}
+                            showSearch={false}
+                            showViewOptions={false}
+                            showPagination={false}
+                            pageSize={pageSize}
+                        />
+                        <CustomPagination />
                     </CardContent>
                 </Card>
-            </div>
 
-            {/* Paste Dialog */}
-            <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
-                <DialogContent className="sm:max-w-md">
-                                     <DialogHeader>
-                     <DialogTitle>Paste to Bulk Add</DialogTitle>
-                     <DialogDescription>Enter one number per line or number,type,reason format.</DialogDescription>
-                 </DialogHeader>
-                    <Textarea rows={8} value={pasteText} onChange={e => setPasteText(e.target.value)} placeholder={'+905551234567\nmanuel\n+905559876543,sms,spam'} />
-                    {pasteResult && (
-                        <Alert variant={pasteResult.success ? 'default' : 'destructive'}>
-                            <AlertDescription>{pasteResult.message}</AlertDescription>
-                        </Alert>
-                    )}
-                                         <div className="flex justify-end gap-2">
-                         <Button variant="outline" onClick={() => setPasteDialogOpen(false)}>Cancel</Button>
-                         <Button onClick={handlePasteImport} disabled={pasting}>{pasting ? 'Adding...' : 'Add'}</Button>
-                     </div>
-                </DialogContent>
-            </Dialog>
+                {/* Import Dialog */}
+                <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Import Blacklist Numbers</DialogTitle>
+                            <DialogDescription>
+                                Upload a CSV file with blacklist numbers. The file should have columns: number, type, reason.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <div>
+                                <Label htmlFor="import-file">Select File</Label>
+                                <Input
+                                    id="import-file"
+                                    type="file"
+                                    accept=".csv,.txt"
+                                    onChange={handleFileChange}
+                                />
+                            </div>
+                            {importResult && (
+                                <Alert>
+                                    <AlertDescription>
+                                        Import completed: {importResult.success_count} successful, {importResult.error_count} errors
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setImportDialogOpen(false)}
+                                disabled={importing}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleImport}
+                                disabled={!importFile || importing}
+                            >
+                                {importing ? 'Importing...' : 'Import'}
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Paste Import Dialog */}
+                <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Paste Import Blacklist Numbers</DialogTitle>
+                            <DialogDescription>
+                                Paste phone numbers (one per line) to import them as blacklist numbers.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <div>
+                                <Label htmlFor="paste-text">Phone Numbers</Label>
+                                <Textarea
+                                    id="paste-text"
+                                    placeholder="Enter phone numbers, one per line..."
+                                    value={pasteText}
+                                    onChange={(e) => setPasteText(e.target.value)}
+                                    rows={10}
+                                />
+                            </div>
+                            {pasteResult && (
+                                <Alert>
+                                    <AlertDescription>
+                                        Import completed: {pasteResult.success_count} successful, {pasteResult.error_count} errors
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setPasteDialogOpen(false)}
+                                disabled={pasting}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handlePasteImport}
+                                disabled={!pasteText.trim() || pasting}
+                            >
+                                {pasting ? 'Importing...' : 'Import'}
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
         </AppLayout>
     );
 } 

@@ -1,522 +1,398 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-
-import AppLayout from '@/layouts/app-layout';
+import { AppLayout } from '@/layouts/app-layout';
+import { type BreadcrumbItem } from '@/types';
+import { toast } from 'sonner';
+import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { type BreadcrumbItem } from '@/types';
-import { Search, Filter, ArrowUpDown, Smartphone, Plus, MoreHorizontal } from 'lucide-react';
-import { simCardsService, type SimCard, type SimCardFilters, type SimCardFilterOptions } from '@/services/sim-cards';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+import { Search, Plus, RefreshCw, Signal, Wifi, CreditCard, Smartphone } from 'lucide-react';
+import { DataTable } from '@/components/ui/data-table';
+import {
+    createIdColumn, 
+    createCreatedAtColumn, 
+    createActionsColumn,
+    type BaseRecord 
+} from '@/components/ui/data-table-columns';
+import { simCardsService, type SimCard } from '@/services/sim-cards';
+
+interface SimCardWithBase extends SimCard, BaseRecord {}
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: '/dashboard',
-    },
-    {
-        title: 'SIM Cards',
-        href: '/sim-cards',
-    },
+  { title: 'Dashboard', href: '/dashboard' },
+  { title: 'SIM Cards', href: '/sim-cards' },
 ];
 
 export default function SimCardsIndex() {
-    const [simCards, setSimCards] = useState<SimCard[]>([]);
-    const [filterOptions, setFilterOptions] = useState<SimCardFilterOptions>({
-        slot_indexes: [],
-        carrier_names: [],
-        country_isos: [],
-        network_operator_names: [],
-        sim_operator_names: [],
-        network_types: [],
-        sitenames: [],
-        device_group_names: [],
-        device_names: [],
-    });
-    const [loading, setLoading] = useState(true);
-    const [filters, setFilters] = useState<SimCardFilters>({
-        page: 1,
-        per_page: 15,
-        search: '',
-        slot_index: 'all',
-        carrier_name: 'all',
-        country_iso: 'all',
-        network_operator_name: 'all',
-        sim_operator_name: 'all',
-        roaming: 'all',
-        is_active: 'all',
-        network_type: 'all',
-        sitename: 'all',
-        device_group_name: 'all',
-        device_name: 'all',
-        sms_status: 'all',
-        sort_by: 'created_at',
-        sort_order: 'desc',
-    });
-    const [pagination, setPagination] = useState({
-        current_page: 1,
-        last_page: 1,
-        per_page: 15,
-        total: 0,
-        from: 0,
-        to: 0,
-    });
+  const { token } = useAuthStore();
+  const [simCards, setSimCards] = useState<SimCardWithBase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [operatorFilter, setOperatorFilter] = useState('all');
 
-    // Fetch SIM cards and filter options
-    const fetchData = async () => {
-        try {
-            setLoading(true);
-            const [cardsResponse, optionsResponse] = await Promise.all([
-                simCardsService.getSimCards(filters),
-                simCardsService.getFilterOptions(),
-            ]);
-            
-            setSimCards(cardsResponse.data);
-            setPagination({
-                current_page: cardsResponse.current_page,
-                last_page: cardsResponse.last_page,
-                per_page: cardsResponse.per_page,
-                total: cardsResponse.total,
-                from: cardsResponse.from,
-                to: cardsResponse.to,
-            });
-            setFilterOptions(optionsResponse);
-        } catch (error) {
-            console.error('Error fetching SIM cards:', error);
-            toast.error('Failed to fetch SIM cards');
-        } finally {
-            setLoading(false);
-        }
-    };
 
-    useEffect(() => {
-        fetchData();
-    }, [filters]);
-
-    const handleSearch = () => {
-        setFilters(prev => ({ ...prev, page: 1 }));
-    };
-
-    const handleSort = (field: string) => {
-        const newOrder = filters.sort_by === field && filters.sort_order === 'asc' ? 'desc' : 'asc';
-        setFilters(prev => ({
-            ...prev,
-            sort_by: field,
-            sort_order: newOrder,
-            page: 1,
-        }));
-    };
-
-    const clearFilters = () => {
-        setFilters({
-            page: 1,
-            per_page: 15,
-            search: '',
-            slot_index: 'all',
-            carrier_name: 'all',
-            country_iso: 'all',
-            network_operator_name: 'all',
-            sim_operator_name: 'all',
-            roaming: 'all',
-            is_active: 'all',
-            network_type: 'all',
-            sitename: 'all',
-            device_group_name: 'all',
-            device_name: 'all',
-            sms_status: 'all',
-            sort_by: 'created_at',
-            sort_order: 'desc',
-        });
-    };
-
-    const handlePageChange = (page: number) => {
-        setFilters(prev => ({ ...prev, page }));
-    };
-
-    const handleDelete = async (id: number) => {
-        if (!confirm('Are you sure you want to delete this SIM card?')) {
-            return;
-        }
-
-        try {
-            await simCardsService.deleteSimCard(id);
-            toast.success('SIM card deleted successfully');
-            fetchData(); // Refresh the list
-        } catch (error) {
-            console.error('Error deleting SIM card:', error);
-            toast.error('Failed to delete SIM card');
-        }
-    };
-
-    const getStatusBadgeVariant = (isActive: boolean) => {
-        return isActive ? 'default' : 'destructive';
-    };
-
-    const getRoamingBadgeVariant = (roaming: boolean) => {
-        return roaming ? 'destructive' : 'default';
-    };
-
-    const getNetworkTypeBadgeVariant = (networkType: string) => {
-        switch (networkType) {
-            case '5G':
-                return 'default';
-            case '4G':
-                return 'outline';
-            case '3G':
-                return 'secondary';
-            case '2G':
-                return 'destructive';
-            default:
-                return 'secondary';
-        }
-    };
-
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-        }).format(amount);
-    };
-
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString();
-    };
-
-    if (loading) {
-        return (
-            <AppLayout breadcrumbs={breadcrumbs}>
-                <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-2 text-muted-foreground">Loading SIM cards...</p>
-                    </div>
-                </div>
-            </AppLayout>
-        );
+  // Fetch SIM cards from API
+  const fetchSimCards = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await simCardsService.getSimCards();
+      
+      // Transform data to include BaseRecord properties
+      const transformedData: SimCardWithBase[] = data.sim_cards.map(simCard => ({
+        ...simCard,
+        id: simCard.id,
+        created_at: simCard.created_at,
+        updated_at: simCard.updated_at,
+      }));
+      
+      setSimCards(transformedData);
+    } catch (error) {
+      console.error('Error fetching SIM cards:', error);
+      toast.error('Failed to fetch SIM cards');
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <div className="space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">SIM Cards</h1>
-                        <p className="text-muted-foreground">
-                            Manage and monitor SIM card information and status
-                        </p>
-                    </div>
-                    <Link to="/sim-cards/create">
-                        <Button>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add SIM Card
-                        </Button>
-                    </Link>
-                </div>
+  // Initial fetch
+  useEffect(() => {
+    fetchSimCards();
+  }, [fetchSimCards]);
 
-                {/* Filters */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Filter className="h-5 w-5" />
-                            Filters
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="search">Search</Label>
-                                <Input
-                                    id="search"
-                                    placeholder="Search SIM cards..."
-                                    value={filters.search}
-                                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                                />
-                            </div>
+  // Filtered SIM cards
+  const filteredSimCards = useMemo(() => {
+    return simCards.filter(simCard => {
+      const matchesSearch = searchTerm === '' || 
+        simCard.imei.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        simCard.iccid.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        simCard.msisdn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        simCard.operator.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || simCard.status === statusFilter;
+      const matchesOperator = operatorFilter === 'all' || simCard.operator === operatorFilter;
+      
+      return matchesSearch && matchesStatus && matchesOperator;
+    });
+  }, [simCards, searchTerm, statusFilter, operatorFilter]);
 
-                            <div className="space-y-2">
-                                <Label htmlFor="slot_index">Slot Index</Label>
-                                <Select value={filters.slot_index} onValueChange={(value) => setFilters(prev => ({ ...prev, slot_index: value }))}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select slot" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Slots</SelectItem>
-                                        {filterOptions.slot_indexes.map((slot) => (
-                                            <SelectItem key={slot} value={slot.toString()}>
-                                                Slot {slot}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+  // Get unique values for filters
+  const uniqueStatuses = useMemo(() => {
+    const statuses = simCards.map(s => s.status).filter(Boolean);
+    return [...new Set(statuses)];
+  }, [simCards]);
 
-                            <div className="space-y-2">
-                                <Label htmlFor="carrier_name">Carrier</Label>
-                                <Select value={filters.carrier_name} onValueChange={(value) => setFilters(prev => ({ ...prev, carrier_name: value }))}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select carrier" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Carriers</SelectItem>
-                                        {filterOptions.carrier_names.map((carrier) => (
-                                            <SelectItem key={carrier} value={carrier}>
-                                                {carrier}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+  const uniqueOperators = useMemo(() => {
+    const operators = simCards.map(s => s.operator).filter(Boolean);
+    return [...new Set(operators)];
+  }, [simCards]);
 
-                            <div className="space-y-2">
-                                <Label htmlFor="country_iso">Country</Label>
-                                <Select value={filters.country_iso} onValueChange={(value) => setFilters(prev => ({ ...prev, country_iso: value }))}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select country" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Countries</SelectItem>
-                                        {filterOptions.country_isos.map((country) => (
-                                            <SelectItem key={country} value={country}>
-                                                {country}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+  // SIM card statistics
+  const simCardStats = useMemo(() => {
+    const total = simCards.length;
+    const active = simCards.filter(s => s.status === 'active').length;
+    const inactive = simCards.filter(s => s.status === 'inactive').length;
+    const totalBalance = simCards.reduce((sum, s) => sum + (s.balance || 0), 0);
+    const totalDataUsage = simCards.reduce((sum, s) => sum + (s.data_usage || 0), 0);
+    const totalSmsUsage = simCards.reduce((sum, s) => sum + (s.sms_usage || 0), 0);
+    
+    return {
+      total,
+      active,
+      inactive,
+      totalBalance,
+      totalDataUsage,
+      totalSmsUsage,
+      activePercentage: total > 0 ? Math.round((active / total) * 100) : 0
+    };
+  }, [simCards]);
 
-                            <div className="space-y-2">
-                                <Label htmlFor="network_operator_name">Network Operator</Label>
-                                <Select value={filters.network_operator_name} onValueChange={(value) => setFilters(prev => ({ ...prev, network_operator_name: value }))}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select operator" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Operators</SelectItem>
-                                        {filterOptions.network_operator_names.map((operator) => (
-                                            <SelectItem key={operator} value={operator}>
-                                                {operator}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+  // Handle delete
+  const handleDelete = useCallback(async (simCard: SimCardWithBase) => {
+    try {
+      await simCardsService.deleteSimCard(simCard.id);
+      toast.success('SIM card deleted successfully');
+      fetchSimCards();
+    } catch (error) {
+      console.error('Error deleting SIM card:', error);
+      toast.error('Failed to delete SIM card');
+    }
+  }, [fetchSimCards]);
 
-                            <div className="space-y-2">
-                                <Label htmlFor="network_type">Network Type</Label>
-                                <Select value={filters.network_type} onValueChange={(value) => setFilters(prev => ({ ...prev, network_type: value }))}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select network type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Types</SelectItem>
-                                        {filterOptions.network_types.map((type) => (
-                                            <SelectItem key={type} value={type}>
-                                                {type}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+  // Clear filters
+  const clearFilters = useCallback(() => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setOperatorFilter('all');
+  }, []);
 
-                            <div className="space-y-2">
-                                <Label htmlFor="roaming">Roaming</Label>
-                                <Select value={filters.roaming} onValueChange={(value) => setFilters(prev => ({ ...prev, roaming: value }))}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select roaming status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        <SelectItem value="true">Roaming</SelectItem>
-                                        <SelectItem value="false">Not Roaming</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+  // TanStack Table columns
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'imei',
+      header: 'IMEI',
+      cell: ({ row }) => (
+        <div className="font-mono text-sm">{row.getValue('imei')}</div>
+      ),
+    },
+    {
+      accessorKey: 'iccid',
+      header: 'ICCID',
+      cell: ({ row }) => (
+        <div className="font-mono text-sm">{row.getValue('iccid')}</div>
+      ),
+    },
+    {
+      accessorKey: 'msisdn',
+      header: 'MSISDN',
+      cell: ({ row }) => (
+        <div className="font-mono text-sm">{row.getValue('msisdn')}</div>
+      ),
+    },
+    {
+      accessorKey: 'operator',
+      header: 'Operator',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Signal className="h-4 w-4 text-muted-foreground" />
+          <span>{row.getValue('operator')}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'country',
+      header: 'Country',
+      cell: ({ row }) => row.getValue('country'),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.getValue('status') as string;
+        return (
+          <Badge variant={status === 'active' ? 'default' : 'secondary'}>
+            {status.toUpperCase()}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'balance',
+      header: 'Balance',
+      cell: ({ row }) => {
+        const balance = row.getValue('balance') as number;
+        return (
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <span className="font-mono">${balance.toFixed(2)}</span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'data_usage',
+      header: 'Data Usage',
+      cell: ({ row }) => {
+        const dataUsage = row.getValue('data_usage') as number;
+        return (
+          <div className="flex items-center gap-2">
+            <Wifi className="h-4 w-4 text-muted-foreground" />
+            <span>{dataUsage} MB</span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'sms_usage',
+      header: 'SMS Usage',
+      cell: ({ row }) => {
+        const smsUsage = row.getValue('sms_usage') as number;
+        return (
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+            <span>{smsUsage}</span>
+          </div>
+        );
+      },
+    },
+    createCreatedAtColumn<SimCardWithBase>(),
+    createActionsColumn<SimCardWithBase>({
+      onDelete: handleDelete,
+      editPath: (record) => `/sim-cards/${record.id}/edit`,
+      deleteConfirmMessage: "Are you sure you want to delete this SIM card?",
+    }),
+  ], [handleDelete]);
 
-                            <div className="space-y-2">
-                                <Label htmlFor="is_active">Status</Label>
-                                <Select value={filters.is_active} onValueChange={(value) => setFilters(prev => ({ ...prev, is_active: value }))}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        <SelectItem value="true">Active</SelectItem>
-                                        <SelectItem value="false">Inactive</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+  return (
+    <AppLayout breadcrumbs={breadcrumbs}>
+      <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-hidden">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-3xl font-bold tracking-tight">SIM Cards</h1>
+            <p className="text-muted-foreground">Manage and monitor SIM card usage</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchSimCards}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Link to="/sim-cards/create">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add SIM Card
+              </Button>
+            </Link>
+          </div>
+        </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="per_page">Per Page</Label>
-                                <Select value={filters.per_page?.toString()} onValueChange={(value) => setFilters(prev => ({ ...prev, per_page: parseInt(value) }))}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="15">15</SelectItem>
-                                        <SelectItem value="25">25</SelectItem>
-                                        <SelectItem value="50">50</SelectItem>
-                                        <SelectItem value="100">100</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+        {/* SIM Card Statistics Cards */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total SIM Cards</CardTitle>
+              <Smartphone className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{simCardStats.total}</div>
+              <p className="text-xs text-muted-foreground">
+                All registered SIM cards
+              </p>
+            </CardContent>
+          </Card>
 
-                            <div className="flex items-end gap-2">
-                                <Button onClick={handleSearch} className="flex-1">
-                                    <Search className="h-4 w-4 mr-2" />
-                                    Search
-                                </Button>
-                                <Button variant="outline" onClick={clearFilters}>
-                                    Clear
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active SIM Cards</CardTitle>
+              <Signal className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{simCardStats.active}</div>
+              <div className="flex items-center gap-2">
+                <Progress value={simCardStats.activePercentage} className="h-2 flex-1" />
+                <span className="text-xs text-muted-foreground">{simCardStats.activePercentage}%</span>
+              </div>
+            </CardContent>
+          </Card>
 
-                {/* Results */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>SIM Cards ({pagination.total} total)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {simCards.length === 0 ? (
-                            <div className="text-center py-8">
-                                <Smartphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                <p className="text-muted-foreground">No SIM cards found</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>
-                                                <Button variant="ghost" onClick={() => handleSort('id')}>
-                                                    ID
-                                                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead>Slot</TableHead>
-                                            <TableHead>
-                                                <Button variant="ghost" onClick={() => handleSort('carrier_name')}>
-                                                    Carrier
-                                                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead>Number</TableHead>
-                                            <TableHead>Network</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Roaming</TableHead>
-                                            <TableHead>Balance</TableHead>
-                                            <TableHead>SMS Stats</TableHead>
-                                            <TableHead>
-                                                <Button variant="ghost" onClick={() => handleSort('created_at')}>
-                                                    Created
-                                                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead>Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {simCards.map((simCard) => (
-                                            <TableRow key={simCard.id}>
-                                                <TableCell>{simCard.id}</TableCell>
-                                                <TableCell>Slot {simCard.slot_index}</TableCell>
-                                                <TableCell>{simCard.carrier_name}</TableCell>
-                                                <TableCell className="font-mono">{simCard.number}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant={getNetworkTypeBadgeVariant(simCard.network_type)}>
-                                                        {simCard.network_type}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={getStatusBadgeVariant(simCard.is_active)}>
-                                                        {simCard.is_active ? 'Active' : 'Inactive'}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={getRoamingBadgeVariant(simCard.roaming)}>
-                                                        {simCard.roaming ? 'Roaming' : 'Local'}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>{simCard.formatted_main_balance}</TableCell>
-                                                <TableCell>
-                                                    <div className="text-xs">
-                                                        <div>Sent: {simCard.total_sent}</div>
-                                                        <div>Delivered: {simCard.total_delivered}</div>
-                                                        <div>Success: {simCard.success_rate.toFixed(1)}%</div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>{formatDate(simCard.created_at)}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-2">
-                                                        <Link to={`/sim-cards/${simCard.id}`}>
-                                                            <Button variant="outline" size="sm">
-                                                                View
-                                                            </Button>
-                                                        </Link>
-                                                        <Link to={`/sim-cards/${simCard.id}/edit`}>
-                                                            <Button variant="outline" size="sm">
-                                                                Edit
-                                                            </Button>
-                                                        </Link>
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm"
-                                                            onClick={() => handleDelete(simCard.id)}
-                                                        >
-                                                            Delete
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        )}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
+              <CreditCard className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">${simCardStats.totalBalance.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">
+                Combined balance across all SIM cards
+              </p>
+            </CardContent>
+          </Card>
 
-                        {/* Pagination */}
-                        {pagination.last_page > 1 && (
-                            <div className="flex items-center justify-between mt-6">
-                                <div className="text-sm text-muted-foreground">
-                                    Showing {pagination.from} to {pagination.to} of {pagination.total} results
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handlePageChange(pagination.current_page - 1)}
-                                        disabled={pagination.current_page <= 1}
-                                    >
-                                        Previous
-                                    </Button>
-                                    <span className="text-sm">
-                                        Page {pagination.current_page} of {pagination.last_page}
-                                    </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handlePageChange(pagination.current_page + 1)}
-                                        disabled={pagination.current_page >= pagination.last_page}
-                                    >
-                                        Next
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Data Usage</CardTitle>
+              <Wifi className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">{simCardStats.totalDataUsage} MB</div>
+              <p className="text-xs text-muted-foreground">
+                Combined data usage
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total SMS Usage</CardTitle>
+              <Smartphone className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{simCardStats.totalSmsUsage}</div>
+              <p className="text-xs text-muted-foreground">
+                Combined SMS usage
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-4 w-4" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="relative min-w-[200px]">
+                <Input
+                  placeholder="Search SIM cards..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-8 min-w-[120px]">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {uniqueStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={operatorFilter} onValueChange={setOperatorFilter}>
+                <SelectTrigger className="h-8 min-w-[150px]">
+                  <SelectValue placeholder="All Operators" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Operators</SelectItem>
+                  {uniqueOperators.map((operator) => (
+                    <SelectItem key={operator} value={operator}>
+                      {operator}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </Button>
             </div>
-        </AppLayout>
-    );
+          </CardContent>
+        </Card>
+
+        {/* Table */}
+        <DataTable
+          columns={columns}
+          data={filteredSimCards}
+          title="SIM Cards"
+          description={`Showing ${filteredSimCards.length} of ${simCards.length} SIM cards`}
+          showSearch={false}
+          showViewOptions={false}
+          showPagination={true}
+          pageSize={10}
+        />
+      </div>
+    </AppLayout>
+  );
 } 

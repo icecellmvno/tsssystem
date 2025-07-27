@@ -1,380 +1,346 @@
-import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { AppLayout } from '@/layouts/app-layout';
+import { type BreadcrumbItem } from '@/types';
+import { toast } from 'sonner';
+import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Eye, Edit, Trash2, Wifi, WifiOff, CheckCircle, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
-import { apiClient } from '@/services/api-client';
-import type { SmppUser } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import { Search, Plus, RefreshCw, User, Shield, Activity, Edit, Trash2 } from 'lucide-react';
+import { DataTable } from '@/components/ui/data-table';
+import {
+    createIdColumn, 
+    createCreatedAtColumn, 
+    createActionsColumn,
+    type BaseRecord 
+} from '@/components/ui/data-table-columns';
+import { smppUsersService, type SmppUser } from '@/services/smpp-users';
+
+interface SmppUserWithBase extends SmppUser, BaseRecord {}
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'SMPP Users',
-        href: '/smpp-users',
-    },
+  { title: 'Dashboard', href: '/dashboard' },
+  { title: 'SMPP Users', href: '/smpp-users' },
 ];
 
 export default function SmppUsersIndex() {
+  const { token } = useAuthStore();
+  const [smppUsers, setSmppUsers] = useState<SmppUserWithBase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  
-  const [smppUsers, setSmppUsers] = useState({
-    data: [] as SmppUser[],
-    current_page: 1,
-    last_page: 1,
-    per_page: 10,
-    total: 0,
-    links: [] as any[],
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  
-  const [search, setSearch] = useState(searchParams.get('search') || '');
-  const [onlineFilter, setOnlineFilter] = useState(searchParams.get('is_online') || 'all');
-  const [activeFilter, setActiveFilter] = useState(searchParams.get('is_active') || 'all');
 
-  // Fetch SMPP users data
-  const fetchSmppUsers = async () => {
-    setIsLoading(true);
+  // Fetch SMPP users from API
+  const fetchSmppUsers = useCallback(async () => {
     try {
-      const params: Record<string, any> = {};
-      if (search) params.search = search;
-      if (onlineFilter && onlineFilter !== 'all') params.is_online = onlineFilter;
-      if (activeFilter && activeFilter !== 'all') params.is_active = activeFilter;
+      setLoading(true);
+      const data = await smppUsersService.getSmppUsers();
       
-      const data = await apiClient.get<{
-        data: SmppUser[];
-        meta: {
-          current_page: number;
-          last_page: number;
-          per_page: number;
-          total: number;
-        };
-      }>('/smpp-users', params);
-      setSmppUsers({
-        data: data.data,
-        current_page: data.meta.current_page,
-        last_page: data.meta.last_page,
-        per_page: data.meta.per_page,
-        total: data.meta.total,
-        links: [],
-      });
+      // Check if data exists and has data property
+      const smppUsersData = data?.data || [];
+      
+      // Transform data to include BaseRecord properties
+      const transformedData: SmppUserWithBase[] = Array.isArray(smppUsersData) 
+        ? smppUsersData.map(smppUser => ({
+            ...smppUser,
+            id: smppUser.id,
+            created_at: smppUser.created_at,
+            updated_at: smppUser.updated_at,
+          }))
+        : [];
+      
+      setSmppUsers(transformedData);
     } catch (error) {
       console.error('Error fetching SMPP users:', error);
+      toast.error('Failed to fetch SMPP users');
+      setSmppUsers([]);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchSmppUsers();
-  }, [search, onlineFilter, activeFilter]);
-
-  // Listen for realtime SMPP user status updates
-  useEffect(() => {
-    const handleSmppUserStatusUpdate = (event: CustomEvent) => {
-      const updateData = event.detail;
-      console.log('Realtime SMPP user status update:', updateData);
-      
-      // Update the user in the current list
-      setSmppUsers(prev => ({
-        ...prev,
-        data: prev.data.map(user => {
-          if (user.system_id === updateData.system_id) {
-            return {
-              ...user,
-              is_online: updateData.is_online,
-              last_connected_at: updateData.is_online ? updateData.timestamp : user.last_connected_at,
-              last_disconnected_at: !updateData.is_online ? updateData.timestamp : user.last_disconnected_at,
-              last_ip_address: updateData.is_online ? updateData.remote_addr : user.last_ip_address,
-            };
-          }
-          return user;
-        })
-      }));
-    };
-
-    // Add event listener
-    window.addEventListener('smpp-user-status-update', handleSmppUserStatusUpdate as EventListener);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('smpp-user-status-update', handleSmppUserStatusUpdate as EventListener);
-    };
   }, []);
 
-  const handleSearch = () => {
-    const params = new URLSearchParams();
-    if (search) params.append('search', search);
-    if (onlineFilter && onlineFilter !== 'all') params.append('is_online', onlineFilter);
-    if (activeFilter && activeFilter !== 'all') params.append('is_active', activeFilter);
+  // Initial fetch
+  useEffect(() => {
+    fetchSmppUsers();
+  }, [fetchSmppUsers]);
+
+  // Filtered SMPP users
+  const filteredSmppUsers = useMemo(() => {
+    return smppUsers.filter(smppUser => {
+      const matchesSearch = searchTerm === '' || 
+        (smppUser.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (smppUser.system_id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (smppUser.system_type?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || smppUser.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [smppUsers, searchTerm, statusFilter]);
+
+  // Get unique values for filters
+  const uniqueStatuses = useMemo(() => {
+    const statuses = smppUsers.map(s => s.status).filter(status => status && status !== '');
+    return [...new Set(statuses)];
+  }, [smppUsers]);
+
+  // SMPP users statistics
+  const smppUserStats = useMemo(() => {
+    const total = smppUsers.length;
+    const active = smppUsers.filter(s => s.status === 'active').length;
+    const inactive = smppUsers.filter(s => s.status === 'inactive').length;
     
-    setSearchParams(params);
-  };
+    return {
+      total,
+      active,
+      inactive,
+      activePercentage: total > 0 ? Math.round((active / total) * 100) : 0
+    };
+  }, [smppUsers]);
 
-  const handleClearFilters = () => {
-    setSearch('');
-    setOnlineFilter('all');
-    setActiveFilter('all');
-    setSearchParams({});
-  };
-
-  const handleDelete = async (smppUser: SmppUser) => {
-    if (confirm('Are you sure you want to delete this SMPP User?')) {
-      try {
-        await apiClient.delete(`/smpp-users/${smppUser.id}`);
-        // Refresh the data
-        fetchSmppUsers();
-      } catch (error) {
-        console.error('Error deleting SMPP user:', error);
-      }
+  // Handle delete
+  const handleDelete = useCallback(async (smppUser: SmppUserWithBase) => {
+    try {
+      await smppUsersService.deleteSmppUser(smppUser.id);
+      toast.success('SMPP user deleted successfully');
+      fetchSmppUsers();
+    } catch (error) {
+      console.error('Error deleting SMPP user:', error);
+      toast.error('Failed to delete SMPP user');
     }
-  };
+  }, [fetchSmppUsers]);
 
-  const getStatusBadge = (isOnline: boolean) => {
-    if (isOnline) {
-      return (
-        <Badge variant="default" className="bg-green-500 text-white">
-          <Wifi className="h-3 w-3 mr-1" />
-          Online
-        </Badge>
-      );
-    }
-    return (
-      <Badge variant="secondary">
-        <WifiOff className="h-3 w-3 mr-1" />
-        Offline
-      </Badge>
-    );
-  };
+  // Clear filters
+  const clearFilters = useCallback(() => {
+    setSearchTerm('');
+    setStatusFilter('all');
+  }, []);
 
-  const getActiveBadge = (isActive: boolean) => {
-    if (isActive) {
-      return (
-        <Badge variant="default" className="bg-blue-500 text-white">
-          <CheckCircle className="h-3 w-3 mr-1" />
-          Active
-        </Badge>
-      );
-    }
-    return (
-      <Badge variant="destructive">
-        <XCircle className="h-3 w-3 mr-1" />
-        Inactive
-      </Badge>
-    );
-  };
-
-  const formatDateTime = (dateString: string | null) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleString();
-  };
-
-  if (isLoading) {
-    return (
-      <AppLayout breadcrumbs={breadcrumbs}>
-        <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
+  // TanStack Table columns
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'username',
+      header: 'Username',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <User className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">{row.getValue('username')}</span>
         </div>
-      </AppLayout>
-    );
-  }
+      ),
+    },
+    {
+      accessorKey: 'system_id',
+      header: 'System ID',
+      cell: ({ row }) => (
+        <div className="font-mono text-sm">{row.getValue('system_id')}</div>
+      ),
+    },
+    {
+      accessorKey: 'system_type',
+      header: 'System Type',
+      cell: ({ row }) => row.getValue('system_type'),
+    },
+    {
+      accessorKey: 'interface_version',
+      header: 'Interface Version',
+      cell: ({ row }) => (
+        <Badge variant="outline" className="text-xs">
+          {row.getValue('interface_version')}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.getValue('status') as string;
+        const statusText = status || 'unknown';
+        return (
+          <Badge variant={statusText === 'active' ? 'default' : 'secondary'}>
+            {statusText.toUpperCase()}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'max_connections',
+      header: 'Max Connections',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-muted-foreground" />
+          <span>{row.getValue('max_connections')}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'address_range',
+      header: 'Address Range',
+      cell: ({ row }) => (
+        <div className="font-mono text-sm">{row.getValue('address_range')}</div>
+      ),
+    },
+    createCreatedAtColumn<SmppUserWithBase>(),
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => {
+        const smppUser = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <Link to={`/smpp-users/${smppUser.id}/edit`}>
+              <Button variant="ghost" size="sm">
+                <Edit className="h-4 w-4" />
+              </Button>
+            </Link>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDelete(smppUser)}
+              className="text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ], [handleDelete]);
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
-      <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">SMPP Users</h1>
-              <p className="text-muted-foreground">Manage SMPP users</p>
-            </div>
+      <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-hidden">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-3xl font-bold tracking-tight">SMPP Users</h1>
+            <p className="text-muted-foreground">Manage SMPP protocol users and connections</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchSmppUsers}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
             <Link to="/smpp-users/create">
               <Button>
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="mr-2 h-4 w-4" />
                 Add SMPP User
               </Button>
             </Link>
           </div>
+        </div>
 
-          {/* Filters */}
+        {/* SMPP Users Statistics Cards */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Search & Filters
-              </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total SMPP Users</CardTitle>
+              <User className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search by System ID..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  />
+              <div className="text-2xl font-bold">{smppUserStats.total}</div>
+              <p className="text-xs text-muted-foreground">
+                All registered SMPP users
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+              <Shield className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{smppUserStats.active}</div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-[60px]">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="h-2 rounded-full bg-green-500"
+                      style={{ width: `${smppUserStats.activePercentage}%` }}
+                    ></div>
+                  </div>
                 </div>
-                <Select value={onlineFilter} onValueChange={setOnlineFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="1">Online</SelectItem>
-                    <SelectItem value="0">Offline</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={activeFilter} onValueChange={setActiveFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="All Active" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Active</SelectItem>
-                    <SelectItem value="1">Active</SelectItem>
-                    <SelectItem value="0">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button onClick={handleSearch}>
-                  <Search className="h-4 w-4 mr-2" />
-                  Search
-                </Button>
-                <Button variant="outline" onClick={handleClearFilters}>
-                  Clear Filters
-                </Button>
+                <span className="text-xs text-muted-foreground">{smppUserStats.activePercentage}%</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* SMPP Users Table */}
           <Card>
-            <CardHeader>
-              <CardTitle>SMPP Users ({smppUsers.total})</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Inactive Users</CardTitle>
+              <Activity className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>System ID</TableHead>
-                    <TableHead>Password</TableHead>
-                    <TableHead>Active</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>MT Source Address</TableHead>
-                    <TableHead>Last Connected</TableHead>
-                    <TableHead>Last IP</TableHead>
-                    <TableHead>Max Speed</TableHead>
-                    <TableHead>Created At</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {smppUsers.data.map((smppUser) => (
-                    <TableRow key={smppUser.id}>
-                      <TableCell className="font-mono text-sm">{smppUser.system_id}</TableCell>
-                      <TableCell className="font-mono text-sm">{smppUser.password}</TableCell>
-                      <TableCell>{getActiveBadge(smppUser.is_active)}</TableCell>
-                      <TableCell>{getStatusBadge(smppUser.is_online)}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {smppUser.mt_src_addr || 'None'}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatDateTime(smppUser.last_connected_at || null)}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {smppUser.last_ip_address || '-'}
-                      </TableCell>
-                      <TableCell>{smppUser.max_connection_speed} msg/sec</TableCell>
-                      <TableCell className="text-sm">
-                        {new Date(smppUser.created_at).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Link to={`/smpp-users/${smppUser.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          <Link to={`/smpp-users/${smppUser.id}/edit`}>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(smppUser)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {smppUsers?.data?.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No SMPP users found.
-                </div>
-              )}
-
-              {/* Pagination */}
-              {smppUsers.last_page > 1 && (
-                <div className="flex items-center justify-between space-x-2 py-4">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {((smppUsers.current_page - 1) * smppUsers.per_page) + 1} to{' '}
-                    {Math.min(smppUsers.current_page * smppUsers.per_page, smppUsers.total)} of{' '}
-                    {smppUsers.total} results
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const params = new URLSearchParams();
-                        if (search) params.append('search', search);
-                        if (onlineFilter && onlineFilter !== 'all') params.append('is_online', onlineFilter);
-                        if (activeFilter && activeFilter !== 'all') params.append('is_active', activeFilter);
-                        params.append('page', (smppUsers.current_page - 1).toString());
-                        setSearchParams(params);
-                      }}
-                      disabled={smppUsers.current_page === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
-                    </Button>
-                    <div className="text-sm">
-                      Page {smppUsers.current_page} of {smppUsers.last_page}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const params = new URLSearchParams();
-                        if (search) params.append('search', search);
-                        if (onlineFilter && onlineFilter !== 'all') params.append('is_online', onlineFilter);
-                        if (activeFilter && activeFilter !== 'all') params.append('is_active', activeFilter);
-                        params.append('page', (smppUsers.current_page + 1).toString());
-                        setSearchParams(params);
-                      }}
-                      disabled={smppUsers.current_page === smppUsers.last_page}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <div className="text-2xl font-bold text-red-600">{smppUserStats.inactive}</div>
+              <p className="text-xs text-muted-foreground">
+                Disabled SMPP users
+              </p>
             </CardContent>
           </Card>
         </div>
+
+        {/* Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-4 w-4" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="relative min-w-[200px]">
+                <Input
+                  placeholder="Search SMPP users..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-8 min-w-[120px] px-3 py-1 border border-input bg-background rounded-md text-sm"
+              >
+                <option value="all">All Status</option>
+                {uniqueStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Table */}
+        <DataTable
+          columns={columns}
+          data={filteredSmppUsers}
+          title="SMPP Users"
+          description={`Showing ${filteredSmppUsers.length} of ${smppUsers.length} SMPP users`}
+          showSearch={false}
+          showViewOptions={false}
+          showPagination={true}
+          pageSize={10}
+        />
       </div>
     </AppLayout>
   );

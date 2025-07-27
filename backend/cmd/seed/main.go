@@ -1,13 +1,24 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
+	"os"
 
 	"tsimsocketserver/auth"
 	"tsimsocketserver/config"
 	"tsimsocketserver/database"
 	"tsimsocketserver/models"
 )
+
+type MccMncData struct {
+	Mcc         string `json:"mcc"`
+	Mnc         string `json:"mnc"`
+	Iso         string `json:"iso"`
+	Country     string `json:"country"`
+	CountryCode string `json:"country_code"`
+	Network     string `json:"network"`
+}
 
 func main() {
 	// Load configuration
@@ -38,7 +49,7 @@ func runSeeds() error {
 	if permissionCount > 0 {
 		log.Println("Permissions already exist, skipping permission seeding")
 	} else {
-		// Create sample permissions
+		// Create system permissions
 		permissions := []models.Permission{
 			{Name: "users.read", Description: stringPtr("View users")},
 			{Name: "users.create", Description: stringPtr("Create users")},
@@ -64,7 +75,7 @@ func runSeeds() error {
 				return err
 			}
 		}
-		log.Println("Sample permissions created successfully")
+		log.Println("System permissions created successfully")
 	}
 
 	// Create roles
@@ -151,95 +162,117 @@ func runSeeds() error {
 			return err
 		}
 
-		log.Println("Sample roles created successfully")
+		log.Println("System roles created successfully")
 	}
 
-	// Check if users already exist
-	var userCount int64
-	db.Model(&models.User{}).Count(&userCount)
-	if userCount > 0 {
-		log.Println("Users already exist, skipping user seeding")
+	// Create admin user
+	var adminUserCount int64
+	db.Model(&models.User{}).Where("username = ?", "admin").Count(&adminUserCount)
+	if adminUserCount > 0 {
+		log.Println("Admin user already exists, skipping admin user creation")
 	} else {
-		// Create sample users
-		userData := []struct {
-			username string
-			email    string
-			role     string
-		}{
-			{"admin", "admin@example.com", "admin"},
-			{"manager1", "manager1@example.com", "manager"},
-			{"operator1", "operator1@example.com", "operator"},
-			{"manager2", "manager2@example.com", "manager"},
-			{"operator2", "operator2@example.com", "operator"},
+		// Create admin user
+		hashedPassword, err := auth.HashPassword("admin123")
+		if err != nil {
+			return err
 		}
 
-		for _, userInfo := range userData {
-			hashedPassword, err := auth.HashPassword("password")
-			if err != nil {
-				return err
-			}
-
-			user := models.User{
-				Username: userInfo.username,
-				Email:    userInfo.email,
-				Password: hashedPassword,
-				Role:     userInfo.role,
-				IsActive: true,
-			}
-
-			if err := db.Create(&user).Error; err != nil {
-				return err
-			}
+		adminUser := models.User{
+			Username:  "admin",
+			Firstname: "Administrator",
+			Lastname:  "User",
+			Email:     "admin@tsimsocket.com",
+			Password:  hashedPassword,
+			Role:      "admin",
+			IsActive:  true,
 		}
-		log.Println("Sample users created successfully")
+
+		if err := db.Create(&adminUser).Error; err != nil {
+			return err
+		}
+		log.Println("Admin user created successfully (username: admin, password: admin123)")
 	}
 
-	// Check if country sites already exist
-	var countrySiteCount int64
-	db.Model(&models.CountrySite{}).Count(&countrySiteCount)
-	if countrySiteCount > 0 {
-		log.Println("Country sites already exist, skipping country site seeding")
-	} else {
-		// Get user IDs for country sites
-		var manager1, manager2, operator1, operator2 models.User
-		db.Where("username = ?", "manager1").First(&manager1)
-		db.Where("username = ?", "manager2").First(&manager2)
-		db.Where("username = ?", "operator1").First(&operator1)
-		db.Where("username = ?", "operator2").First(&operator2)
-
-		// Create sample country sites
-		countrySites := []models.CountrySite{
-			{
-				Name:         "Site A - Downtown",
-				ManagerUser:  manager1.ID,
-				OperatorUser: operator1.ID,
-			},
-			{
-				Name:         "Site B - Industrial Zone",
-				ManagerUser:  manager2.ID,
-				OperatorUser: operator2.ID,
-			},
-			{
-				Name:         "Site C - Residential Area",
-				ManagerUser:  manager1.ID,
-				OperatorUser: operator1.ID,
-			},
-			{
-				Name:         "Site D - Shopping Center",
-				ManagerUser:  manager2.ID,
-				OperatorUser: operator2.ID,
-			},
-		}
-
-		for _, countrySite := range countrySites {
-			if err := db.Create(&countrySite).Error; err != nil {
-				return err
-			}
-		}
-		log.Println("Sample country sites created successfully")
+	// Seed MCC-MNC data
+	if err := seedMccMnc(); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+func seedMccMnc() error {
+	db := database.GetDB()
+
+	// Check if MCC-MNC data already exists
+	var mccMncCount int64
+	db.Model(&models.MccMnc{}).Count(&mccMncCount)
+	if mccMncCount > 0 {
+		log.Printf("MCC-MNC data already exists (%d records), skipping MCC-MNC seeding", mccMncCount)
+		return nil
+	}
+
+	// Read JSON file
+	jsonFile, err := os.ReadFile("tools/mcc-mnc-table.json")
+	if err != nil {
+		log.Printf("Warning: MCC-MNC JSON file not found at tools/mcc-mnc-table.json: %v", err)
+		log.Println("Skipping MCC-MNC seeding - file not available")
+		return nil
+	}
+
+	// Parse JSON data
+	var mccMncData []MccMncData
+	if err := json.Unmarshal(jsonFile, &mccMncData); err != nil {
+		return err
+	}
+
+	log.Printf("Found %d MCC-MNC records to seed", len(mccMncData))
+
+	// Convert and insert data in batches
+	batchSize := 1000
+	totalRecords := len(mccMncData)
+
+	for i := 0; i < totalRecords; i += batchSize {
+		end := i + batchSize
+		if end > totalRecords {
+			end = totalRecords
+		}
+
+		batch := mccMncData[i:end]
+		var mccMncBatch []models.MccMnc
+
+		for _, data := range batch {
+			// Normalize data
+			mccMnc := models.MccMnc{
+				Mcc:         normalizeString(data.Mcc, 10),
+				Mnc:         normalizeString(data.Mnc, 10),
+				Iso:         normalizeString(data.Iso, 10),
+				Country:     normalizeString(data.Country, 100),
+				CountryCode: normalizeString(data.CountryCode, 10),
+				Network:     normalizeString(data.Network, 200),
+			}
+			mccMncBatch = append(mccMncBatch, mccMnc)
+		}
+
+		// Insert batch
+		if err := db.CreateInBatches(mccMncBatch, len(mccMncBatch)).Error; err != nil {
+			log.Printf("Error inserting batch %d-%d: %v", i+1, end, err)
+			return err
+		}
+
+		log.Printf("Inserted batch %d-%d of %d records", i+1, end, totalRecords)
+	}
+
+	log.Printf("Successfully seeded %d MCC-MNC records", totalRecords)
+	return nil
+}
+
+// normalizeString ensures the string fits within the specified max length
+func normalizeString(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen]
+	}
+	return s
 }
 
 // Helper function to create string pointers

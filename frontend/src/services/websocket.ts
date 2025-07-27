@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import { useWebSocketStore } from '@/stores/websocket-store';
+import { useAuthStore } from '@/stores/auth-store';
 
 export interface WebSocketMessage {
   type: string;
@@ -99,6 +100,19 @@ class WebSocketService {
           console.log('WebSocket disconnected:', event.code, event.reason);
           this.isConnecting = false;
           this.notifyConnectionChange(false);
+          
+          // Check if the connection was closed due to authentication failure
+          if (event.code === 1008 || event.code === 1003 || event.reason?.includes('Invalid token') || event.reason?.includes('JWT')) {
+            console.log('WebSocket connection closed due to authentication failure, logging out user');
+            const authStore = useAuthStore.getState();
+            authStore.logout();
+            // Also clear localStorage
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            // Redirect to login
+            window.location.href = '/login';
+            return; // Don't attempt to reconnect
+          }
           
           // Attempt to reconnect if not a normal closure
           if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {

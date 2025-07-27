@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+select.tsx:1278 
+ Uncaught Error: A <Select.Item /> must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+    at SelectItem (select.tsx:1278:13)
+    at react-stack-bottom-frame (react-dom-client.development.js:23863:20)
+    at renderWithHooks (react-dom-client.development.js:5529:22)
+    at updateForwardRef (react-dom-client.development.js:8645:19)
+    at beginWork (react-dom-client.development.js:10861:18)
+    at runWithFiberInDEV (react-dom-client.development.js:1519:30)
+    at performUnitOfWork (react-dom-client.development.js:15132:22)
+    at workLoopSync (react-dom-client.development.js:14956:41)
+    at renderRootSync (react-dom-client.development.js:14936:11)
+    at performWorkOnRoot (react-dom-client.development.js:14462:44)

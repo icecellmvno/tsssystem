@@ -52,6 +52,7 @@ export interface DeviceStatusData {
 }
 
 export interface AlarmData {
+  device_id?: string;
   alarm_type: 'battery_low' | 'signal_low' | 'sim_balance_low' | 'error_count' | 'offline' | 'sim_blocked' | 'sms_blocked' | 'mms_blocked' | 'ussd_blocked' | 'sim_card_change';
   message: string;
   severity: 'warning' | 'error' | 'critical';
@@ -249,11 +250,13 @@ export interface WebSocketState {
   isConnecting: boolean;
   error: string | null;
   devices: Map<string, Device>;
+  alarmLogs: any[];
+  smsLogs: any[];
 }
 
 export interface Notification {
   id: string;
-  type: 'alarm' | 'sms' | 'ussd' | 'device_status';
+  type: 'alarm' | 'alarm_resolved' | 'sms' | 'ussd' | 'device_status';
   title: string;
   message: string;
   severity: 'info' | 'warning' | 'error' | 'critical';

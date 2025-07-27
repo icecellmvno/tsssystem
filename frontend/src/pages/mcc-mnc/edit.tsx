@@ -5,11 +5,11 @@ import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { type BreadcrumbItem } from '@/types';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { mccMncService, type MccMnc, type MccMncUpdateRequest } from '@/services/mcc-mnc';
+import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -17,101 +17,103 @@ const breadcrumbs: BreadcrumbItem[] = [
         href: '/dashboard',
     },
     {
-        title: 'MCC-MNC List',
+        title: 'MCC-MNC',
         href: '/mcc-mnc',
     },
     {
         title: 'Edit',
-        href: '#',
+        href: '/mcc-mnc/:id/edit',
     },
 ];
 
-interface MccMncItem {
-    id: number;
-    type: string;
-    country_name: string;
-    country_code: string;
-    mcc: string;
-    mnc: string;
-    brand: string;
-    operator: string;
-    status: string;
-    bands: string;
-    notes: string;
-    created_at: string;
-    updated_at: string;
-}
-
-interface Props {
-    mccMnc: MccMncItem;
-}
-
-export default function MccMncEdit({ mccMnc }: Props) {
+export default function MccMncEdit() {
+    const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const [formData, setFormData] = useState({
-        type: mccMnc.type || '',
-        country_name: mccMnc.country_name || '',
-        country_code: mccMnc.country_code || '',
-        mcc: mccMnc.mcc || '',
-        mnc: mccMnc.mnc || '',
-        brand: mccMnc.brand || '',
-        operator: mccMnc.operator || '',
-        status: mccMnc.status || '',
-        bands: mccMnc.bands || '',
-        notes: mccMnc.notes || '',
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [formData, setFormData] = useState<MccMncUpdateRequest>({
+        mcc: '',
+        mnc: '',
+        iso: '',
+        country: '',
+        country_code: '',
+        network: '',
     });
 
-    const [errors, setErrors] = useState<Record<string, string>>({});
+    useEffect(() => {
+        const fetchMccMnc = async () => {
+            if (!id) return;
+            
+            try {
+                setLoading(true);
+                const data = await mccMncService.getById(parseInt(id));
+                setFormData({
+                    mcc: data.mcc,
+                    mnc: data.mnc,
+                    iso: data.iso,
+                    country: data.country,
+                    country_code: data.country_code,
+                    network: data.network,
+                });
+            } catch (error) {
+                console.error('Error fetching MCC-MNC record:', error);
+                toast.error('Failed to fetch MCC-MNC record');
+                navigate('/mcc-mnc');
+            } finally {
+                setLoading(false);
+            }
+        };
 
-    const handleChange = (field: string, value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        if (errors[field]) {
-            setErrors(prev => ({ ...prev, [field]: '' }));
+        fetchMccMnc();
+    }, [id, navigate]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!id) return;
+
+        try {
+            setSaving(true);
+            await mccMncService.update(parseInt(id), formData);
+            toast.success('MCC-MNC record updated successfully');
+            navigate(`/mcc-mnc/${id}`);
+        } catch (error) {
+            console.error('Error updating MCC-MNC record:', error);
+            toast.error('Failed to update MCC-MNC record');
+        } finally {
+            setSaving(false);
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        // TODO: Implement API call
-        console.log('Form submitted:', formData);
-        navigate(`/mcc-mnc/${mccMnc.id}`);
+    const handleInputChange = (field: keyof MccMncUpdateRequest, value: string) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    const statusOptions = [
-        'Operational',
-        'Not operational',
-        'Unknown',
-        'Reserved',
-    ];
-
-    const typeOptions = [
-        'National',
-        'International',
-    ];
+    if (loading) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="flex items-center justify-center py-8">
+                    <div className="text-muted-foreground">Loading...</div>
+                </div>
+            </AppLayout>
+        );
+    }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/mcc-mnc/${mccMnc.id}`)}
-                    >
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back
-                    </Button>
+                <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">
-                            Edit MCC-MNC: {mccMnc.mcc}-{mccMnc.mnc}
-                        </h1>
+                        <h1 className="text-3xl font-bold tracking-tight">Edit MCC-MNC Record</h1>
                         <p className="text-muted-foreground">
-                            Update MCC-MNC record information
+                            Update Mobile Country Code and Mobile Network Code record
                         </p>
                     </div>
+                    <Button variant="outline" onClick={() => navigate(`/mcc-mnc/${id}`)}>
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Details
+                    </Button>
                 </div>
 
                 {/* Form */}
@@ -122,169 +124,83 @@ export default function MccMncEdit({ mccMnc }: Props) {
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* MCC */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="mcc">MCC *</Label>
+                                    <Label htmlFor="mcc">MCC (Mobile Country Code)</Label>
                                     <Input
                                         id="mcc"
+                                        placeholder="e.g., 234"
                                         value={formData.mcc}
-                                        onChange={(e) => handleChange('mcc', e.target.value)}
-                                        placeholder="e.g., 232"
+                                        onChange={(e) => handleInputChange('mcc', e.target.value)}
+                                        required
                                         maxLength={10}
                                     />
-                                    {errors.mcc && (
-                                        <p className="text-sm text-destructive">{errors.mcc}</p>
-                                    )}
                                 </div>
-
-                                {/* MNC */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="mnc">MNC *</Label>
+                                    <Label htmlFor="mnc">MNC (Mobile Network Code)</Label>
                                     <Input
                                         id="mnc"
+                                        placeholder="e.g., 15"
                                         value={formData.mnc}
-                                        onChange={(e) => handleChange('mnc', e.target.value)}
-                                        placeholder="e.g., 01"
+                                        onChange={(e) => handleInputChange('mnc', e.target.value)}
+                                        required
                                         maxLength={10}
                                     />
-                                    {errors.mnc && (
-                                        <p className="text-sm text-destructive">{errors.mnc}</p>
-                                    )}
                                 </div>
-
-                                {/* Type */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="type">Type</Label>
-                                    <Select value={formData.type} onValueChange={(value) => handleChange('type', value)}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {typeOptions.map((type) => (
-                                                <SelectItem key={type} value={type}>{type}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.type && (
-                                        <p className="text-sm text-destructive">{errors.type}</p>
-                                    )}
-                                </div>
-
-                                {/* Status */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="status">Status</Label>
-                                    <Select value={formData.status} onValueChange={(value) => handleChange('status', value)}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {statusOptions.map((status) => (
-                                                <SelectItem key={status} value={status}>{status}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.status && (
-                                        <p className="text-sm text-destructive">{errors.status}</p>
-                                    )}
-                                </div>
-
-                                {/* Country Name */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="country_name">Country Name</Label>
+                                    <Label htmlFor="iso">ISO Code</Label>
                                     <Input
-                                        id="country_name"
-                                        value={formData.country_name}
-                                        onChange={(e) => handleChange('country_name', e.target.value)}
-                                        placeholder="e.g., Austria"
+                                        id="iso"
+                                        placeholder="e.g., gb"
+                                        value={formData.iso}
+                                        onChange={(e) => handleInputChange('iso', e.target.value)}
+                                        required
+                                        maxLength={10}
                                     />
-                                    {errors.country_name && (
-                                        <p className="text-sm text-destructive">{errors.country_name}</p>
-                                    )}
                                 </div>
-
-                                {/* Country Code */}
                                 <div className="space-y-2">
                                     <Label htmlFor="country_code">Country Code</Label>
                                     <Input
                                         id="country_code"
+                                        placeholder="e.g., 44"
                                         value={formData.country_code}
-                                        onChange={(e) => handleChange('country_code', e.target.value)}
-                                        placeholder="e.g., AT"
+                                        onChange={(e) => handleInputChange('country_code', e.target.value)}
+                                        required
+                                        maxLength={10}
                                     />
-                                    {errors.country_code && (
-                                        <p className="text-sm text-destructive">{errors.country_code}</p>
-                                    )}
                                 </div>
-
-                                {/* Brand */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="brand">Brand</Label>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label htmlFor="country">Country Name</Label>
                                     <Input
-                                        id="brand"
-                                        value={formData.brand}
-                                        onChange={(e) => handleChange('brand', e.target.value)}
-                                        placeholder="e.g., A1.net"
+                                        id="country"
+                                        placeholder="e.g., United Kingdom"
+                                        value={formData.country}
+                                        onChange={(e) => handleInputChange('country', e.target.value)}
+                                        required
+                                        maxLength={100}
                                     />
-                                    {errors.brand && (
-                                        <p className="text-sm text-destructive">{errors.brand}</p>
-                                    )}
                                 </div>
-
-                                {/* Operator */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="operator">Operator</Label>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label htmlFor="network">Network Name</Label>
                                     <Input
-                                        id="operator"
-                                        value={formData.operator}
-                                        onChange={(e) => handleChange('operator', e.target.value)}
-                                        placeholder="e.g., A1 Telekom Austria"
+                                        id="network"
+                                        placeholder="e.g., Vodafone"
+                                        value={formData.network}
+                                        onChange={(e) => handleInputChange('network', e.target.value)}
+                                        required
+                                        maxLength={200}
                                     />
-                                    {errors.operator && (
-                                        <p className="text-sm text-destructive">{errors.operator}</p>
-                                    )}
                                 </div>
                             </div>
 
-                            {/* Bands */}
-                            <div className="space-y-2">
-                                <Label htmlFor="bands">Bands</Label>
-                                <Textarea
-                                    id="bands"
-                                    value={formData.bands}
-                                    onChange={(e) => handleChange('bands', e.target.value)}
-                                    placeholder="e.g., GSM 900 / UMTS 900 / UMTS 2100 / LTE 800 / LTE 1800 / LTE 2100 / LTE 2600 / 5G 3500"
-                                    rows={3}
-                                />
-                                {errors.bands && (
-                                    <p className="text-sm text-destructive">{errors.bands}</p>
-                                )}
-                            </div>
-
-                            {/* Notes */}
-                            <div className="space-y-2">
-                                <Label htmlFor="notes">Notes</Label>
-                                <Textarea
-                                    id="notes"
-                                    value={formData.notes}
-                                    onChange={(e) => handleChange('notes', e.target.value)}
-                                    placeholder="Additional notes..."
-                                    rows={3}
-                                />
-                                {errors.notes && (
-                                    <p className="text-sm text-destructive">{errors.notes}</p>
-                                )}
-                            </div>
-
-                            {/* Submit Button */}
                             <div className="flex gap-4">
-                                <Button type="submit">
-                                    <Save className="mr-2 h-4 w-4" />
-                                    Update MCC-MNC
+                                <Button type="submit" disabled={saving}>
+                                    {saving ? 'Saving...' : 'Update MCC-MNC Record'}
                                 </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => router.get(`/mcc-mnc/${mccMnc.id}`)}
+                                <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    onClick={() => navigate(`/mcc-mnc/${id}`)}
+                                    disabled={saving}
                                 >
                                     Cancel
                                 </Button>

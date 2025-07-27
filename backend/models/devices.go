@@ -30,10 +30,8 @@ type Device struct {
 	MaintenanceReason    string     `json:"maintenance_reason" gorm:"type:varchar(500)"`
 	MaintenanceStartedAt *time.Time `json:"maintenance_started_at"`
 
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at" gorm:"index"`
-	IsDeleted bool       `json:"is_deleted" gorm:"default:false"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type DeviceSimCard struct {

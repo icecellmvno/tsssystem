@@ -7,7 +7,17 @@ import (
 	"tsimsocketserver/database"
 	"tsimsocketserver/interfaces"
 	"tsimsocketserver/models"
+	"tsimsocketserver/services"
+	"tsimsocketserver/utils"
 )
+
+// Global delivery report service instance
+var deliveryReportService *services.DeliveryReportService
+
+// SetDeliveryReportService sets the global delivery report service
+func SetDeliveryReportService(service *services.DeliveryReportService) {
+	deliveryReportService = service
+}
 
 // HandleSmsLog processes SMS log messages from devices
 func HandleSmsLog(wsServer interfaces.WebSocketServerInterface, deviceID string, data models.SmsLogData) {
@@ -49,6 +59,70 @@ func HandleSmsLog(wsServer interfaces.WebSocketServerInterface, deviceID string,
 func HandleSmsMessage(wsServer interfaces.WebSocketServerInterface, deviceID string, data models.SmsMessageData) {
 	log.Printf("SMS message from %s: %s from %s", deviceID, data.Direction, data.PhoneNumber)
 
+	// Only process received SMS messages
+	if data.Direction == "received" {
+		// Get device information
+		var device models.Device
+		if err := database.GetDB().Where("imei = ?", deviceID).First(&device).Error; err != nil {
+			log.Printf("Device not found for IMEI %s: %v", deviceID, err)
+			return
+		}
+
+		// Get SIM card information for the specified slot
+		var deviceSimCard models.DeviceSimCard
+		var simcardName, simcardNumber, simcardICCID, deviceIMSI *string
+
+		if err := database.GetDB().Where("device_imei = ? AND slot_index = ?", deviceID, data.SimSlot).First(&deviceSimCard).Error; err == nil {
+			simcardName = &deviceSimCard.CarrierName
+			simcardNumber = &deviceSimCard.PhoneNumber
+			simcardICCID = &deviceSimCard.ICCID
+			deviceIMSI = &deviceSimCard.IMSI
+		}
+
+		// Generate unique message ID for inbound SMS
+		messageID := utils.GenerateMessageID()
+
+		// Create SMS log entry for inbound message
+		smsLog := models.SmsLog{
+			MessageID:               messageID,
+			DeviceID:                &deviceID,
+			DeviceName:              &device.Name,
+			DeviceIMEI:              &device.IMEI,
+			DeviceIMSI:              deviceIMSI,
+			SimcardName:             simcardName,
+			SimSlot:                 &data.SimSlot,
+			SimcardNumber:           simcardNumber,
+			SimcardICCID:            simcardICCID,
+			SourceAddr:              &data.PhoneNumber,                                    // Sender's phone number
+			SourceConnector:         func() *string { s := "android"; return &s }(),     // Android device
+			SourceUser:              func() *string { s := "device"; return &s }(),      // Device itself
+			DestinationAddr:         simcardNumber,                                       // Device's SIM number
+			Message:                 &data.Message,
+			MessageLength:           len(data.Message),
+			Direction:               "inbound",
+			Priority:                "normal",
+			Status:                  "received",
+			DeviceGroupID:           &device.DeviceGroupID,
+			DeviceGroup:             &device.DeviceGroup,
+			CountrySiteID:           &device.CountrySiteID,
+			CountrySite:             &device.CountrySite,
+			DeliveryReportRequested: false, // Inbound SMS don't need delivery reports
+			ReceivedAt:              func() *time.Time { now := time.Now(); return &now }(),
+		}
+
+		// If destination address is empty, set it to "Device"
+		if smsLog.DestinationAddr == nil || *smsLog.DestinationAddr == "" {
+			deviceDest := "Device"
+			smsLog.DestinationAddr = &deviceDest
+		}
+
+		if err := database.GetDB().Create(&smsLog).Error; err != nil {
+			log.Printf("Error creating inbound SMS log: %v", err)
+		} else {
+			log.Printf("Inbound SMS logged successfully: %s from %s to device %s", messageID, data.PhoneNumber, deviceID)
+		}
+	}
+
 	// Broadcast to frontend clients
 	wsServer.BroadcastMessage(models.WebSocketMessage{
 		Type:      "sms_message",
@@ -79,6 +153,17 @@ func HandleSmsDeliveryReport(wsServer interfaces.WebSocketServerInterface, devic
 		}
 
 		database.GetDB().Model(&smsLog).Updates(updates)
+
+		log.Printf("Updated SMS log %s with delivery report status: %s", data.MessageID, data.Status)
+
+		// Publish delivery report to SMPP server if delivery report service is available
+		if deliveryReportService != nil {
+			if err := deliveryReportService.PublishDeliveryReport(smsLog, data.Status); err != nil {
+				log.Printf("Failed to publish delivery report to SMPP: %v", err)
+			}
+		}
+	} else {
+		log.Printf("SMS log not found for message ID: %s", data.MessageID)
 	}
 
 	// Broadcast to frontend clients

@@ -1,395 +1,392 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import AppLayout from '@/layouts/app-layout';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { AppLayout } from '@/layouts/app-layout';
+import { type BreadcrumbItem } from '@/types';
+import { toast } from 'sonner';
+import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { type BreadcrumbItem } from '@/types';
-import { Search, Filter, ArrowUpDown, Plus, Eye, Edit, Trash2, Route, Calendar, Clock, Tag, Code, User, Users, MessageSquare, Database } from 'lucide-react';
-import { apiClient } from '@/services/api-client';
-import { useAuthStore } from '@/stores/auth-store';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import { Search, Plus, RefreshCw, Filter as FilterIcon, CheckCircle, XCircle, Activity } from 'lucide-react';
+import { DataTable } from '@/components/ui/data-table';
+import {
+    createIdColumn, 
+    createCreatedAtColumn, 
+    createActionsColumn,
+    type BaseRecord 
+} from '@/components/ui/data-table-columns';
+import { filtersService, type Filter } from '@/services/filters';
+
+interface FilterWithBase extends Filter, BaseRecord {}
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: '/dashboard',
-    },
-    {
-        title: 'Filters',
-        href: '/filters',
-    },
-];
-
-interface FilterItem {
-    id: number;
-    name: string;
-    type: string;
-    description: string;
-    routes: string;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-interface PaginatedData {
-    data: FilterItem[];
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-    links: any[];
-}
-
-const filterTypes = [
-    { value: 'TransparentFilter', label: 'Transparent Filter', icon: Filter, description: 'Always matches any message criteria', routes: 'All' },
-    { value: 'ConnectorFilter', label: 'Connector Filter', icon: Route, description: 'Matches the source connector of a message', routes: 'MO' },
-    { value: 'UserFilter', label: 'User Filter', icon: User, description: 'Matches the owner of a MT message', routes: 'MT' },
-    { value: 'GroupFilter', label: 'Group Filter', icon: Users, description: 'Matches the owner\'s group of a MT message', routes: 'MT' },
-    { value: 'SourceAddrFilter', label: 'Source Address Filter', icon: MessageSquare, description: 'Matches the source address of a MO message', routes: 'All' },
-    { value: 'DestinationAddrFilter', label: 'Destination Address Filter', icon: MessageSquare, description: 'Matches the destination address of a MT message', routes: 'All' },
-    { value: 'ShortMessageFilter', label: 'Short Message Filter', icon: MessageSquare, description: 'Matches the content of a message', routes: 'All' },
-    { value: 'DateIntervalFilter', label: 'Date Interval Filter', icon: Calendar, description: 'Matches the date of a message', routes: 'All' },
-    { value: 'TimeIntervalFilter', label: 'Time Interval Filter', icon: Clock, description: 'Matches the time of a message', routes: 'All' },
-    { value: 'TagFilter', label: 'Tag Filter', icon: Tag, description: 'Checks if message has a defined tag', routes: 'All' },
-    { value: 'EvalPyFilter', label: 'Python Script Filter', icon: Code, description: 'Passes message to a third party python script for user-defined filtering', routes: 'All' },
+  { title: 'Dashboard', href: '/dashboard' },
+  { title: 'Filters', href: '/filters' },
 ];
 
 export default function FiltersIndex() {
-    const navigate = useNavigate();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const { token } = useAuthStore();
-    
-    const [filters, setFilters] = useState<PaginatedData>({
-        data: [],
-        current_page: 1,
-        last_page: 1,
-        per_page: 10,
-        total: 0,
-        links: [],
+  const { token } = useAuthStore();
+  const [filters, setFilters] = useState<FilterWithBase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+
+  // Fetch filters from API
+  const fetchFilters = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await filtersService.getFilters();
+      
+      // Transform data to include BaseRecord properties
+      const transformedData: FilterWithBase[] = data.filters.map(filter => ({
+        ...filter,
+        id: filter.id,
+        created_at: filter.created_at,
+        updated_at: filter.updated_at,
+      }));
+      
+      setFilters(transformedData);
+    } catch (error) {
+      console.error('Error fetching filters:', error);
+      toast.error('Failed to fetch filters');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchFilters();
+  }, [fetchFilters]);
+
+  // Filtered filters
+  const filteredFilters = useMemo(() => {
+    return filters.filter(filter => {
+      const matchesSearch = searchTerm === '' || 
+        filter.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        filter.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        filter.type.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesType = typeFilter === 'all' || filter.type === typeFilter;
+      const matchesStatus = statusFilter === 'all' || 
+        (statusFilter === 'active' && filter.is_active) ||
+        (statusFilter === 'inactive' && !filter.is_active);
+      
+      return matchesSearch && matchesType && matchesStatus;
     });
-    const [isLoading, setIsLoading] = useState(true);
+  }, [filters, searchTerm, typeFilter, statusFilter]);
+
+  // Get unique values for filters
+  const uniqueTypes = useMemo(() => {
+    const types = filters.map(f => f.type).filter(Boolean);
+    return [...new Set(types)];
+  }, [filters]);
+
+  // Filters statistics
+  const filterStats = useMemo(() => {
+    const total = filters.length;
+    const active = filters.filter(f => f.is_active).length;
+    const inactive = filters.filter(f => !f.is_active).length;
+    const smsFilters = filters.filter(f => f.type === 'sms').length;
+    const ussdFilters = filters.filter(f => f.type === 'ussd').length;
+    const deviceFilters = filters.filter(f => f.type === 'device').length;
     
-    const [search, setSearch] = useState(searchParams.get('search') || '');
-    const [type, setType] = useState(searchParams.get('type') || 'all');
-    const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'created_at');
-    const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
-    const [selectedIds, setSelectedIds] = useState<number[]>([]);
-    const [selectAll, setSelectAll] = useState(false);
+    return {
+      total,
+      active,
+      inactive,
+      smsFilters,
+      ussdFilters,
+      deviceFilters,
+      activePercentage: total > 0 ? Math.round((active / total) * 100) : 0
+    };
+  }, [filters]);
 
-    // Fetch filters
-    useEffect(() => {
-        const fetchFilters = async () => {
-            setIsLoading(true);
-            try {
-                const params: Record<string, any> = {};
-                if (search) params.search = search;
-                if (type && type !== 'all') params.type = type;
-                if (sortBy) params.sort_by = sortBy;
-                if (sortOrder) params.sort_order = sortOrder;
-                
-                const data = await apiClient.get<PaginatedData>('/filters', params);
-                setFilters(data);
-            } catch (error) {
-                console.error('Error fetching filters:', error);
-                toast.error('Failed to fetch filters');
-            } finally {
-                setIsLoading(false);
-            }
+  // Handle delete
+  const handleDelete = useCallback(async (filter: FilterWithBase) => {
+    try {
+      await filtersService.deleteFilter(filter.id);
+      toast.success('Filter deleted successfully');
+      fetchFilters();
+    } catch (error) {
+      console.error('Error deleting filter:', error);
+      toast.error('Failed to delete filter');
+    }
+  }, [fetchFilters]);
+
+  // Clear filters
+  const clearFilters = useCallback(() => {
+    setSearchTerm('');
+    setTypeFilter('all');
+    setStatusFilter('all');
+  }, []);
+
+  // TanStack Table columns
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <FilterIcon className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">{row.getValue('name')}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'description',
+      header: 'Description',
+      cell: ({ row }) => row.getValue('description') || 'No description',
+    },
+    {
+      accessorKey: 'type',
+      header: 'Type',
+      cell: ({ row }) => {
+        const type = row.getValue('type') as string;
+        const getTypeVariant = (type: string) => {
+          switch (type) {
+            case 'sms': return 'default';
+            case 'ussd': return 'secondary';
+            case 'device': return 'outline';
+            default: return 'secondary';
+          }
         };
+        
+        return (
+          <Badge variant={getTypeVariant(type)}>
+            {type.toUpperCase()}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'is_active',
+      header: 'Status',
+      cell: ({ row }) => {
+        const isActive = row.getValue('is_active') as boolean;
+        return (
+          <Badge variant={isActive ? 'default' : 'secondary'}>
+            {isActive ? (
+              <>
+                <CheckCircle className="h-3 w-3 mr-1" />
+                ACTIVE
+              </>
+            ) : (
+              <>
+                <XCircle className="h-3 w-3 mr-1" />
+                INACTIVE
+              </>
+            )}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'conditions',
+      header: 'Conditions',
+      cell: ({ row }) => {
+        const conditions = row.getValue('conditions') as any;
+        const conditionCount = conditions ? Object.keys(conditions).length : 0;
+        return (
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">{conditionCount} condition{conditionCount !== 1 ? 's' : ''}</span>
+          </div>
+        );
+      },
+    },
+    createCreatedAtColumn<FilterWithBase>(),
+    createActionsColumn<FilterWithBase>({
+      onDelete: handleDelete,
+      editPath: (record) => `/filters/${record.id}/edit`,
+      deleteConfirmMessage: "Are you sure you want to delete this filter?",
+    }),
+  ], [handleDelete]);
 
-        fetchFilters();
-    }, [search, type, sortBy, sortOrder]);
+  return (
+    <AppLayout breadcrumbs={breadcrumbs}>
+      <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-hidden">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-3xl font-bold tracking-tight">Filters</h1>
+            <p className="text-muted-foreground">Manage data filtering rules and conditions</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchFilters}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Link to="/filters/create">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Filter
+              </Button>
+            </Link>
+          </div>
+        </div>
 
-    const handleSearch = () => {
-        const params = new URLSearchParams();
-        if (search) params.set('search', search);
-        if (type && type !== 'all') params.set('type', type);
-        if (sortBy) params.set('sort_by', sortBy);
-        if (sortOrder) params.set('sort_order', sortOrder);
-        setSearchParams(params);
-    };
+        {/* Filters Statistics Cards */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Total Filters</CardTitle>
+            <FilterIcon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{filterStats.total}</div>
+              <p className="text-xs text-muted-foreground">
+                All filters
+              </p>
+            </CardContent>
+          </Card>
 
-    const handleSort = (field: string) => {
-        const newOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
-        setSortBy(field);
-        setSortOrder(newOrder);
-    };
-
-    const clearFilters = () => {
-        setSearch('');
-        setType('all');
-        setSortBy('created_at');
-        setSortOrder('desc');
-        setSearchParams({});
-    };
-
-    const deleteFilter = (id: number) => {
-        // Implementation for deleting a filter
-        toast.error('Delete functionality not implemented yet');
-    };
-
-    const confirmDelete = async () => {
-        // Implementation for bulk delete
-        toast.error('Bulk delete functionality not implemented yet');
-    };
-
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    };
-
-    const getFilterTypeInfo = (type: string) => {
-        return filterTypes.find(ft => ft.value === type) || {
-            label: type,
-            icon: Filter,
-            description: 'Unknown filter type',
-            routes: 'Unknown'
-        };
-    };
-
-    const getRouteBadgeVariant = (routes: string) => {
-        switch (routes) {
-            case 'All':
-                return 'default';
-            case 'MO':
-                return 'secondary';
-            case 'MT':
-                return 'outline';
-            default:
-                return 'default';
-        }
-    };
-
-    return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Filters</h1>
-                        <p className="text-muted-foreground">
-                            Manage message routing filters
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Link to="/filters/create">
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Create Filter
-                            </Button>
-                        </Link>
-                    </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Filters</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{filterStats.active}</div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-[60px]">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="h-2 rounded-full bg-green-500"
+                      style={{ width: `${filterStats.activePercentage}%` }}
+                    ></div>
+                  </div>
                 </div>
+                <span className="text-xs text-muted-foreground">{filterStats.activePercentage}%</span>
+              </div>
+            </CardContent>
+          </Card>
 
-                {/* Filters */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Filters</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="flex items-center gap-2 flex-1">
-                                <Search className="h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Search filters..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                                    className="max-w-sm"
-                                />
-                            </div>
-                            <Select value={type} onValueChange={setType}>
-                                <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="Filter type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Types</SelectItem>
-                                    {filterTypes.map((filterType) => (
-                                        <SelectItem key={filterType.value} value={filterType.value}>
-                                            {filterType.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <Button variant="outline" onClick={handleSearch}>
-                                Search
-                            </Button>
-                            <Button variant="ghost" onClick={clearFilters}>
-                                Clear
-                            </Button>
-                        </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Inactive Filters</CardTitle>
+              <XCircle className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{filterStats.inactive}</div>
+              <p className="text-xs text-muted-foreground">
+                Disabled filters
+              </p>
+            </CardContent>
+          </Card>
 
-                        {/* Table */}
-                        <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-12">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectAll}
-                                                onChange={(e) => setSelectAll(e.target.checked)}
-                                                className="rounded border-gray-300"
-                                            />
-                                        </TableHead>
-                                        <TableHead>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleSort('name')}
-                                                className="h-auto p-0 font-semibold"
-                                            >
-                                                Name
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            </Button>
-                                        </TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Routes</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleSort('created_at')}
-                                                className="h-auto p-0 font-semibold"
-                                            >
-                                                Created
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            </Button>
-                                        </TableHead>
-                                        <TableHead className="w-24">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
-                                        <TableRow>
-                                            <TableCell colSpan={8} className="text-center py-8">
-                                                Loading filters...
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : !filters.data || filters.data.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={8} className="text-center py-8">
-                                                No filters found
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        (filters.data || []).map((filter) => {
-                                            const typeInfo = getFilterTypeInfo(filter.type);
-                                            const IconComponent = typeInfo.icon;
-                                            
-                                            return (
-                                                <TableRow key={filter.id}>
-                                                    <TableCell>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedIds.includes(filter.id)}
-                                                            onChange={(e) => {
-                                                                if (e.target.checked) {
-                                                                    setSelectedIds([...selectedIds, filter.id]);
-                                                                } else {
-                                                                    setSelectedIds(selectedIds.filter(id => id !== filter.id));
-                                                                }
-                                                            }}
-                                                            className="rounded border-gray-300"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="font-medium">{filter.name}</TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-2">
-                                                            <IconComponent className="h-4 w-4" />
-                                                            <span>{typeInfo.label}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge variant={getRouteBadgeVariant(typeInfo.routes)}>
-                                                            {typeInfo.routes}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="max-w-xs truncate">
-                                                        {typeInfo.description}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge variant={filter.is_active ? 'default' : 'secondary'}>
-                                                            {filter.is_active ? 'Active' : 'Inactive'}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell>{formatDate(filter.created_at)}</TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-2">
-                                                            <Link to={`/filters/${filter.id}`}>
-                                                                <Button variant="ghost" size="sm">
-                                                                    <Eye className="h-4 w-4" />
-                                                                </Button>
-                                                            </Link>
-                                                            <Link to={`/filters/${filter.id}/edit`}>
-                                                                <Button variant="ghost" size="sm">
-                                                                    <Edit className="h-4 w-4" />
-                                                                </Button>
-                                                            </Link>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => deleteFilter(filter.id)}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">SMS Filters</CardTitle>
+              <Activity className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{filterStats.smsFilters}</div>
+              <p className="text-xs text-muted-foreground">
+                SMS type filters
+              </p>
+            </CardContent>
+          </Card>
 
-                        {/* Pagination */}
-                        {filters.last_page > 1 && (
-                            <div className="flex items-center justify-between mt-4">
-                                <div className="text-sm text-muted-foreground">
-                                    Showing {((filters.current_page - 1) * filters.per_page) + 1} to{' '}
-                                    {Math.min(filters.current_page * filters.per_page, filters.total)} of{' '}
-                                    {filters.total} results
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {filters.links.map((link, index) => (
-                                        <Button
-                                            key={index}
-                                            variant={link.active ? 'default' : 'outline'}
-                                            size="sm"
-                                            disabled={!link.url}
-                                            onClick={() => {
-                                                if (link.url) {
-                                                    const url = new URL(link.url);
-                                                    const page = url.searchParams.get('page');
-                                                    if (page) {
-                                                        const params = new URLSearchParams(searchParams);
-                                                        params.set('page', page);
-                                                        setSearchParams(params);
-                                                    }
-                                                }
-                                            }}
-                                        >
-                                            {link.label}
-                                        </Button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">USSD Filters</CardTitle>
+              <Activity className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">{filterStats.ussdFilters}</div>
+              <p className="text-xs text-muted-foreground">
+                USSD type filters
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Device Filters</CardTitle>
+              <Activity className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{filterStats.deviceFilters}</div>
+              <p className="text-xs text-muted-foreground">
+                Device type filters
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-4 w-4" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="relative min-w-[200px]">
+                <Input
+                  placeholder="Search filters..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="h-8 min-w-[120px] px-3 py-1 border border-input bg-background rounded-md text-sm"
+              >
+                <option value="all">All Types</option>
+                {uniqueTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-8 min-w-[120px] px-3 py-1 border border-input bg-background rounded-md text-sm"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </Button>
             </div>
-        </AppLayout>
-    );
+          </CardContent>
+        </Card>
+
+        {/* Table */}
+        <DataTable
+          columns={columns}
+          data={filteredFilters}
+          title="Filters"
+          description={`Showing ${filteredFilters.length} of ${filters.length} filters`}
+          showSearch={false}
+          showViewOptions={false}
+          showPagination={true}
+          pageSize={10}
+        />
+      </div>
+    </AppLayout>
+  );
 } 

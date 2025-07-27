@@ -1,6 +1,7 @@
 package websocket_handlers
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -12,6 +13,95 @@ import (
 // HandleHeartbeat processes heartbeat messages from devices
 func HandleHeartbeat(wsServer interfaces.WebSocketServerInterface, deviceID string, data models.HeartbeatData) {
 	log.Printf("Heartbeat from %s: Battery %d%%, Signal %d/5", deviceID, data.BatteryLevel, data.SignalStrength)
+
+	// Get device group settings for alarm management
+	var deviceInfo models.Device
+	if err := database.GetDB().Where("imei = ?", deviceID).First(&deviceInfo).Error; err != nil {
+		log.Printf("Failed to get device %s for signal check: %v", deviceID, err)
+		return
+	}
+
+	deviceGroup, err := GetDeviceGroupSettings(deviceInfo.DeviceGroupID)
+	if err != nil {
+		log.Printf("Failed to get device group settings for device %s: %v", deviceID, err)
+		return
+	}
+
+	// Signal kontrolü - device group ayarlarına göre
+	if data.SignalStrength <= deviceGroup.SignalLowThreshold && deviceGroup.EnableSignalAlarms {
+		log.Printf("Signal strength is %d (threshold: %d) for device %s, setting device to inactive", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
+
+		// Cihazı deaktif yap
+		if err := database.GetDB().Model(&models.Device{}).Where("imei = ?", deviceID).Update("is_active", false).Error; err != nil {
+			log.Printf("Error setting device to inactive: %v", err)
+		}
+
+		// Signal low alarmı gönder
+		alarmData := models.AlarmData{
+			AlarmType:   "signal_low",
+			Message:     fmt.Sprintf("Device signal is low (signal strength: %d, threshold: %d). Device has been set to inactive.", data.SignalStrength, deviceGroup.SignalLowThreshold),
+			Severity:    "critical",
+			DeviceGroup: data.DeviceInfo.DeviceGroup,
+			CountrySite: data.DeviceInfo.CountrySite,
+		}
+
+		// Broadcast alarm to frontend
+		wsServer.BroadcastMessage(models.WebSocketMessage{
+			Type: "alarm",
+			Data: map[string]interface{}{
+				"device_id":    deviceID,
+				"alarm_type":   alarmData.AlarmType,
+				"message":      alarmData.Message,
+				"severity":     alarmData.Severity,
+				"device_group": alarmData.DeviceGroup,
+				"country_site": alarmData.CountrySite,
+			},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		// Log alarm to database
+		LogAlarmToDatabase(deviceID, alarmData)
+	} else if data.SignalStrength > deviceGroup.SignalLowThreshold {
+		// Signal geri geldi, cihazı aktif yap
+		log.Printf("Signal strength is %d (above threshold: %d) for device %s, checking if device should be active", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
+
+		// Check and update device status (this will handle setting to active if no other alarms)
+		CheckAndUpdateDeviceStatus(deviceID)
+	}
+
+	// Battery kontrolü - device group ayarlarına göre
+	if data.BatteryLevel <= deviceGroup.BatteryLowThreshold && deviceGroup.EnableBatteryAlarms {
+		log.Printf("Battery level is %d%% (threshold: %d%%) for device %s, sending battery alarm", data.BatteryLevel, deviceGroup.BatteryLowThreshold, deviceID)
+
+		// Battery low alarmı gönder
+		alarmData := models.AlarmData{
+			AlarmType:   "battery_low",
+			Message:     fmt.Sprintf("Device battery is low (battery level: %d%%, threshold: %d%%).", data.BatteryLevel, deviceGroup.BatteryLowThreshold),
+			Severity:    "warning",
+			DeviceGroup: data.DeviceInfo.DeviceGroup,
+			CountrySite: data.DeviceInfo.CountrySite,
+		}
+
+		// Broadcast alarm to frontend
+		wsServer.BroadcastMessage(models.WebSocketMessage{
+			Type: "alarm",
+			Data: map[string]interface{}{
+				"device_id":    deviceID,
+				"alarm_type":   alarmData.AlarmType,
+				"message":      alarmData.Message,
+				"severity":     alarmData.Severity,
+				"device_group": alarmData.DeviceGroup,
+				"country_site": alarmData.CountrySite,
+			},
+			Timestamp: time.Now().UnixMilli(),
+		})
+
+		// Log alarm to database
+		LogAlarmToDatabase(deviceID, alarmData)
+	} else if data.BatteryLevel > deviceGroup.BatteryLowThreshold {
+		// Battery geri geldi
+		log.Printf("Battery level is %d%% (above threshold: %d%%) for device %s", data.BatteryLevel, deviceGroup.BatteryLowThreshold, deviceID)
+	}
 
 	// Update device info in database
 	UpdateDeviceInfo(wsServer, deviceID, data)

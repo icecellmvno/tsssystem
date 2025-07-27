@@ -2,7 +2,7 @@ import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
-import { LayoutGrid, Users, Database, Building2, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, Send, Filter, PhoneOff } from 'lucide-react';
+import { LayoutGrid, Users, Database, Building2, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, Send, Filter, PhoneOff, MessageSquare, Settings } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems = [
@@ -17,19 +17,25 @@ const mainNavItems = [
         icon: Building2,
         items: [
             {
-                title: 'Country Sites',
+                title: 'Country Management',
                 url: '/country-sites',
             },
             {
-                title: 'Device Groups',
+                title: 'Site Device Groups',
                 url: '/device-groups',
             },
             {
-                title: 'Devices',
+                title: 'Android or Modem',
                 url: '/devices',
+            },
+            {
+                title: 'Sim Card Management',
+                url: '/sim-cards',
+                icon: CreditCard,
             },
         ],
     },
+
     {
         title: 'Reports',
         url: '#',
@@ -59,8 +65,9 @@ const mainNavItems = [
                 url: '/smpp-users',
             },
             {
-                title: 'SMPP Routings',
-                url: '/smpp-routings',
+                title: 'SMS Routing Rules',
+                url: '/sms-routing-rules',
+                icon: MessageSquare,
             },
         ],
     },
@@ -87,35 +94,38 @@ const mainNavItems = [
         ],
     },
     {
-        title: 'SimCards',
-        url: '/sim-cards',
-        icon: CreditCard,
-    },
-    {
-        title: 'Schedule Tasks',
-        url: '/schedule-tasks',
-        icon: Clock,
-    },
-    {
-        title: 'Blacklist Numbers',
-        url: '/blacklist-numbers',
-        icon: PhoneOff,
-    },
-    {
-        title: 'Filters',
-        url: '/filters',
-        icon: Filter,
-    },
-    {
-        title: 'MCC-MNC',
-        url: '/mcc-mnc',
-        icon: Database,
-    },
-    {
-        title: 'Operator Commands',
-        url: '/operator-commands',
-        icon: Send,
-    },
+        title: 'System Settings',
+        url: '#',
+        icon: Settings,
+        items: [
+    
+            {
+                title: 'Schedule Tasks',
+                url: '/schedule-tasks',
+                icon: Clock,
+            },
+            {
+                title: 'Blacklist Numbers',
+                url: '/blacklist-numbers',
+                icon: PhoneOff,
+            },
+            {
+                title: 'Filters',
+                url: '/filters',
+                icon: Filter,
+            },
+            {
+                title: 'MCC-MNC',
+                url: '/mcc-mnc',
+                icon: Database,
+            },
+            {
+                title: 'Operator Commands',
+                url: '/operator-commands',
+                icon: Send,
+            },
+        ]
+    }
 ];
 
 export function AppSidebar() {

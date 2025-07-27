@@ -9,7 +9,9 @@ import (
 	"tsimsocketserver/rabbitmq"
 	"tsimsocketserver/redis"
 	"tsimsocketserver/routes"
+	"tsimsocketserver/services"
 	"tsimsocketserver/websocket"
+	"tsimsocketserver/websocket_handlers"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -55,7 +57,12 @@ func main() {
 	// Initialize WebSocket server
 	wsServer := websocket.NewWebSocketServer(cfg)
 
-	// Initialize SMS consumer
+	// Initialize delivery report service
+	deliveryReportPublisher := rabbitmq.NewDeliveryReportPublisher(rabbitMQHandler)
+	deliveryReportService := services.NewDeliveryReportService(deliveryReportPublisher.PublishDeliveryReport)
+	websocket_handlers.SetDeliveryReportService(deliveryReportService)
+
+	// Initialize SMS consumer for regular SMS messages
 	smsConsumer := rabbitmq.NewSmsConsumer(rabbitMQHandler, wsServer)
 
 	// Start consuming SMS messages from default queue
@@ -63,6 +70,16 @@ func main() {
 		log.Printf("Warning: Failed to start SMS consumer: %v", err)
 	} else {
 		log.Println("SMS consumer started successfully")
+	}
+
+	// Initialize SMS router for SMPP messages
+	smsRouter := rabbitmq.NewSmsRouter(rabbitMQHandler, wsServer)
+
+	// Start routing SMPP messages from tsimcloudrouter queue
+	if err := smsRouter.StartRouting("tsimcloudrouter"); err != nil {
+		log.Printf("Warning: Failed to start SMS router: %v", err)
+	} else {
+		log.Println("SMS router started successfully")
 	}
 
 	// Create Fiber app

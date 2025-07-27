@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle, Edit, Trash2, Copy, MessageSquare, Phone, Search, Bell, Power, Smartphone, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle, Edit, Trash2, Copy, MessageSquare, Phone, Search, Bell, Power, Smartphone, Wrench, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,8 +41,8 @@ interface Device {
   name: string;
   device_group_id: number;
   device_group: string;
-  sitename_id: number;
-  sitename: string;
+  country_site_id: number;
+  country_site: string;
   device_type: string;
   manufacturer: string;
   model: string;
@@ -186,7 +186,9 @@ export default function DeviceShow() {
         device.network_type !== wsDevice.network_type ||
         device.manufacturer !== wsDevice.manufacturer ||
         device.model !== wsDevice.model ||
-        device.android_version !== wsDevice.android_version;
+        device.android_version !== wsDevice.android_version ||
+        device.latitude !== wsDevice.latitude ||
+        device.longitude !== wsDevice.longitude;
 
       if (shouldUpdate) {
         setDevice(prevDevice => {
@@ -202,6 +204,8 @@ export default function DeviceShow() {
             manufacturer: wsDevice.manufacturer || prevDevice.manufacturer,
             model: wsDevice.model || prevDevice.model,
             android_version: wsDevice.android_version || prevDevice.android_version,
+            latitude: wsDevice.latitude !== undefined ? wsDevice.latitude : prevDevice.latitude,
+            longitude: wsDevice.longitude !== undefined ? wsDevice.longitude : prevDevice.longitude,
             last_seen: new Date().toISOString(),
           };
         });
@@ -272,7 +276,12 @@ export default function DeviceShow() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          sim_slot: data.sim_slot,
+          phone_number: data.to,
+          message: data.message,
+          priority: 'normal'
+        })
       });
 
       if (response.ok) {
@@ -511,10 +520,6 @@ export default function DeviceShow() {
   // Create dynamic breadcrumbs
   const breadcrumbs: BreadcrumbItem[] = [
     {
-                      title: 'Country Management',
-      href: '#',
-    },
-    {
       title: 'Devices',
       href: '/devices',
     },
@@ -572,6 +577,17 @@ export default function DeviceShow() {
               </Badge>
               {ws.isConnecting && (
                 <Badge variant="outline">Connecting...</Badge>
+              )}
+              <Badge variant={device.is_online ? "default" : "secondary"}>
+                {device.is_online ? "🟢 Online" : "🔴 Offline"}
+              </Badge>
+              <Badge variant={device.is_active ? "default" : "secondary"}>
+                {device.is_active ? "✅ Active" : "❌ Inactive"}
+              </Badge>
+              {device.maintenance_mode && (
+                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
+                  🔧 Maintenance
+                </Badge>
               )}
             </div>
           </div>
@@ -648,7 +664,7 @@ export default function DeviceShow() {
 
                   <div className="space-y-2">
                     <div className="text-sm font-medium">Sitename</div>
-                    <div className="text-sm">{device.sitename || 'Not assigned'}</div>
+                    <div className="text-sm">{device.country_site || 'Not assigned'}</div>
                   </div>
 
                   <div className="space-y-2">
@@ -662,7 +678,10 @@ export default function DeviceShow() {
             {/* Location Information */}
             <Card>
               <CardHeader>
-                <CardTitle>Location Information</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Location Information
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -686,6 +705,28 @@ export default function DeviceShow() {
                     <div className="text-sm">{device.manufacturer || 'Unknown'}</div>
                   </div>
                 </div>
+
+                {/* Map */}
+                {device.latitude && device.longitude && (
+                  <div className="mt-4">
+                    <div className="text-sm font-medium mb-2">Device Location</div>
+                    <div className="w-full h-64 bg-gray-100 rounded-lg border overflow-hidden">
+                      <iframe
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${device.longitude-0.01},${device.latitude-0.01},${device.longitude+0.01},${device.latitude+0.01}&layer=mapnik&marker=${device.latitude},${device.longitude}`}
+                        width="100%"
+                        height="100%"
+                        frameBorder="0"
+                        scrolling="no"
+                        marginHeight={0}
+                        marginWidth={0}
+                        title="Device Location"
+                      />
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Click on the map to open in full view
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -772,7 +813,20 @@ export default function DeviceShow() {
                   <div className="space-y-2">
                     <div className="text-sm font-medium">Battery Level</div>
                     <div className="text-sm">
-                      {device.battery_level !== null && device.battery_level !== undefined && device.battery_level > 0 ? `${device.battery_level}%` : 'Unknown'}
+                      {device.battery_level !== null && device.battery_level !== undefined && device.battery_level > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full ${
+                                device.battery_level > 50 ? 'bg-green-500' : 
+                                device.battery_level > 20 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${device.battery_level}%` }}
+                            ></div>
+                          </div>
+                          <span>{device.battery_level}%</span>
+                        </div>
+                      ) : 'Unknown'}
                     </div>
                   </div>
 
@@ -783,7 +837,21 @@ export default function DeviceShow() {
 
                   <div className="space-y-2">
                     <div className="text-sm font-medium">Signal Strength</div>
-                    <div className="text-sm">{device.signal_strength}/5 ({device.signal_dbm} dBm)</div>
+                    <div className="text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((bar) => (
+                            <div
+                              key={bar}
+                              className={`w-1 h-4 rounded ${
+                                bar <= device.signal_strength ? 'bg-green-500' : 'bg-gray-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span>{device.signal_strength}/5 ({device.signal_dbm} dBm)</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-2">

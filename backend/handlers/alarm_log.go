@@ -25,10 +25,10 @@ func (h *AlarmLogHandler) GetAlarmLogs(c *fiber.Ctx) error {
 
 	// Get query parameters
 	page := c.QueryInt("page", 1)
-	limit := c.QueryInt("limit", 50)
+	limit := c.QueryInt("limit", 50) // Default to 50 records
 	deviceID := c.Query("device_id")
 	deviceGroup := c.Query("device_group")
-	sitename := c.Query("sitename")
+	countrySite := c.Query("country_site")
 	alarmType := c.Query("alarm_type")
 	severity := c.Query("severity")
 	status := c.Query("status")
@@ -43,8 +43,8 @@ func (h *AlarmLogHandler) GetAlarmLogs(c *fiber.Ctx) error {
 	if deviceGroup != "" {
 		query = query.Where("device_group = ?", deviceGroup)
 	}
-	if sitename != "" {
-		query = query.Where("sitename = ?", sitename)
+	if countrySite != "" {
+		query = query.Where("country_site = ?", countrySite)
 	}
 	if alarmType != "" {
 		query = query.Where("alarm_type = ?", alarmType)
@@ -71,13 +71,10 @@ func (h *AlarmLogHandler) GetAlarmLogs(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"alarm_logs": alarmLogs,
-		"pagination": fiber.Map{
-			"page":  page,
-			"limit": limit,
-			"total": total,
-			"pages": (int(total) + limit - 1) / limit,
-		},
+		"data":  alarmLogs,
+		"total": total,
+		"page":  page,
+		"limit": limit,
 	})
 }
 

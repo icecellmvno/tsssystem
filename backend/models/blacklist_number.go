@@ -7,13 +7,12 @@ import (
 )
 
 type BlacklistNumber struct {
-	ID        uint           `json:"id" gorm:"primaryKey"`
-	Number    string         `json:"number" gorm:"uniqueIndex;not null;size:20"`
-	Type      string         `json:"type" gorm:"not null;default:'manual';size:10"` // 'sms' or 'manual'
-	Reason    *string        `json:"reason" gorm:"size:500"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	Number    string    `json:"number" gorm:"uniqueIndex;not null;size:20"`
+	Type      string    `json:"type" gorm:"not null;default:'manual';size:10"` // 'sms' or 'manual'
+	Reason    *string   `json:"reason" gorm:"size:500"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // TableName specifies the table name for BlacklistNumber

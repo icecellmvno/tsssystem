@@ -19,13 +19,14 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	countrySiteHandler := handlers.NewCountrySiteHandler()
 	deviceGroupHandler := handlers.NewDeviceGroupHandler(cfg)
 	deviceHandler := handlers.NewDeviceHandler(wsServer)
-	qrHandler := handlers.NewQRHandler(cfg)
 	websocketHandler := handlers.NewWebSocketHandler(cfg)
 	alarmLogHandler := handlers.NewAlarmLogHandler(cfg)
 	smppUserHandler := handlers.NewSmppUserHandler(redisService)
 	blacklistNumberHandler := handlers.NewBlacklistNumberHandler()
 	bulkSmsHandler := handlers.NewBulkSmsHandler(wsServer)
 	scheduleTaskHandler := handlers.NewScheduleTaskHandler(wsServer)
+	mccMncHandler := handlers.NewMccMncHandler()
+	smsRoutingHandler := handlers.NewSmsRoutingHandler()
 
 	// API routes
 	api := app.Group("/api")
@@ -37,6 +38,12 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 
 	// Protected routes
 	protected := api.Group("", middleware.AuthMiddleware(cfg), middleware.PermissionMiddleware())
+
+	// Add WebSocket server to context for SMS routing
+	protected.Use(func(c *fiber.Ctx) error {
+		c.Locals("ws_server", wsServer)
+		return c.Next()
+	})
 
 	// User routes
 	users := protected.Group("/users")
@@ -78,24 +85,44 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	deviceGroups.Get("/:id", deviceGroupHandler.GetDeviceGroupByID)
 	deviceGroups.Put("/:id", deviceGroupHandler.UpdateDeviceGroup)
 	deviceGroups.Delete("/:id", deviceGroupHandler.DeleteDeviceGroup)
-	deviceGroups.Get("/:id/qr", deviceGroupHandler.GenerateQRCode)
+	deviceGroups.Get("/:id/qr-code", deviceGroupHandler.GenerateQRCode)
 
 	// Device routes
 	devices := protected.Group("/devices")
 	devices.Get("/", deviceHandler.GetAllDevices)
+	devices.Get("/stats", deviceHandler.GetDeviceStats)
 	devices.Get("/connected", deviceHandler.GetConnectedDevices)
-	devices.Get("/:device_id", deviceHandler.GetDeviceByID)
-	devices.Post("/:device_id/sms", deviceHandler.SendSms)
-	devices.Post("/:device_id/ussd", deviceHandler.SendUssd)
-	devices.Post("/:device_id/find", deviceHandler.FindDevice)
-	devices.Post("/:device_id/alarm/start", deviceHandler.StartAlarm)
-	devices.Post("/:device_id/alarm/stop", deviceHandler.StopAlarm)
-	devices.Post("/:device_id/alarm", deviceHandler.StartAlarm)
-	devices.Post("/:device_id/toggle", deviceHandler.ToggleDevice)
-	devices.Post("/:device_id/maintenance/enter", deviceHandler.EnterMaintenanceMode)
-	devices.Post("/:device_id/maintenance/exit", deviceHandler.ExitMaintenanceMode)
-	devices.Delete("/:device_id", deviceHandler.DeleteDevice)
-	devices.Put("/:device_id/name", deviceHandler.UpdateDeviceName)
+	devices.Get("/active", handlers.GetActiveDevices)
+	devices.Get("/:imei", deviceHandler.GetDeviceByID)
+	devices.Post("/:imei/sms", deviceHandler.SendSms)
+	devices.Post("/:imei/ussd", deviceHandler.SendUssd)
+	devices.Post("/:imei/find", deviceHandler.FindDevice)
+	devices.Post("/:imei/alarm/start", deviceHandler.StartAlarm)
+	devices.Post("/:imei/alarm/stop", deviceHandler.StopAlarm)
+	devices.Post("/:imei/alarm", deviceHandler.StartAlarm)
+	devices.Post("/:imei/toggle", deviceHandler.ToggleDevice)
+	devices.Post("/:imei/maintenance/enter", deviceHandler.EnterMaintenanceMode)
+	devices.Post("/:imei/maintenance/exit", deviceHandler.ExitMaintenanceMode)
+	devices.Delete("/:imei", deviceHandler.DeleteDevice)
+	devices.Put("/:imei/rename", deviceHandler.UpdateDeviceName)
+	devices.Delete("/", deviceHandler.DeleteDevices)
+	devices.Put("/toggle-active", deviceHandler.ToggleDeviceActive)
+	devices.Post("/maintenance/enter", deviceHandler.EnterMaintenanceModeBulk)
+	devices.Post("/maintenance/exit", deviceHandler.ExitMaintenanceModeBulk)
+
+	// SMS Routing Rules routes
+	smsRoutingRules := protected.Group("/sms-routing-rules")
+	smsRoutingRules.Get("/", handlers.GetSmsRoutingRules)
+	smsRoutingRules.Post("/", handlers.CreateSmsRoutingRule)
+	smsRoutingRules.Get("/:id", handlers.GetSmsRoutingRule)
+	smsRoutingRules.Put("/:id", handlers.UpdateSmsRoutingRule)
+	smsRoutingRules.Delete("/:id", handlers.DeleteSmsRoutingRule)
+
+	// SMS Routing routes
+	smsRouting := protected.Group("/sms-routing")
+	smsRouting.Post("/send", handlers.RouteSms)
+	smsRouting.Get("/stats", handlers.GetSmsRoutingStats)
+	smsRouting.Get("/active-devices", handlers.GetActiveDevices)
 
 	// Alarm Log routes
 	alarmLogs := protected.Group("/alarm-logs")
@@ -114,46 +141,62 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	smppUsers.Delete("/:id", smppUserHandler.DeleteSmppUser)
 	smppUsers.Put("/:id/connection-status", smppUserHandler.UpdateConnectionStatus)
 
+	// SMPP User Anti-Detection routes
+	smppUsers.Get("/:id/anti-detection-config", handlers.GetSmppUserAntiDetectionConfig)
+	smppUsers.Put("/:id/anti-detection-config", handlers.UpdateSmppUserAntiDetectionConfig)
+
+	// SMPP User SIM Pool Config routes
+	smppUsers.Get("/:id/sim-pool-configs", handlers.GetSmppUserSimPoolConfigs)
+	smppUsers.Post("/:id/sim-pool-configs", handlers.CreateSmppUserSimPoolConfig)
+	smppUsers.Put("/:id/sim-pool-configs/:config_id", handlers.UpdateSmppUserSimPoolConfig)
+	smppUsers.Delete("/:id/sim-pool-configs/:config_id", handlers.DeleteSmppUserSimPoolConfig)
+
+	// SMPP User Delay Config routes
+	smppUsers.Get("/:id/delay-configs", handlers.GetSmppUserDelayConfigs)
+	smppUsers.Post("/:id/delay-configs", handlers.CreateSmppUserDelayConfig)
+	smppUsers.Put("/:id/delay-configs/:config_id", handlers.UpdateSmppUserDelayConfig)
+	smppUsers.Delete("/:id/delay-configs/:config_id", handlers.DeleteSmppUserDelayConfig)
+
 	// Blacklist Number routes
 	blacklistNumbers := protected.Group("/blacklist-numbers")
 	blacklistNumbers.Post("/", blacklistNumberHandler.CreateBlacklistNumber)
 	blacklistNumbers.Get("/", blacklistNumberHandler.GetAllBlacklistNumbers)
-	blacklistNumbers.Get("/:id", blacklistNumberHandler.GetBlacklistNumberByID)
-	blacklistNumbers.Put("/:id", blacklistNumberHandler.UpdateBlacklistNumber)
-	blacklistNumbers.Delete("/:id", blacklistNumberHandler.DeleteBlacklistNumber)
 	blacklistNumbers.Post("/bulk-import", blacklistNumberHandler.BulkImportBlacklistNumbers)
 	blacklistNumbers.Post("/bulk-paste", blacklistNumberHandler.BulkPasteBlacklistNumbers)
 	blacklistNumbers.Post("/bulk-delete", blacklistNumberHandler.BulkDeleteBlacklistNumbers)
+	blacklistNumbers.Get("/:id", blacklistNumberHandler.GetBlacklistNumberByID)
+	blacklistNumbers.Put("/:id", blacklistNumberHandler.UpdateBlacklistNumber)
+	blacklistNumbers.Delete("/:id", blacklistNumberHandler.DeleteBlacklistNumber)
 
 	// SMS Log routes
 	smsLogs := protected.Group("/sms-logs")
 	smsLogs.Get("/", handlers.GetSmsLogs)
-	smsLogs.Get("/:id", handlers.GetSmsLog)
 	smsLogs.Get("/filter-options", handlers.GetSmsLogFilterOptions)
+	smsLogs.Get("/:id", handlers.GetSmsLog)
 
 	// USSD Log routes
 	ussdLogs := protected.Group("/ussd-logs")
 	ussdLogs.Get("/", handlers.GetUssdLogs)
-	ussdLogs.Get("/:id", handlers.GetUssdLog)
 	ussdLogs.Get("/filter-options", handlers.GetUssdLogFilterOptions)
+	ussdLogs.Get("/:id", handlers.GetUssdLog)
 
 	// SIM Card routes
 	simCards := protected.Group("/sim-cards")
 	simCards.Post("/", handlers.CreateSimCard)
 	simCards.Get("/", handlers.GetSimCards)
+	simCards.Get("/filter-options", handlers.GetSimCardFilterOptions)
 	simCards.Get("/:id", handlers.GetSimCard)
 	simCards.Put("/:id", handlers.UpdateSimCard)
 	simCards.Delete("/:id", handlers.DeleteSimCard)
-	simCards.Get("/filter-options", handlers.GetSimCardFilterOptions)
 
 	// Filter routes
 	filters := protected.Group("/filters")
 	filters.Post("/", handlers.CreateFilter)
 	filters.Get("/", handlers.GetFilters)
+	filters.Delete("/bulk-delete", handlers.BulkDeleteFilters)
 	filters.Get("/:id", handlers.GetFilter)
 	filters.Put("/:id", handlers.UpdateFilter)
 	filters.Delete("/:id", handlers.DeleteFilter)
-	filters.Delete("/bulk-delete", handlers.BulkDeleteFilters)
 	filters.Patch("/:id/toggle", handlers.ToggleFilterStatus)
 
 	// Bulk SMS routes
@@ -172,9 +215,24 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	scheduleTasks.Post("/:id/pause", scheduleTaskHandler.PauseScheduleTask)
 	scheduleTasks.Post("/:id/resume", scheduleTaskHandler.ResumeScheduleTask)
 
-	// QR Code routes
-	qr := protected.Group("/qr")
-	qr.Post("/generate", qrHandler.GenerateQRConfig)
+	// MCC-MNC routes
+	mccMnc := protected.Group("/mcc-mnc")
+	mccMnc.Post("/", mccMncHandler.CreateMccMnc)
+	mccMnc.Get("/", mccMncHandler.GetAllMccMnc)
+	mccMnc.Get("/filter-options", mccMncHandler.GetMccMncFilterOptions)
+	mccMnc.Get("/:id", mccMncHandler.GetMccMncByID)
+	mccMnc.Put("/:id", mccMncHandler.UpdateMccMnc)
+	mccMnc.Delete("/:id", mccMncHandler.DeleteMccMnc)
+	mccMnc.Delete("/bulk-delete", mccMncHandler.BulkDeleteMccMnc)
+
+	// SMS Routing routes
+	smsRoutings := protected.Group("/sms-routings")
+	smsRoutings.Post("/", smsRoutingHandler.CreateSmsRouting)
+	smsRoutings.Get("/", smsRoutingHandler.GetAllSmsRoutings)
+	smsRoutings.Get("/filter-options", smsRoutingHandler.GetSmsRoutingFilterOptions)
+	smsRoutings.Get("/:id", smsRoutingHandler.GetSmsRoutingByID)
+	smsRoutings.Put("/:id", smsRoutingHandler.UpdateSmsRouting)
+	smsRoutings.Delete("/:id", smsRoutingHandler.DeleteSmsRouting)
 
 	// WebSocket config route
 	protected.Get("/websocket-config", websocketHandler.GetWebSocketConfig)

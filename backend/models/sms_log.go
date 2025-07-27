@@ -26,6 +26,8 @@ type SmsLog struct {
 	CountrySite              *string    `json:"country_site" gorm:"size:255"`
 	SourceAddr               *string    `json:"source_addr" gorm:"size:255"`
 	SourceUsername           *string    `json:"source_username" gorm:"size:255"`
+	SourceConnector          *string    `json:"source_connector" gorm:"size:50"` // manual, http_api, smpp
+	SourceUser               *string    `json:"source_user" gorm:"size:100"`     // username who sent the SMS
 	DestinationAddr          *string    `json:"destination_addr" gorm:"size:255"`
 	Message                  *string    `json:"message" gorm:"type:text"`
 	MessageLength            int        `json:"message_length" gorm:"not null;default:0"`
@@ -39,6 +41,7 @@ type SmsLog struct {
 	QueuedAt                 *time.Time `json:"queued_at"`
 	SentAt                   *time.Time `json:"sent_at"`
 	DeliveredAt              *time.Time `json:"delivered_at"`
+	ReceivedAt               *time.Time `json:"received_at"` // For inbound SMS messages
 	ExpiresAt                *time.Time `json:"expires_at"`
 	ProcessedAt              *time.Time `json:"processed_at"`
 	SmppUserID               *uint      `json:"smpp_user_id" gorm:"index"`
@@ -70,20 +73,6 @@ type SmsLog struct {
 // TableName specifies the table name for SmsLog
 func (SmsLog) TableName() string {
 	return "sms_logs"
-}
-
-// SmsLogCreateRequest represents the request structure for creating SMS logs
-type SmsLogCreateRequest struct {
-	DeviceID                string  `json:"device_id" validate:"required"`
-	DeviceName              string  `json:"device_name"`
-	SimSlot                 int     `json:"sim_slot" validate:"required,min=1,max=2"`
-	DestinationAddr         string  `json:"destination_addr" validate:"required"`
-	Message                 string  `json:"message" validate:"required"`
-	Priority                string  `json:"priority"`
-	DeviceGroupID           *uint   `json:"device_group_id"`
-	CampaignID              *string `json:"campaign_id"`
-	BatchID                 *string `json:"batch_id"`
-	DeliveryReportRequested bool    `json:"delivery_report_requested"`
 }
 
 // SmsLogUpdateRequest represents the request structure for updating SMS logs

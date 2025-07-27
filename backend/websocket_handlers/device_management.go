@@ -3,6 +3,7 @@ package websocket_handlers
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"tsimsocketserver/database"
@@ -189,5 +190,147 @@ func UpdateDeviceInDatabase(deviceID string, data interface{}) {
 		log.Printf("Error updating device offline status: %v", err)
 	} else {
 		log.Printf("Device marked as offline: %s", deviceID)
+	}
+}
+
+// SetDeviceToReadyStatus sets a device to ready status when all alarms are resolved
+func SetDeviceToReadyStatus(deviceID string) {
+	db := database.GetDB()
+
+	// Get current device status
+	var device models.Device
+	if err := db.Where("imei = ?", deviceID).First(&device).Error; err != nil {
+		log.Printf("Failed to get device %s for ready status: %v", deviceID, err)
+		return
+	}
+
+	// Check if device has any active alarms
+	var activeAlarmCount int64
+	if err := db.Model(&models.AlarmLog{}).
+		Where("device_id = ? AND status = ? AND (severity = ? OR severity = ? OR severity = ?)",
+			deviceID, "started", "critical", "error", "warning").
+		Count(&activeAlarmCount).Error; err != nil {
+		log.Printf("Failed to check active alarms for device %s: %v", deviceID, err)
+		return
+	}
+
+	// If no active alarms and device is online, set to ready status
+	if activeAlarmCount == 0 && device.IsOnline {
+		updates := map[string]interface{}{
+			"is_active":              true,
+			"maintenance_mode":       false,
+			"maintenance_reason":     "",
+			"maintenance_started_at": nil,
+		}
+
+		if err := db.Model(&device).Updates(updates).Error; err != nil {
+			log.Printf("Failed to set device %s to ready status: %v", deviceID, err)
+		} else {
+			log.Printf("Device %s set to ready status (no active alarms, online)", deviceID)
+		}
+	}
+}
+
+// GetDeviceGroupSettings gets device group settings for alarm management
+func GetDeviceGroupSettings(deviceGroupID uint) (*models.DeviceGroup, error) {
+	var deviceGroup models.DeviceGroup
+	if err := database.GetDB().Where("id = ?", deviceGroupID).First(&deviceGroup).Error; err != nil {
+		return nil, err
+	}
+	return &deviceGroup, nil
+}
+
+// CheckAndUpdateDeviceStatus checks device status and updates accordingly
+func CheckAndUpdateDeviceStatus(deviceID string) {
+	db := database.GetDB()
+
+	// Get current device status
+	var device models.Device
+	if err := db.Where("imei = ?", deviceID).First(&device).Error; err != nil {
+		log.Printf("Failed to get device %s for status check: %v", deviceID, err)
+		return
+	}
+
+	// Get device group settings
+	deviceGroup, err := GetDeviceGroupSettings(device.DeviceGroupID)
+	if err != nil {
+		log.Printf("Failed to get device group settings for device %s: %v", deviceID, err)
+		return
+	}
+
+	// Check active alarms based on device group settings
+	var activeAlarmCount int64
+	query := db.Model(&models.AlarmLog{}).Where("device_id = ? AND status = ?", deviceID, "started")
+
+	// Only count alarms that are enabled in device group settings
+	var conditions []string
+	var args []interface{}
+
+	if deviceGroup.EnableBatteryAlarms {
+		conditions = append(conditions, "alarm_type = ?")
+		args = append(args, "battery_low")
+	}
+	if deviceGroup.EnableSignalAlarms {
+		conditions = append(conditions, "alarm_type = ?")
+		args = append(args, "signal_low")
+	}
+	if deviceGroup.EnableErrorAlarms {
+		conditions = append(conditions, "alarm_type = ?")
+		args = append(args, "error_count")
+	}
+	if deviceGroup.EnableOfflineAlarms {
+		conditions = append(conditions, "alarm_type = ?")
+		args = append(args, "device_offline")
+	}
+	if deviceGroup.EnableSimBalanceAlarms {
+		conditions = append(conditions, "alarm_type = ?")
+		args = append(args, "sim_balance_low")
+	}
+
+	// Always include SIM card change alarms (critical)
+	conditions = append(conditions, "alarm_type = ?")
+	args = append(args, "sim_card_change")
+
+	// Add severity conditions
+	conditions = append(conditions, "(severity = ? OR severity = ? OR severity = ?)")
+	args = append(args, "critical", "error", "warning")
+
+	// Build the query
+	if len(conditions) > 0 {
+		query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
+	}
+
+	if err := query.Count(&activeAlarmCount).Error; err != nil {
+		log.Printf("Failed to check active alarms for device %s: %v", deviceID, err)
+		return
+	}
+
+	// Determine device status based on conditions
+	if activeAlarmCount > 0 {
+		// Has active alarms - set to inactive
+		updates := map[string]interface{}{
+			"is_active": false,
+		}
+		if err := db.Model(&device).Updates(updates).Error; err != nil {
+			log.Printf("Failed to set device %s to inactive due to alarms: %v", deviceID, err)
+		} else {
+			log.Printf("Device %s set to inactive due to %d active alarms (device group: %s)", deviceID, activeAlarmCount, deviceGroup.DeviceGroup)
+		}
+	} else if device.MaintenanceMode {
+		// In maintenance mode - keep inactive
+		log.Printf("Device %s remains inactive due to maintenance mode", deviceID)
+	} else if device.IsOnline {
+		// No alarms, not in maintenance, online - set to ready
+		updates := map[string]interface{}{
+			"is_active": true,
+		}
+		if err := db.Model(&device).Updates(updates).Error; err != nil {
+			log.Printf("Failed to set device %s to ready status: %v", deviceID, err)
+		} else {
+			log.Printf("Device %s set to ready status (no alarms, online, not in maintenance)", deviceID)
+		}
+	} else {
+		// Offline - keep inactive
+		log.Printf("Device %s remains inactive due to being offline", deviceID)
 	}
 }

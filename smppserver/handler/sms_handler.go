@@ -57,7 +57,15 @@ func (h *SMSHandler) HandleSubmitSM(session *session.Session, pdu *protocol.PDU)
 		log.Printf("Session %s: Failed to increment message counter: %v", session.ID, err)
 	}
 
-	log.Printf("Session %s: Submit SM from %s to %s, message: %s", session.ID, submit.SourceAddr, submit.DestinationAddr, submit.ShortMessage)
+	// Decode short message based on data coding
+	decodedMessage, err := protocol.DecodeShortMessage([]byte(submit.ShortMessage), submit.DataCoding)
+	if err != nil {
+		log.Printf("Session %s: Failed to decode short message: %v", session.ID, err)
+		decodedMessage = submit.ShortMessage // Fallback to original message
+	}
+
+	log.Printf("Session %s: Submit SM from %s to %s, data_coding: %d, original: %s, decoded: %s",
+		session.ID, submit.SourceAddr, submit.DestinationAddr, submit.DataCoding, submit.ShortMessage, decodedMessage)
 
 	// Extract concatenation information
 	concatenationInfo := rabbitmq.ExtractConcatenationInfo(submit.OptionalParameters)
@@ -71,7 +79,7 @@ func (h *SMSHandler) HandleSubmitSM(session *session.Session, pdu *protocol.PDU)
 		SystemID:             session.SystemID,
 		SourceAddr:           submit.SourceAddr,
 		DestinationAddr:      submit.DestinationAddr,
-		ShortMessage:         submit.ShortMessage,
+		ShortMessage:         decodedMessage, // Use decoded message
 		DataCoding:           submit.DataCoding,
 		ESMClass:             submit.ESMClass,
 		RegisteredDelivery:   submit.RegisteredDelivery,

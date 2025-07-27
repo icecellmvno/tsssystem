@@ -9,6 +9,8 @@ interface WebSocketContextType {
   isConnecting: boolean;
   error: string | null;
   devices: any[];
+  alarmLogs: any[];
+  smsLogs: any[];
   connect: (apiKey: string, isHandicapDevice?: boolean) => Promise<void>;
   disconnect: () => void;
   reconnect: () => Promise<void>;
@@ -16,6 +18,8 @@ interface WebSocketContextType {
   getAllDevices: () => any[];
   getDevicesByGroup: (deviceGroup: string) => any[];
   getDevicesBySitename: (sitename: string) => any[];
+  getAllAlarmLogs: () => any[];
+  getAllSmsLogs: () => any[];
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -30,6 +34,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     isConnecting,
     error,
     devices,
+    alarmLogs,
+    smsLogs,
     connect,
     disconnect,
     reconnect,
@@ -37,6 +43,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     getAllDevices,
     getDevicesByGroup,
     getDevicesBySitename,
+    getAllAlarmLogs,
+    getAllSmsLogs,
   } = useWebSocketStore();
 
   const { token, isAuthenticated, user } = useAuthStore();
@@ -83,6 +91,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     isConnecting,
     error,
     devices: Array.from(devices.values()),
+    alarmLogs,
+    smsLogs,
     connect,
     disconnect,
     reconnect,
@@ -90,21 +100,23 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     getAllDevices,
     getDevicesByGroup,
     getDevicesBySitename,
+    getAllAlarmLogs,
+    getAllSmsLogs,
   };
 
   // Debug log for devices
   useEffect(() => {
-    console.log('WebSocket Context - Devices updated:', Array.from(devices.values()));
-    console.log('WebSocket Context - Device count:', devices.size);
-    console.log('WebSocket Context - Device statuses:', Array.from(devices.values()).map(d => ({
-      id: d.id,
-      name: d.name,
-      status: d.status,
-      battery_level: d.battery_level,
-      battery_status: d.battery_status,
-      device_group: d.device_group,
-      sitename: d.sitename
-    })));
+    if (devices.size > 0) {
+      console.log('WebSocket Context - Devices updated:', devices.size, 'devices');
+      console.log('WebSocket Context - Device statuses:', Array.from(devices.values()).map(d => ({
+        id: d.id,
+        name: d.name,
+        status: d.status,
+        battery_level: d.battery_level,
+        signal_strength: d.signal_strength,
+        is_online: d.status === 'online'
+      })));
+    }
   }, [devices]);
 
   return (

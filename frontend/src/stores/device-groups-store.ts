@@ -23,6 +23,7 @@ interface DeviceGroupsState {
   createDeviceGroup: (data: DeviceGroupCreateRequest) => Promise<void>;
   updateDeviceGroup: (id: number, data: DeviceGroupUpdateRequest) => Promise<void>;
   deleteDeviceGroup: (id: number) => Promise<void>;
+  generateQRCode: (id: number) => Promise<{ success: boolean; qr_data: string }>;
   loadCountrySites: () => Promise<void>;
   clearErrors: () => void;
 }
@@ -105,6 +106,17 @@ export const useDeviceGroupsStore = create<DeviceGroupsState>((set, get) => ({
       await get().loadDeviceGroups();
     } catch (error) {
       toast.error('Failed to delete device group');
+      throw error;
+    }
+  },
+
+  // Generate QR code
+  generateQRCode: async (id: number) => {
+    try {
+      const result = await deviceGroupService.generateQRCode(id);
+      return result;
+    } catch (error) {
+      toast.error('Failed to generate QR code');
       throw error;
     }
   },

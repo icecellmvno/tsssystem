@@ -6,6 +6,8 @@ import (
 	"tsimsocketserver/utils"
 	"tsimsocketserver/websocket"
 
+	"tsimsocketserver/auth"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -49,6 +51,10 @@ func (h *BulkSmsHandler) SendBulkSms(c *fiber.Ctx) error {
 			"message": "Invalid request body",
 		})
 	}
+
+	// Get authenticated user from context
+	user := c.Locals("user").(*auth.Claims)
+	username := user.Username
 
 	// Get device group information
 	var deviceGroup models.DeviceGroup
@@ -101,7 +107,7 @@ func (h *BulkSmsHandler) SendBulkSms(c *fiber.Ctx) error {
 		// Get SIM card information for the specified slot
 		var deviceSimCard models.DeviceSimCard
 		var simcardName, simcardNumber, simcardICCID, deviceIMSI *string
-		
+
 		if err := database.GetDB().Where("device_imei = ? AND slot_index = ?", device.IMEI, req.SimSlot).First(&deviceSimCard).Error; err == nil {
 			simcardName = &deviceSimCard.CarrierName
 			simcardNumber = &deviceSimCard.PhoneNumber
@@ -123,6 +129,9 @@ func (h *BulkSmsHandler) SendBulkSms(c *fiber.Ctx) error {
 			SimSlot:                 &req.SimSlot,
 			SimcardNumber:           simcardNumber,
 			SimcardICCID:            simcardICCID,
+			SourceAddr:              simcardNumber,                                   // Use SIM card phone number as source
+			SourceConnector:         func() *string { s := "http_api"; return &s }(), // HTTP API
+			SourceUser:              &username,                                       // Username who sent the SMS
 			DestinationAddr:         &phoneNumber,
 			Message:                 &req.Message,
 			MessageLength:           len(req.Message),
@@ -130,9 +139,18 @@ func (h *BulkSmsHandler) SendBulkSms(c *fiber.Ctx) error {
 			Priority:                req.Priority,
 			Status:                  "pending",
 			DeviceGroupID:           &req.DeviceGroupID,
+			DeviceGroup:             &device.DeviceGroup,
+			CountrySiteID:           &device.CountrySiteID,
+			CountrySite:             &device.CountrySite,
 			CampaignID:              req.CampaignID,
 			BatchID:                 req.BatchID,
 			DeliveryReportRequested: true,
+		}
+
+		// If source address is empty, set it to "Panel"
+		if smsLog.SourceAddr == nil || *smsLog.SourceAddr == "" {
+			panelSource := "Panel"
+			smsLog.SourceAddr = &panelSource
 		}
 
 		if err := database.GetDB().Create(&smsLog).Error; err != nil {

@@ -1,35 +1,25 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table"
-import type {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
-  VisibilityState,
-} from "@tanstack/react-table"
 import { toast } from 'sonner';
-import { Plus, Search, QrCode, Edit, Trash2, Building2 } from 'lucide-react';
+import { Plus, Search, QrCode, Edit, Trash2, Building2, Filter, RefreshCw } from 'lucide-react';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { type DeviceGroup, type DeviceGroupFilters } from '@/services/device-groups';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDeviceGroupsStore } from '@/stores/device-groups-store';
 import QRCodeComponent from '@/components/ui/qr-code';
-import { DataTableColumnHeader } from '@/components/ui/data-table-column-header';
-import { DataTablePagination } from '@/components/ui/data-table-pagination';
-import { DataTableViewOptions } from '@/components/ui/data-table-view-options';
+import { DataTable } from '@/components/ui/data-table';
+import { 
+    createIdColumn, 
+    createNameColumn, 
+    createCreatedAtColumn, 
+    createActionsColumn,
+    type BaseRecord 
+} from '@/components/ui/data-table-columns';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -42,21 +32,17 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
-
-
-
+interface DeviceGroupWithBase extends DeviceGroup, BaseRecord {}
 
 export default function DeviceGroupsIndex() {
-    const [sorting, setSorting] = useState<SortingState>([])
-    const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-    const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-    const [rowSelection, setRowSelection] = useState({})
-    const [globalFilter, setGlobalFilter] = useState('')
     const [selectedCountrySite, setSelectedCountrySite] = useState<string>('all');
-    const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<DeviceGroup | null>(null);
+    const [selectedDeviceGroup, setSelectedDeviceGroup] = useState<DeviceGroupWithBase | null>(null);
     const [showQRDialog, setShowQRDialog] = useState(false);
     const [copiedApiKey, setCopiedApiKey] = useState<string | null>(null);
-    const [websocketConfig, setWebsocketConfig] = useState<any>(null);
+    const [qrData, setQrData] = useState<string | null>(null);
+    
+    // Table states
+    const [searchTerm, setSearchTerm] = useState('');
 
     const { user } = useAuthStore();
     const navigate = useNavigate();
@@ -69,7 +55,8 @@ export default function DeviceGroupsIndex() {
         deviceGroupsError,
         loadDeviceGroups, 
         loadCountrySites, 
-        deleteDeviceGroup: deleteDeviceGroupFromStore 
+        deleteDeviceGroup: deleteDeviceGroupFromStore,
+        generateQRCode
     } = useDeviceGroupsStore();
 
     // Permission checks
@@ -78,37 +65,40 @@ export default function DeviceGroupsIndex() {
     const canDelete = user?.role === 'admin';
     const canView = true; // All authenticated users can view
 
-
+    const fetchDeviceGroups = useCallback(async () => {
+        try {
+            console.log('Fetching device groups...');
+            await loadDeviceGroups();
+        } catch (error) {
+            console.error('Error fetching device groups:', error);
+            toast.error('Failed to fetch device groups');
+        }
+    }, [loadDeviceGroups]);
 
     // Load data on mount and when dependencies change
     useEffect(() => {
-        const filters: DeviceGroupFilters = {
-            search: undefined,
-            country_site_id: selectedCountrySite === 'all' ? undefined : parseInt(selectedCountrySite),
-            sort_by: sorting.length > 0 ? sorting[0].id : 'created_at',
-            sort_order: sorting.length > 0 ? sorting[0].desc ? 'desc' : 'asc' : 'desc',
-            page: 1,
-            per_page: 50,
-        };
-        loadDeviceGroups();
-    }, [selectedCountrySite, sorting, loadDeviceGroups]);
+        fetchDeviceGroups();
+    }, [fetchDeviceGroups]);
 
     // Load country sites on mount
     useEffect(() => {
         loadCountrySites();
     }, [loadCountrySites]);
 
-
-
-    const handleDelete = useCallback(async (id: number) => {
+    const handleDelete = useCallback(async (record: DeviceGroupWithBase) => {
         try {
-            await deleteDeviceGroupFromStore(id);
+            await deleteDeviceGroupFromStore(record.id);
             toast.success('Device group deleted successfully');
+            fetchDeviceGroups(); // Reload the list
         } catch (error) {
             console.error('Error deleting device group:', error);
             toast.error('Failed to delete device group');
         }
-    }, [deleteDeviceGroupFromStore]);
+    }, [deleteDeviceGroupFromStore, fetchDeviceGroups]);
+
+    const handleSearch = (search: string) => {
+        setSearchTerm(search);
+    };
 
     const copyToClipboard = useCallback(async (text: string) => {
         try {
@@ -121,42 +111,42 @@ export default function DeviceGroupsIndex() {
         }
     }, []);
 
-    const columns: ColumnDef<DeviceGroup>[] = [
+    // Define columns for TanStack Table
+    const columns = [
+        createIdColumn<DeviceGroupWithBase>(),
         {
-            accessorKey: "device_group",
-            header: ({ column }) => (
-                <DataTableColumnHeader column={column} title="Name" />
-            ),
+            accessorKey: 'device_group',
+            header: 'Name',
             cell: ({ row }) => (
-                <div className="font-medium">{row.getValue("device_group")}</div>
-            ),
+                <div className="font-medium">{row.getValue('device_group')}</div>
+            )
         },
         {
-            accessorKey: "country_site",
-            header: "Country Site",
+            accessorKey: 'country_site',
+            header: 'Country Site',
             cell: ({ row }) => (
                 <div className="text-sm text-muted-foreground">
-                    {row.getValue("country_site") || 'N/A'}
+                    {row.getValue('country_site') || 'N/A'}
                 </div>
-            ),
+            )
         },
         {
-            accessorKey: "device_type",
-            header: "Device Type",
+            accessorKey: 'device_type',
+            header: 'Device Type',
             cell: ({ row }) => {
-                const deviceType = row.getValue("device_type") as string;
+                const deviceType = row.getValue('device_type') as string;
                 return (
                     <Badge variant="outline">
                         {deviceType === 'android' ? 'Android' : deviceType === 'usb_modem' ? 'USB Modem' : deviceType}
                     </Badge>
                 );
-            },
+            }
         },
         {
-            accessorKey: "status",
-            header: "Status",
+            accessorKey: 'status',
+            header: 'Status',
             cell: ({ row }) => {
-                const status = row.getValue("status") as string;
+                const status = row.getValue('status') as string;
                 
                 let variant: 'default' | 'secondary' | 'destructive' = 'secondary';
                 let displayStatus = status;
@@ -192,22 +182,22 @@ export default function DeviceGroupsIndex() {
                         {displayStatus}
                     </Badge>
                 );
-            },
+            }
         },
         {
-            accessorKey: "queue_name",
-            header: "Queue",
+            accessorKey: 'queue_name',
+            header: 'Queue',
             cell: ({ row }) => (
                 <div className="text-sm text-muted-foreground">
-                    {row.getValue("queue_name") || 'N/A'}
+                    {row.getValue('queue_name') || 'N/A'}
                 </div>
-            ),
+            )
         },
         {
-            accessorKey: "api_key",
-            header: "API Key",
+            accessorKey: 'api_key',
+            header: 'API Key',
             cell: ({ row }) => {
-                const apiKey = row.getValue("api_key") as string;
+                const apiKey = row.getValue('api_key') as string;
                 return (
                     <div className="flex items-center gap-2">
                         <code className="text-xs bg-muted px-2 py-1 rounded">
@@ -225,11 +215,11 @@ export default function DeviceGroupsIndex() {
                         )}
                     </div>
                 );
-            },
+            }
         },
         {
-            id: "active_alarms",
-            header: "Alarms",
+            id: 'active_alarms',
+            header: 'Alarms',
             cell: ({ row }) => {
                 const deviceGroup = row.original;
                 const activeAlarms = [
@@ -245,20 +235,20 @@ export default function DeviceGroupsIndex() {
                         {activeAlarms} active
                     </div>
                 );
-            },
+            }
         },
         {
-            accessorKey: "low_balance_threshold",
-            header: "Thresholds",
+            accessorKey: 'low_balance_threshold',
+            header: 'Thresholds',
             cell: ({ row }) => (
                 <div className="text-sm text-muted-foreground">
-                    {row.getValue("low_balance_threshold") || 'N/A'}
+                    {row.getValue('low_balance_threshold') || 'N/A'}
                 </div>
-            ),
+            )
         },
         {
-            id: "sms_limit",
-            header: "SMS Limits",
+            id: 'sms_limit',
+            header: 'SMS Limits',
             cell: ({ row }) => {
                 const deviceGroup = row.original;
                 return (
@@ -266,11 +256,11 @@ export default function DeviceGroupsIndex() {
                         {deviceGroup.enable_sms_limits ? 'Enabled' : 'Unlimited'}
                     </div>
                 );
-            },
+            }
         },
         {
-            id: "auto_actions",
-            header: "Auto Actions",
+            id: 'auto_actions',
+            header: 'Auto Actions',
             cell: ({ row }) => {
                 const deviceGroup = row.original;
                 return (
@@ -286,22 +276,31 @@ export default function DeviceGroupsIndex() {
                         )}
                     </div>
                 );
-            },
+            }
         },
+        createCreatedAtColumn<DeviceGroupWithBase>(),
         {
-            id: "actions",
-            enableHiding: false,
+            id: 'actions',
+            header: 'Actions',
             cell: ({ row }) => {
-                const deviceGroup = row.original
+                const deviceGroup = row.original;
 
                 return (
                     <div className="flex items-center gap-1">
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                                setSelectedDeviceGroup(deviceGroup);
-                                setShowQRDialog(true);
+                            onClick={async () => {
+                                try {
+                                    const result = await generateQRCode(deviceGroup.id);
+                                    if (result.success) {
+                                        setQrData(result.qr_data);
+                                        setSelectedDeviceGroup(deviceGroup);
+                                        setShowQRDialog(true);
+                                    }
+                                } catch (error) {
+                                    console.error('Error generating QR code:', error);
+                                }
                             }}
                             title="QR Code"
                         >
@@ -318,89 +317,100 @@ export default function DeviceGroupsIndex() {
                             </Button>
                         )}
                         {canDelete && (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        title="Delete"
-                                        className="text-destructive hover:text-destructive"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Delete Device Group</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            Are you sure you want to delete "{deviceGroup.device_group}"? This action cannot be undone.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={() => handleDelete(deviceGroup.id)}
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        >
-                                            Delete
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                title="Delete"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDelete(deviceGroup)}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
                         )}
                     </div>
-                )
-            },
-        },
-    ]
-
-    const table = useReactTable({
-        data: deviceGroups,
-        columns,
-        onSortingChange: setSorting,
-        onColumnFiltersChange: setColumnFilters,
-        getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-        onColumnVisibilityChange: setColumnVisibility,
-        onRowSelectionChange: setRowSelection,
-        onGlobalFilterChange: setGlobalFilter,
-        state: {
-            sorting,
-            columnFilters,
-            columnVisibility,
-            rowSelection,
-            globalFilter,
-        },
-        globalFilterFn: 'includesString',
-    })
+                );
+            }
+        }
+    ];
 
     if (deviceGroupsLoading) {
-        return <div>Loading...</div>;
+        return (
+            <AppLayout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                        <p className="text-muted-foreground">Loading device groups...</p>
+                    </div>
+                </div>
+            </AppLayout>
+        );
     }
+
+    if (deviceGroupsError) {
+        return (
+            <AppLayout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <p className="text-destructive">Error loading device groups: {deviceGroupsError}</p>
+                        <Button onClick={() => fetchDeviceGroups()} className="mt-4">
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Retry
+                        </Button>
+                    </div>
+                </div>
+            </AppLayout>
+        );
+    }
+
+    const emptyState = (
+        <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+                <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-sm font-semibold">No device groups found</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                    Get started by creating a new device group.
+                </p>
+                {canCreate && (
+                    <Button onClick={() => navigate('/device-groups/create')} className="mt-4">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create Device Group
+                    </Button>
+                )}
+            </div>
+        </div>
+    );
 
     return (
         <AppLayout>
-            <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 overflow-x-auto">
+            <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-x-auto">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Device Groups</h1>
+                        <h1 className="text-2xl font-bold tracking-tight">Device Groups</h1>
                         <p className="text-muted-foreground">
-                            Manage device groups and their configurations
+                            Manage device groups and their configurations ({deviceGroups?.length || 0} total records)
                         </p>
                     </div>
-                    {canCreate && (
-                        <Button onClick={() => navigate('/device-groups/create')}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Device Group
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fetchDeviceGroups()}
+                            disabled={deviceGroupsLoading}
+                        >
+                            <RefreshCw className={`h-4 w-4 ${deviceGroupsLoading ? 'animate-spin' : ''}`} />
                         </Button>
-                    )}
+                        {canCreate && (
+                            <Button onClick={() => navigate('/device-groups/create')}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Device Group
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Country Site Warning */}
-                                                    {countrySites?.length === 0 && (
+                {countrySites?.length === 0 && (
                     <Card className="border-yellow-200 bg-yellow-50">
                         <CardContent className="p-4">
                             <div className="flex items-center gap-3">
@@ -430,104 +440,63 @@ export default function DeviceGroupsIndex() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <Search className="h-4 w-4" />
+                            <Filter className="h-5 w-5" />
                             Search & Filters
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="flex gap-4">
-                            <div className="flex-1">
-                                <Input
-                                    placeholder="Search device groups..."
-                                    value={globalFilter ?? ""}
-                                    onChange={(event) => setGlobalFilter(event.target.value)}
-                                    className="max-w-sm"
-                                />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Search</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search device groups..."
+                                        value={searchTerm}
+                                        onChange={(e) => handleSearch(e.target.value)}
+                                        className="pl-10"
+                                    />
+                                </div>
                             </div>
-                                                            <Select value={selectedCountrySite} onValueChange={setSelectedCountrySite}>
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Filter by country site" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Country Sites</SelectItem>
-                                    {countrySites?.length > 0 ? (
-                                        countrySites.map((countrySite) => (
-                                            <SelectItem key={countrySite.id} value={countrySite.id.toString()}>
-                                                {countrySite.name}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Country Site</label>
+                                <Select value={selectedCountrySite} onValueChange={setSelectedCountrySite}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Filter by country site" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Country Sites</SelectItem>
+                                        {countrySites?.length > 0 ? (
+                                            countrySites.map((countrySite) => (
+                                                <SelectItem key={countrySite.id} value={countrySite.id.toString()}>
+                                                    {countrySite.name}
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            <SelectItem value="loading" disabled>
+                                                Loading country sites...
                                             </SelectItem>
-                                        ))
-                                    ) : (
-                                        <SelectItem value="loading" disabled>
-                                            Loading country sites...
-                                        </SelectItem>
-                                    )}
-                                </SelectContent>
-                            </Select>
-                            <DataTableViewOptions table={table} />
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Table */}
-                <Card>
-                    <CardContent className="p-0">
-                        <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    {table.getHeaderGroups().map((headerGroup) => (
-                                        <TableRow key={headerGroup.id}>
-                                            {headerGroup.headers.map((header) => {
-                                                return (
-                                                    <TableHead key={header.id}>
-                                                        {header.isPlaceholder
-                                                            ? null
-                                                            : flexRender(
-                                                                header.column.columnDef.header,
-                                                                header.getContext()
-                                                            )}
-                                                    </TableHead>
-                                                )
-                                            })}
-                                        </TableRow>
-                                    ))}
-                                </TableHeader>
-                                <TableBody>
-                                    {table.getRowModel().rows?.length ? (
-                                        table.getRowModel().rows.map((row) => (
-                                            <TableRow
-                                                key={row.id}
-                                                data-state={row.getIsSelected() && "selected"}
-                                            >
-                                                {row.getVisibleCells().map((cell) => (
-                                                    <TableCell key={cell.id}>
-                                                        {flexRender(
-                                                            cell.column.columnDef.cell,
-                                                            cell.getContext()
-                                                        )}
-                                                    </TableCell>
-                                                ))}
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell
-                                                colSpan={columns.length}
-                                                className="h-24 text-center"
-                                            >
-                                                No results.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                        
-                        {/* Pagination */}
-                        <div className="flex items-center justify-end space-x-2 py-4">
-                            <DataTablePagination table={table} />
-                        </div>
-                    </CardContent>
-                </Card>
+                {/* Data Table */}
+                <DataTable
+                    columns={columns}
+                    data={deviceGroups || []}
+                    title="Device Groups"
+                    description={`Showing ${deviceGroups?.length || 0} total records`}
+                    emptyState={emptyState}
+                    showSearch={false} // Disable built-in search since we have custom search
+                    showViewOptions={true}
+                    showPagination={true}
+                    className="space-y-4"
+                />
 
                 {/* QR Code Dialog */}
                 {selectedDeviceGroup && (
@@ -539,25 +508,28 @@ export default function DeviceGroupsIndex() {
                                     Scan this QR code to connect your device to this group. This QR code contains all the necessary configuration for your device.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
-                                                            <div className="space-y-4">
-                                    <div className="flex justify-center py-4">
-                                        <QRCodeComponent
-                                            value={JSON.stringify({
-                                                device_group: selectedDeviceGroup.device_group,
-                                                country_site: selectedDeviceGroup.country_site,
-                                                websocket_url: (websocketConfig?.device_websocket_url || 'ws://localhost:7001/ws') + '?type=android',
-                                                api_key: selectedDeviceGroup.api_key,
-                                            })}
-                                            size={200}
-                                        />
-                                    </div>
-                                    <div className="text-sm text-muted-foreground space-y-2">
-                                        <div><strong>Device Group:</strong> {selectedDeviceGroup.device_group}</div>
-                                        <div><strong>Country Site:</strong> {selectedDeviceGroup.country_site}</div>
-                                        <div><strong>API Key:</strong> {selectedDeviceGroup.api_key}</div>
-                                        <div><strong>WebSocket URL:</strong> {websocketConfig?.device_websocket_url || 'ws://localhost:7001/ws'} (Direct connection)</div>
-                                    </div>
+                            <div className="space-y-4">
+                                <div className="flex justify-center py-4">
+                                    <QRCodeComponent
+                                        value={qrData || ''}
+                                        size={200}
+                                    />
                                 </div>
+                                <div className="text-sm text-muted-foreground space-y-2">
+                                    <div><strong>Device Group:</strong> {selectedDeviceGroup.device_group}</div>
+                                    <div><strong>Country Site:</strong> {selectedDeviceGroup.country_site}</div>
+                                    <div><strong>API Key:</strong> <code className="text-xs">{selectedDeviceGroup.api_key}</code></div>
+                                    <div><strong>WebSocket URL:</strong> <code className="text-xs">ws://192.168.9.24:7001/ws</code></div>
+                                </div>
+                                <div className="mt-4 p-3 bg-muted rounded-lg">
+                                    <p className="text-xs text-muted-foreground mb-2">QR Code contains:</p>
+                                    <ul className="text-xs text-muted-foreground space-y-1">
+                                        <li>• Device group and country site information</li>
+                                        <li>• API key for authentication</li>
+                                        <li>• WebSocket URL for real-time communication</li>
+                                    </ul>
+                                </div>
+                            </div>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Close</AlertDialogCancel>
                             </AlertDialogFooter>

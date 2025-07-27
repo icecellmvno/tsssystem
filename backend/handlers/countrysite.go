@@ -80,30 +80,33 @@ func (h *CountrySiteHandler) GetAllCountrySites(c *fiber.Ctx) error {
 		perPage = 10
 	}
 
-	// Build query
-	query := database.GetDB().Model(&models.CountrySite{})
+	// Build query with joins to get user names
+	query := database.GetDB().Table("country_sites").
+		Select("country_sites.*, manager.username as manager_user_name, operator.username as operator_user_name").
+		Joins("LEFT JOIN users manager ON country_sites.manager_user = manager.id").
+		Joins("LEFT JOIN users operator ON country_sites.operator_user = operator.id")
 
 	// Apply search filter
 	if search != "" {
 		searchTerm := "%" + strings.ToLower(search) + "%"
-		query = query.Where("LOWER(name) LIKE ? OR LOWER(country_phone_code) LIKE ?", searchTerm, searchTerm)
+		query = query.Where("LOWER(country_sites.name) LIKE ? OR LOWER(country_sites.country_phone_code) LIKE ?", searchTerm, searchTerm)
 	}
 
 	// Apply sorting
-	orderClause := sortBy + " " + sortOrder
+	orderClause := "country_sites." + sortBy + " " + sortOrder
 	if sortOrder != "asc" && sortOrder != "desc" {
-		orderClause = "id desc"
+		orderClause = "country_sites.id desc"
 	}
 	query = query.Order(orderClause)
 
 	// Get total count
 	var total int64
-	query.Model(&models.CountrySite{}).Count(&total)
+	database.GetDB().Model(&models.CountrySite{}).Count(&total)
 
 	// Apply pagination
 	offset := (page - 1) * perPage
-	var countrySites []models.CountrySite
-	if err := query.Offset(offset).Limit(perPage).Find(&countrySites).Error; err != nil {
+	var results []map[string]interface{}
+	if err := query.Offset(offset).Limit(perPage).Find(&results).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch country sites",
 		})
@@ -113,17 +116,24 @@ func (h *CountrySiteHandler) GetAllCountrySites(c *fiber.Ctx) error {
 	lastPage := int((total + int64(perPage) - 1) / int64(perPage))
 
 	// Build response
-	var responses []models.CountrySiteResponse
-	for _, countrySite := range countrySites {
-		responses = append(responses, models.CountrySiteResponse{
-			ID:               countrySite.ID,
-			Name:             countrySite.Name,
-			CountryPhoneCode: countrySite.CountryPhoneCode,
-			ManagerUser:      countrySite.ManagerUser,
-			OperatorUser:     countrySite.OperatorUser,
-			CreatedAt:        countrySite.CreatedAt,
-			UpdatedAt:        countrySite.UpdatedAt,
+	var responses []map[string]interface{}
+	for _, result := range results {
+		responses = append(responses, map[string]interface{}{
+			"id":                 result["id"],
+			"name":               result["name"],
+			"country_phone_code": result["country_phone_code"],
+			"manager_user":       result["manager_user"],
+			"operator_user":      result["operator_user"],
+			"manager_user_name":  result["manager_user_name"],
+			"operator_user_name": result["operator_user_name"],
+			"created_at":         result["created_at"],
+			"updated_at":         result["updated_at"],
 		})
+	}
+
+	// Ensure data is always an array, never null
+	if responses == nil {
+		responses = []map[string]interface{}{}
 	}
 
 	return c.JSON(fiber.Map{

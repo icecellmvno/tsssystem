@@ -1,16 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search, Edit, Eye, Trash2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +19,16 @@ import { toast } from 'sonner'
 import { AppLayout } from '@/layouts/app-layout'
 import { type BreadcrumbItem } from '@/types'
 import { useAuthStore } from '@/stores/auth-store'
+import { DataTable } from '@/components/ui/data-table'
+import {
+    createIdColumn, 
+    createCreatedAtColumn, 
+    createActionsColumn,
+    type BaseRecord 
+} from '@/components/ui/data-table-columns'
+import { usersService, type User } from '@/services/users'
+
+interface UserWithBase extends User, BaseRecord {}
 
 const breadcrumbs: BreadcrumbItem[] = [
   {
@@ -39,111 +41,129 @@ const breadcrumbs: BreadcrumbItem[] = [
   },
 ]
 
-interface Role {
-  id: number
-  name: string
-  description?: string
-}
-
-interface User {
-  id: number
-  name: string
-  email: string
-  username?: string
-  created_at: string
-  updated_at: string
-  roles: Role[]
-  permissions?: string[]
-}
-
 export default function UsersIndex() {
   const { token } = useAuthStore();
-  const [users, setUsers] = useState<User[]>([])
+  const [users, setUsers] = useState<UserWithBase[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
 
   // Fetch users from API
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const data = await usersService.getUsers();
       
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data.users || []);
-      } else {
-        toast.error('Failed to fetch users');
-      }
+      // Transform data to include BaseRecord properties
+      const transformedData: UserWithBase[] = data.users.map(user => ({
+        ...user,
+        id: user.id,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+      }));
+      
+      setUsers(transformedData);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to fetch users');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Initial fetch
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
-  const filteredUsers = users.filter(user =>
-    (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase()))
-  )
+  const filteredUsers = useMemo(() => {
+    return users.filter(user =>
+      (user.firstname && user.firstname.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (user.lastname && user.lastname.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (user.username && user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+  }, [users, searchTerm]);
 
-  const handleDelete = async (userId: number) => {
+  const handleDelete = useCallback(async (user: UserWithBase) => {
     try {
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        setUsers(prev => prev.filter(user => user.id !== userId));
-        toast.success('User deleted successfully');
-      } else {
-        toast.error('Failed to delete user');
-      }
+      await usersService.deleteUser(user.id);
+      toast.success('User deleted successfully');
+      fetchUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
       toast.error('Failed to delete user');
     }
-  }
+  }, [fetchUsers]);
 
-  if (loading) {
-    return (
-      <AppLayout breadcrumbs={breadcrumbs}>
-        <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-x-auto">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading users...</p>
-            </div>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
+  // TanStack Table columns
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'firstname',
+      header: 'First Name',
+      cell: ({ row }) => (
+        <div className="font-medium">{row.getValue('firstname')}</div>
+      ),
+    },
+    {
+      accessorKey: 'lastname',
+      header: 'Last Name',
+      cell: ({ row }) => (
+        <div className="font-medium">{row.getValue('lastname')}</div>
+      ),
+    },
+    {
+      accessorKey: 'username',
+      header: 'Username',
+      cell: ({ row }) => row.getValue('username'),
+    },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+      cell: ({ row }) => row.getValue('email'),
+    },
+    {
+      accessorKey: 'role',
+      header: 'Role',
+      cell: ({ row }) => {
+        const role = row.getValue('role') as string;
+        return (
+          <Badge variant="outline" className="text-xs">
+            {role}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'is_active',
+      header: 'Status',
+      cell: ({ row }) => {
+        const isActive = row.getValue('is_active') as boolean;
+        return (
+          <Badge variant={isActive ? "default" : "secondary"} className="text-xs">
+            {isActive ? 'Active' : 'Inactive'}
+          </Badge>
+        );
+      },
+    },
+    createCreatedAtColumn<UserWithBase>(),
+    createActionsColumn<UserWithBase>({
+      onDelete: handleDelete,
+      editPath: (record) => `/users/${record.id}/edit`,
+      deleteConfirmMessage: "Are you sure you want to delete this user?",
+    }),
+  ], [handleDelete]);
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
-      <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-x-auto">
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="flex h-full flex-1 flex-col gap-6 rounded-xl p-6 overflow-hidden">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex-1 min-w-0">
             <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-            <p className="text-muted-foreground">Manage system users and their roles</p>
+            <p className="text-muted-foreground">Manage system users and their permissions</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={fetchUsers}
               disabled={loading}
@@ -159,7 +179,8 @@ export default function UsersIndex() {
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        {/* Search */}
+        <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -171,86 +192,17 @@ export default function UsersIndex() {
           </div>
         </div>
 
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Username</TableHead>
-                <TableHead>Roles</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredUsers?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
-                    <p className="text-muted-foreground">No users found</p>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredUsers?.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.username || 'N/A'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1 flex-wrap">
-                        {user.roles && user.roles.length > 0 ? (
-                          user.roles.map((role) => (
-                            <Badge key={role.id} variant="secondary">
-                              {role.name}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-muted-foreground text-sm">No roles</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link to={`/users/${user.id}`}>
-                          <Button variant="ghost" size="icon">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        <Link to={`/users/${user.id}/edit`}>
-                          <Button variant="ghost" size="icon">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete User</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete {user.name}? This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(user.id)}>
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        {/* Table */}
+        <DataTable
+          columns={columns}
+          data={filteredUsers}
+          title="Users"
+          description={`Showing ${filteredUsers.length} users`}
+          showSearch={false}
+          showViewOptions={false}
+          showPagination={true}
+          pageSize={10}
+        />
       </div>
     </AppLayout>
   )

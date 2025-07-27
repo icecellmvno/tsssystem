@@ -7,6 +7,8 @@ import (
 	"tsimsocketserver/utils"
 	"tsimsocketserver/websocket"
 
+	"tsimsocketserver/auth"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -33,7 +35,68 @@ func (h *DeviceHandler) GetConnectedDevices(c *fiber.Ctx) error {
 func (h *DeviceHandler) GetAllDevices(c *fiber.Ctx) error {
 	var devices []models.Device
 
-	if err := database.GetDB().Find(&devices).Error; err != nil {
+	// Get query parameters
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 15)
+	search := c.Query("search")
+	countrySite := c.Query("country_site")
+	deviceGroup := c.Query("device_group")
+	status := c.Query("status")
+	online := c.Query("online")
+	maintenance := c.Query("maintenance")
+
+	// Build query
+	query := database.GetDB()
+
+	// Apply filters
+	if search != "" {
+		query = query.Where("name LIKE ? OR imei LIKE ?", "%"+search+"%", "%"+search+"%")
+	}
+	if countrySite != "" && countrySite != "all" {
+		query = query.Where("country_site = ?", countrySite)
+	}
+	if deviceGroup != "" && deviceGroup != "all" {
+		query = query.Where("device_group = ?", deviceGroup)
+	}
+	if status != "" && status != "all" {
+		switch status {
+		case "ready":
+			query = query.Where("is_active = ? AND is_online = ? AND maintenance_mode = ?", true, true, false)
+		case "alarm":
+			query = query.Where("is_active = ? AND maintenance_mode = ?", false, false)
+		case "maintenance":
+			query = query.Where("maintenance_mode = ?", true)
+		case "inactive":
+			query = query.Where("is_active = ?", false)
+		case "offline":
+			query = query.Where("is_online = ?", false)
+		}
+	}
+	if online != "" && online != "all" {
+		if online == "online" {
+			query = query.Where("is_online = ?", true)
+		} else {
+			query = query.Where("is_online = ?", false)
+		}
+	}
+	if maintenance != "" && maintenance != "all" {
+		if maintenance == "maintenance" {
+			query = query.Where("maintenance_mode = ?", true)
+		} else {
+			query = query.Where("maintenance_mode = ?", false)
+		}
+	}
+
+	// Get total count
+	var total int64
+	query.Model(&models.Device{}).Count(&total)
+
+	// Apply pagination
+	offset := (page - 1) * limit
+	query = query.Offset(offset).Limit(limit)
+
+	// Execute query
+	if err := query.Find(&devices).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to fetch devices",
@@ -42,17 +105,20 @@ func (h *DeviceHandler) GetAllDevices(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"devices": devices,
+		"data":    devices,
+		"total":   total,
+		"page":    page,
+		"limit":   limit,
 	})
 }
 
 // SendSms sends SMS to a device
 func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
@@ -70,9 +136,9 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get device information
+	// Get device information by IMEI (device_id parameter is actually IMEI)
 	var device models.Device
-	if err := database.GetDB().Where("device_id = ?", deviceID).First(&device).Error; err != nil {
+	if err := database.GetDB().Where("imei = ?", imei).First(&device).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{
 			"success": false,
 			"message": "Device not found",
@@ -82,8 +148,8 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 	// Get SIM card information for the specified slot
 	var deviceSimCard models.DeviceSimCard
 	var simcardName, simcardNumber, simcardICCID, deviceIMSI *string
-	
-	if err := database.GetDB().Where("device_imei = ? AND slot_index = ?", deviceID, request.SimSlot).First(&deviceSimCard).Error; err == nil {
+
+	if err := database.GetDB().Where("device_imei = ? AND slot_index = ?", imei, request.SimSlot).First(&deviceSimCard).Error; err == nil {
 		simcardName = &deviceSimCard.CarrierName
 		simcardNumber = &deviceSimCard.PhoneNumber
 		simcardICCID = &deviceSimCard.ICCID
@@ -93,10 +159,14 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 	// Generate unique message ID
 	messageID := utils.GenerateMessageID()
 
+	// Get authenticated user from context
+	user := c.Locals("user").(*auth.Claims)
+	username := user.Username
+
 	// Create SMS log entry
 	smsLog := models.SmsLog{
 		MessageID:               messageID,
-		DeviceID:                &deviceID,
+		DeviceID:                &imei,
 		DeviceName:              &device.Name,
 		DeviceIMEI:              &device.IMEI,
 		DeviceIMSI:              deviceIMSI,
@@ -104,6 +174,9 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 		SimSlot:                 &request.SimSlot,
 		SimcardNumber:           simcardNumber,
 		SimcardICCID:            simcardICCID,
+		SourceAddr:              simcardNumber,                                 // Use SIM card phone number as source
+		SourceConnector:         func() *string { s := "manual"; return &s }(), // Manual from device show
+		SourceUser:              &username,                                     // Username who sent the SMS
 		DestinationAddr:         &request.PhoneNumber,
 		Message:                 &request.Message,
 		MessageLength:           len(request.Message),
@@ -111,7 +184,16 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 		Priority:                request.Priority,
 		Status:                  "pending",
 		DeviceGroupID:           &device.DeviceGroupID,
+		DeviceGroup:             &device.DeviceGroup,
+		CountrySiteID:           &device.CountrySiteID,
+		CountrySite:             &device.CountrySite,
 		DeliveryReportRequested: true,
+	}
+
+	// If source address is empty, set it to "Panel"
+	if smsLog.SourceAddr == nil || *smsLog.SourceAddr == "" {
+		panelSource := "Panel"
+		smsLog.SourceAddr = &panelSource
 	}
 
 	if err := database.GetDB().Create(&smsLog).Error; err != nil {
@@ -128,7 +210,7 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 		Priority:    request.Priority,
 	}
 
-	if err := h.wsServer.SendSms(deviceID, data); err != nil {
+	if err := h.wsServer.SendSms(imei, data); err != nil {
 		// Update SMS log status to failed
 		database.GetDB().Model(&smsLog).Updates(map[string]interface{}{
 			"status":        "failed",
@@ -150,11 +232,11 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 
 // SendUssd sends USSD command to a device
 func (h *DeviceHandler) SendUssd(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
@@ -179,7 +261,7 @@ func (h *DeviceHandler) SendUssd(c *fiber.Ctx) error {
 		Delay:     request.Delay,
 	}
 
-	if err := h.wsServer.SendUssd(deviceID, data); err != nil {
+	if err := h.wsServer.SendUssd(imei, data); err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to send USSD command",
@@ -194,11 +276,11 @@ func (h *DeviceHandler) SendUssd(c *fiber.Ctx) error {
 
 // FindDevice sends find device command
 func (h *DeviceHandler) FindDevice(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
@@ -217,7 +299,7 @@ func (h *DeviceHandler) FindDevice(c *fiber.Ctx) error {
 		Message: request.Message,
 	}
 
-	if err := h.wsServer.FindDevice(deviceID, data); err != nil {
+	if err := h.wsServer.FindDevice(imei, data); err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to send find device command",
@@ -232,11 +314,11 @@ func (h *DeviceHandler) FindDevice(c *fiber.Ctx) error {
 
 // StartAlarm sends alarm start command
 func (h *DeviceHandler) StartAlarm(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
@@ -257,7 +339,7 @@ func (h *DeviceHandler) StartAlarm(c *fiber.Ctx) error {
 		Message:   request.Message,
 	}
 
-	if err := h.wsServer.StartAlarm(deviceID, data); err != nil {
+	if err := h.wsServer.StartAlarm(imei, data); err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to start alarm",
@@ -272,15 +354,15 @@ func (h *DeviceHandler) StartAlarm(c *fiber.Ctx) error {
 
 // StopAlarm sends alarm stop command
 func (h *DeviceHandler) StopAlarm(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
-	if err := h.wsServer.StopAlarm(deviceID); err != nil {
+	if err := h.wsServer.StopAlarm(imei); err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to stop alarm",
@@ -295,11 +377,11 @@ func (h *DeviceHandler) StopAlarm(c *fiber.Ctx) error {
 
 // UpdateDeviceName updates device name
 func (h *DeviceHandler) UpdateDeviceName(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
@@ -322,7 +404,7 @@ func (h *DeviceHandler) UpdateDeviceName(c *fiber.Ctx) error {
 	}
 
 	// Update device name in database
-	if err := database.GetDB().Model(&models.Device{}).Where("imei = ?", deviceID).Update("name", request.Name).Error; err != nil {
+	if err := database.GetDB().Model(&models.Device{}).Where("imei = ?", imei).Update("name", request.Name).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to update device name",
@@ -335,18 +417,18 @@ func (h *DeviceHandler) UpdateDeviceName(c *fiber.Ctx) error {
 	})
 }
 
-// GetDeviceByID returns a specific device by ID
+// GetDeviceByID returns a specific device by IMEI
 func (h *DeviceHandler) GetDeviceByID(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
 	var device models.Device
-	if err := database.GetDB().Where("imei = ?", deviceID).First(&device).Error; err != nil {
+	if err := database.GetDB().Where("imei = ?", imei).First(&device).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{
 			"success": false,
 			"message": "Device not found",
@@ -358,11 +440,11 @@ func (h *DeviceHandler) GetDeviceByID(c *fiber.Ctx) error {
 
 // ToggleDevice toggles device active status
 func (h *DeviceHandler) ToggleDevice(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
@@ -377,9 +459,9 @@ func (h *DeviceHandler) ToggleDevice(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get device information
+	// Get device information by IMEI (device_id parameter is actually IMEI)
 	var device models.Device
-	if err := database.GetDB().Where("device_id = ?", deviceID).First(&device).Error; err != nil {
+	if err := database.GetDB().Where("imei = ?", imei).First(&device).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{
 			"success": false,
 			"message": "Device not found",
@@ -411,7 +493,7 @@ func (h *DeviceHandler) ToggleDevice(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Device status updated successfully",
 		"data": fiber.Map{
-			"device_id": deviceID,
+			"device_id": imei,
 			"is_active": isActive,
 		},
 	})
@@ -419,17 +501,17 @@ func (h *DeviceHandler) ToggleDevice(c *fiber.Ctx) error {
 
 // ExitMaintenanceMode exits maintenance mode for a device
 func (h *DeviceHandler) ExitMaintenanceMode(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
-	// Get device information
+	// Get device information by IMEI (device_id parameter is actually IMEI)
 	var device models.Device
-	if err := database.GetDB().Where("device_id = ?", deviceID).First(&device).Error; err != nil {
+	if err := database.GetDB().Where("imei = ?", imei).First(&device).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{
 			"success": false,
 			"message": "Device not found",
@@ -455,7 +537,7 @@ func (h *DeviceHandler) ExitMaintenanceMode(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Device exited maintenance mode successfully",
 		"data": fiber.Map{
-			"device_id":        deviceID,
+			"device_id":        imei,
 			"maintenance_mode": false,
 			"is_active":        true,
 		},
@@ -464,11 +546,11 @@ func (h *DeviceHandler) ExitMaintenanceMode(c *fiber.Ctx) error {
 
 // EnterMaintenanceMode enters maintenance mode for a device
 func (h *DeviceHandler) EnterMaintenanceMode(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
@@ -490,9 +572,9 @@ func (h *DeviceHandler) EnterMaintenanceMode(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get device information
+	// Get device information by IMEI (device_id parameter is actually IMEI)
 	var device models.Device
-	if err := database.GetDB().Where("device_id = ?", deviceID).First(&device).Error; err != nil {
+	if err := database.GetDB().Where("imei = ?", imei).First(&device).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{
 			"success": false,
 			"message": "Device not found",
@@ -518,7 +600,7 @@ func (h *DeviceHandler) EnterMaintenanceMode(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Device entered maintenance mode successfully",
 		"data": fiber.Map{
-			"device_id":          deviceID,
+			"device_id":          imei,
 			"maintenance_mode":   true,
 			"maintenance_reason": request.Reason,
 			"is_active":          false,
@@ -528,16 +610,16 @@ func (h *DeviceHandler) EnterMaintenanceMode(c *fiber.Ctx) error {
 
 // DeleteDevice deletes a device
 func (h *DeviceHandler) DeleteDevice(c *fiber.Ctx) error {
-	deviceID := c.Params("device_id")
-	if deviceID == "" {
+	imei := c.Params("imei")
+	if imei == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"message": "Device ID is required",
+			"message": "Device IMEI is required",
 		})
 	}
 
 	// Delete device from database
-	if err := database.GetDB().Where("imei = ?", deviceID).Delete(&models.Device{}).Error; err != nil {
+	if err := database.GetDB().Where("imei = ?", imei).Delete(&models.Device{}).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to delete device",
@@ -547,5 +629,211 @@ func (h *DeviceHandler) DeleteDevice(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": "Device deleted successfully",
+	})
+}
+
+// GetDeviceStats returns device statistics
+func (h *DeviceHandler) GetDeviceStats(c *fiber.Ctx) error {
+	var total, active, inactive, online, offline, maintenance, ready, alarm int64
+
+	// Get total devices
+	database.GetDB().Model(&models.Device{}).Count(&total)
+
+	// Get active devices
+	database.GetDB().Model(&models.Device{}).Where("is_active = ?", true).Count(&active)
+
+	// Get inactive devices
+	database.GetDB().Model(&models.Device{}).Where("is_active = ?", false).Count(&inactive)
+
+	// Get online devices
+	database.GetDB().Model(&models.Device{}).Where("is_online = ?", true).Count(&online)
+
+	// Get offline devices
+	database.GetDB().Model(&models.Device{}).Where("is_online = ?", false).Count(&offline)
+
+	// Get devices in maintenance
+	database.GetDB().Model(&models.Device{}).Where("maintenance_mode = ?", true).Count(&maintenance)
+
+	// Get ready devices (active, online, not in maintenance, no alarms)
+	database.GetDB().Model(&models.Device{}).
+		Where("is_active = ? AND is_online = ? AND maintenance_mode = ?", true, true, false).
+		Count(&ready)
+
+	// Get devices with alarms (simplified - you might want to join with alarm_logs table)
+	database.GetDB().Model(&models.Device{}).
+		Where("is_active = ?", false).
+		Where("maintenance_mode = ?", false).
+		Count(&alarm)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data": fiber.Map{
+			"total":       total,
+			"active":      active,
+			"inactive":    inactive,
+			"online":      online,
+			"offline":     offline,
+			"maintenance": maintenance,
+			"ready":       ready,
+			"alarm":       alarm,
+		},
+	})
+}
+
+// DeleteDevices deletes multiple devices by IMEI
+func (h *DeviceHandler) DeleteDevices(c *fiber.Ctx) error {
+	var request struct {
+		Imeis []string `json:"imeis"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid request body",
+		})
+	}
+
+	if len(request.Imeis) == 0 {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "No devices to delete",
+		})
+	}
+
+	// Delete devices
+	if err := database.GetDB().Where("imei IN ?", request.Imeis).Delete(&models.Device{}).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to delete devices",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Devices deleted successfully",
+	})
+}
+
+// ToggleDeviceActive toggles active status for multiple devices
+func (h *DeviceHandler) ToggleDeviceActive(c *fiber.Ctx) error {
+	var request struct {
+		Imeis  []string `json:"imeis"`
+		Active bool     `json:"active"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid request body",
+		})
+	}
+
+	if len(request.Imeis) == 0 {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "No devices to update",
+		})
+	}
+
+	// Update devices
+	if err := database.GetDB().Model(&models.Device{}).
+		Where("imei IN ?", request.Imeis).
+		Update("is_active", request.Active).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to update devices",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Devices updated successfully",
+	})
+}
+
+// EnterMaintenanceModeBulk puts multiple devices into maintenance mode
+func (h *DeviceHandler) EnterMaintenanceModeBulk(c *fiber.Ctx) error {
+	var request struct {
+		Imeis  []string `json:"imeis"`
+		Reason string   `json:"reason"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid request body",
+		})
+	}
+
+	if len(request.Imeis) == 0 {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "No devices to update",
+		})
+	}
+
+	// Update devices
+	updates := map[string]interface{}{
+		"maintenance_mode":       true,
+		"maintenance_reason":     request.Reason,
+		"maintenance_started_at": time.Now(),
+		"is_active":              false,
+	}
+
+	if err := database.GetDB().Model(&models.Device{}).
+		Where("imei IN ?", request.Imeis).
+		Updates(updates).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to update devices",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Devices put into maintenance mode",
+	})
+}
+
+// ExitMaintenanceModeBulk takes multiple devices out of maintenance mode
+func (h *DeviceHandler) ExitMaintenanceModeBulk(c *fiber.Ctx) error {
+	var request struct {
+		Imeis []string `json:"imeis"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid request body",
+		})
+	}
+
+	if len(request.Imeis) == 0 {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "No devices to update",
+		})
+	}
+
+	// Update devices
+	updates := map[string]interface{}{
+		"maintenance_mode":       false,
+		"maintenance_reason":     "",
+		"maintenance_started_at": nil,
+		"is_active":              true,
+	}
+
+	if err := database.GetDB().Model(&models.Device{}).
+		Where("imei IN ?", request.Imeis).
+		Updates(updates).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to update devices",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Devices exited maintenance mode",
 	})
 }

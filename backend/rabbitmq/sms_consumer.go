@@ -34,6 +34,14 @@ type SmppSmsMessage struct {
 	ReplaceFlag uint8  `json:"replace_flag"`
 	SequenceNum uint32 `json:"sequence_num"`
 	MessageID   string `json:"message_id"`
+	// Device information fields
+	DeviceID    string `json:"device_id,omitempty"`
+	DeviceGroup string `json:"device_group,omitempty"`
+	SimCard     string `json:"sim_card,omitempty"`
+	SimName     string `json:"sim_name,omitempty"`
+	SimSlot     int    `json:"sim_slot,omitempty"`
+	IMSI        string `json:"imsi,omitempty"`
+	CountrySite string `json:"country_site,omitempty"`
 }
 
 // SmsResponse represents the SMS response structure
@@ -123,6 +131,9 @@ func (sc *SmsConsumer) processRegularSmsMessage(smsMsg SmsMessage) error {
 		SimSlot:                 &smsMsg.SimSlot,
 		SimcardNumber:           simcardNumber,
 		SimcardICCID:            simcardICCID,
+		SourceAddr:              simcardNumber,                                   // Use SIM card phone number as source
+		SourceConnector:         func() *string { s := "http_api"; return &s }(), // HTTP API via RabbitMQ
+		SourceUser:              func() *string { s := "system"; return &s }(),   // System user for RabbitMQ messages
 		DestinationAddr:         &smsMsg.PhoneNumber,
 		Message:                 &smsMsg.Message,
 		MessageLength:           len(smsMsg.Message),
@@ -130,8 +141,17 @@ func (sc *SmsConsumer) processRegularSmsMessage(smsMsg SmsMessage) error {
 		Priority:                smsMsg.Priority,
 		Status:                  "pending",
 		DeviceGroupID:           &device.DeviceGroupID,
+		DeviceGroup:             &device.DeviceGroup,
+		CountrySiteID:           &device.CountrySiteID,
+		CountrySite:             &device.CountrySite,
 		DeliveryReportRequested: true,
 		QueuedAt:                &time.Time{},
+	}
+
+	// If source address is empty, set it to "Panel"
+	if smsLog.SourceAddr == nil || *smsLog.SourceAddr == "" {
+		panelSource := "Panel"
+		smsLog.SourceAddr = &panelSource
 	}
 
 	if err := database.GetDB().Create(&smsLog).Error; err != nil {
@@ -160,10 +180,36 @@ func (sc *SmsConsumer) processRegularSmsMessage(smsMsg SmsMessage) error {
 func (sc *SmsConsumer) processSmppSmsMessage(smppMsg SmppSmsMessage) error {
 	log.Printf("Processing SMPP SMS message: %s from %s to %s", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestAddr)
 
+	// Try to find device by system_id (SMPP username)
+	var device models.Device
+	if err := database.GetDB().Where("imei = ? OR name = ?", smppMsg.SystemID, smppMsg.SystemID).First(&device).Error; err != nil {
+		log.Printf("Device not found for SMPP system_id: %s", smppMsg.SystemID)
+		// Continue without device info
+	}
+
+	// Get device group info if device found
+	if device.ID != 0 {
+		smppMsg.DeviceGroup = device.DeviceGroup
+		smppMsg.CountrySite = device.CountrySite
+		smppMsg.DeviceID = device.IMEI
+	}
+
+	// Get SIM card info if device found
+	var simCard models.SimCardRecord
+	if device.ID != 0 {
+		if err := database.GetDB().Where("device_id = ? AND slot_index = ?", device.ID, smppMsg.SimSlot).First(&simCard).Error; err == nil {
+			smppMsg.SimCard = simCard.ICCID
+			smppMsg.SimName = simCard.DisplayName
+			smppMsg.IMSI = simCard.IMSI
+		}
+	}
+
 	// Create SMS log entry for SMPP message
 	smsLog := models.SmsLog{
 		MessageID:               smppMsg.MessageID,
 		SourceAddr:              &smppMsg.SourceAddr,
+		SourceConnector:         func() *string { s := "smpp"; return &s }(), // SMPP
+		SourceUser:              &smppMsg.SystemID,                           // SMPP system ID as user
 		DestinationAddr:         &smppMsg.DestAddr,
 		Message:                 &smppMsg.Message,
 		MessageLength:           len(smppMsg.Message),
@@ -172,16 +218,41 @@ func (sc *SmsConsumer) processSmppSmsMessage(smppMsg SmppSmsMessage) error {
 		Status:                  "pending",
 		DeliveryReportRequested: true,
 		QueuedAt:                &time.Time{},
-		// Add SMPP specific fields as metadata
-		Metadata: &smppMsg.SystemID, // Store system_id in metadata for now
 	}
+
+	// Set device information if available
+	if device.ID != 0 {
+		smsLog.DeviceGroupID = &device.DeviceGroupID
+		smsLog.DeviceGroup = &device.DeviceGroup
+		smsLog.CountrySiteID = &device.CountrySiteID
+		smsLog.CountrySite = &device.CountrySite
+	}
+
+	// Create metadata with device info
+	metadata := map[string]interface{}{
+		"system_id":    smppMsg.SystemID,
+		"device_id":    smppMsg.DeviceID,
+		"device_group": smppMsg.DeviceGroup,
+		"sim_card":     smppMsg.SimCard,
+		"sim_name":     smppMsg.SimName,
+		"sim_slot":     smppMsg.SimSlot,
+		"imsi":         smppMsg.IMSI,
+		"country_site": smppMsg.CountrySite,
+		"data_coding":  smppMsg.DataCoding,
+		"esm_class":    smppMsg.ESMClass,
+	}
+
+	metadataJSON, _ := json.Marshal(metadata)
+	metadataStr := string(metadataJSON)
+	smsLog.Metadata = &metadataStr
 
 	if err := database.GetDB().Create(&smsLog).Error; err != nil {
 		log.Printf("Error creating SMPP SMS log: %v", err)
 		return err
 	}
 
-	log.Printf("SMPP SMS logged successfully: %s from %s to %s", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestAddr)
+	log.Printf("SMPP SMS logged successfully: %s from %s to %s (Device: %s, Group: %s, SIM: %s)",
+		smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestAddr, smppMsg.DeviceID, smppMsg.DeviceGroup, smppMsg.SimName)
 	return nil
 }
 

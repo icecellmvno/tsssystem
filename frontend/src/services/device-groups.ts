@@ -137,6 +137,10 @@ class DeviceGroupService {
     async deleteDeviceGroup(id: number): Promise<void> {
         return apiClient.delete<void>(`/device-groups/${id}`);
     }
+
+    async generateQRCode(id: number): Promise<{ success: boolean; qr_data: string }> {
+        return apiClient.get<{ success: boolean; qr_data: string }>(`/device-groups/${id}/qr-code`);
+    }
 }
 
 export const deviceGroupService = new DeviceGroupService(); 

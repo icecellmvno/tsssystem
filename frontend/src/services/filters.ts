@@ -1,39 +1,42 @@
 import { apiClient } from './api-client';
-import type { FilterItem, PaginatedFilters, CreateFilterData } from '@/types/filters';
+
+export interface Filter {
+  id: number;
+  name: string;
+  description?: string;
+  type: string;
+  conditions: any;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 export const filtersService = {
-    // Get all filters with pagination and filters
-    getFilters: async (params?: Record<string, any>): Promise<PaginatedFilters> => {
-        return apiClient.get<PaginatedFilters>('/filters', params);
-    },
+  async getFilters(): Promise<{ filters: Filter[] }> {
+    return apiClient.get('/filters');
+  },
 
-    // Get a single filter by ID
-    getFilter: async (id: number): Promise<FilterItem> => {
-        return apiClient.get<FilterItem>(`/filters/${id}`);
-    },
+  async getFilter(id: number): Promise<Filter> {
+    return apiClient.get(`/filters/${id}`);
+  },
 
-    // Create a new filter
-    createFilter: async (data: CreateFilterData): Promise<FilterItem> => {
-        return apiClient.post<FilterItem>('/filters', data);
-    },
+  async createFilter(data: any): Promise<Filter> {
+    return apiClient.post('/filters', data);
+  },
 
-    // Update an existing filter
-    updateFilter: async (id: number, data: CreateFilterData): Promise<FilterItem> => {
-        return apiClient.put<FilterItem>(`/filters/${id}`, data);
-    },
+  async updateFilter(id: number, data: any): Promise<Filter> {
+    return apiClient.put(`/filters/${id}`, data);
+  },
 
-    // Delete a filter
-    deleteFilter: async (id: number): Promise<void> => {
-        return apiClient.delete(`/filters/${id}`);
-    },
+  async deleteFilter(id: number): Promise<void> {
+    return apiClient.delete(`/filters/${id}`);
+  },
 
-    // Bulk delete filters
-    bulkDeleteFilters: async (ids: number[]): Promise<void> => {
-        return apiClient.delete(`/filters/bulk?ids=${ids.join(',')}`);
-    },
+  async bulkDeleteFilters(ids: number[]): Promise<void> {
+    return apiClient.delete(`/filters/bulk?ids=${ids.join(',')}`);
+  },
 
-    // Toggle filter status
-    toggleFilterStatus: async (id: number): Promise<FilterItem> => {
-        return apiClient.patch<FilterItem>(`/filters/${id}/toggle`);
-    },
+  async toggleFilterStatus(id: number): Promise<Filter> {
+    return apiClient.patch(`/filters/${id}/toggle`);
+  },
 }; 

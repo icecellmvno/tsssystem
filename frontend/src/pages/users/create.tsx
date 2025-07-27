@@ -5,17 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { AppLayout } from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { useAuthStore } from '@/stores/auth-store';
-
-interface Role {
-  id: number;
-  name: string;
-  description?: string;
-}
+import { usersService, type UserCreateRequest } from '@/services/users';
 
 const breadcrumbs: BreadcrumbItem[] = [
   { title: 'User Management', href: '#' },
@@ -23,50 +17,27 @@ const breadcrumbs: BreadcrumbItem[] = [
   { title: 'Create User', href: '#' },
 ];
 
+const availableRoles = [
+  { value: 'admin', label: 'Administrator' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'operator', label: 'Operator' },
+  { value: 'user', label: 'User' },
+];
+
 export default function UsersCreate() {
   const navigate = useNavigate();
-  const { token } = useAuthStore();
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
-  const [formData, setFormData] = useState({
-    name: '',
+  const [formData, setFormData] = useState<UserCreateRequest>({
     username: '',
+    firstname: '',
+    lastname: '',
     email: '',
     password: '',
-    password_confirmation: '',
-    role_ids: [] as number[]
+    role: 'user'
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Fetch roles from API
-  const fetchRoles = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/roles', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setRoles(data.roles || []);
-      } else {
-        toast.error('Failed to fetch roles');
-      }
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-      toast.error('Failed to fetch roles');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRoles();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,45 +45,32 @@ export default function UsersCreate() {
     setErrors({});
 
     try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        toast.success('User created successfully');
-        navigate('/users');
-      } else {
-        const errorData = await response.json();
-        setErrors(errorData.errors || {});
-        toast.error('Failed to create user');
-      }
-    } catch (error) {
+      await usersService.createUser(formData);
+      toast.success('User created successfully');
+      navigate('/users');
+    } catch (error: any) {
       console.error('Error creating user:', error);
+      if (error.errors) {
+        setErrors(error.errors);
+      }
       toast.error('Failed to create user');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  const handleRoleChange = (roleId: number, checked: boolean) => {
+  const handleInputChange = (field: keyof UserCreateRequest, value: string) => {
     setFormData(prev => ({
       ...prev,
-      role_ids: checked 
-        ? [...prev.role_ids, roleId]
-        : prev.role_ids.filter(id => id !== roleId)
+      [field]: value
     }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
   };
 
   if (loading) {
@@ -157,21 +115,37 @@ export default function UsersCreate() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="firstname">First Name</Label>
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    className={errors.name ? 'border-red-500' : ''}
+                    id="firstname"
+                    value={formData.firstname}
+                    onChange={(e) => handleInputChange('firstname', e.target.value)}
+                    className={errors.firstname ? 'border-red-500' : ''}
                     required
                   />
-                  {errors.name && (
-                    <p className="text-sm text-red-500">{errors.name}</p>
+                  {errors.firstname && (
+                    <p className="text-sm text-red-500">{errors.firstname}</p>
                   )}
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="lastname">Last Name</Label>
+                  <Input
+                    id="lastname"
+                    value={formData.lastname}
+                    onChange={(e) => handleInputChange('lastname', e.target.value)}
+                    className={errors.lastname ? 'border-red-500' : ''}
+                    required
+                  />
+                  {errors.lastname && (
+                    <p className="text-sm text-red-500">{errors.lastname}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
                   <Input
@@ -179,6 +153,7 @@ export default function UsersCreate() {
                     value={formData.username}
                     onChange={(e) => handleInputChange('username', e.target.value)}
                     className={errors.username ? 'border-red-500' : ''}
+                    required
                   />
                   {errors.username && (
                     <p className="text-sm text-red-500">{errors.username}</p>
@@ -199,7 +174,9 @@ export default function UsersCreate() {
                     <p className="text-sm text-red-500">{errors.email}</p>
                   )}
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
@@ -220,13 +197,13 @@ export default function UsersCreate() {
                   <Input
                     id="password_confirmation"
                     type="password"
-                    value={formData.password_confirmation}
-                    onChange={(e) => handleInputChange('password_confirmation', e.target.value)}
-                    className={errors.password_confirmation ? 'border-red-500' : ''}
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    className={errors.password ? 'border-red-500' : ''}
                     required
                   />
-                  {errors.password_confirmation && (
-                    <p className="text-sm text-red-500">{errors.password_confirmation}</p>
+                  {errors.password && (
+                    <p className="text-sm text-red-500">{errors.password}</p>
                   )}
                 </div>
               </div>
@@ -236,31 +213,20 @@ export default function UsersCreate() {
                   <Shield className="h-4 w-4" />
                   Roles
                 </Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {roles.length > 0 ? (
-                    roles.map((role) => (
-                      <div key={role.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`role-${role.id}`}
-                          checked={formData.role_ids.includes(role.id)}
-                          onCheckedChange={(checked) => handleRoleChange(role.id, checked as boolean)}
-                        />
-                        <Label htmlFor={`role-${role.id}`} className="text-sm font-normal">
-                          <div>
-                            <div className="font-medium">{role.name}</div>
-                            {role.description && (
-                              <div className="text-xs text-muted-foreground">{role.description}</div>
-                            )}
-                          </div>
-                        </Label>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground col-span-full">No roles available</p>
-                  )}
-                </div>
-                {errors.role_ids && (
-                  <p className="text-sm text-red-500">{errors.role_ids}</p>
+                <Select onValueChange={(value) => handleInputChange('role', value)} defaultValue={formData.role}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableRoles.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.role && (
+                  <p className="text-sm text-red-500">{errors.role}</p>
                 )}
               </div>
 

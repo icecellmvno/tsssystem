@@ -29,6 +29,8 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 	return c.JSON(models.UserResponse{
 		ID:        dbUser.ID,
 		Username:  dbUser.Username,
+		Firstname: dbUser.Firstname,
+		Lastname:  dbUser.Lastname,
 		Email:     dbUser.Email,
 		Role:      dbUser.Role,
 		IsActive:  dbUser.IsActive,
@@ -50,6 +52,8 @@ func (h *UserHandler) GetAllUsers(c *fiber.Ctx) error {
 		responses = append(responses, models.UserResponse{
 			ID:        user.ID,
 			Username:  user.Username,
+			Firstname: user.Firstname,
+			Lastname:  user.Lastname,
 			Email:     user.Email,
 			Role:      user.Role,
 			IsActive:  user.IsActive,
@@ -82,6 +86,8 @@ func (h *UserHandler) GetUserByID(c *fiber.Ctx) error {
 		"user": models.UserResponse{
 			ID:        user.ID,
 			Username:  user.Username,
+			Firstname: user.Firstname,
+			Lastname:  user.Lastname,
 			Email:     user.Email,
 			Role:      user.Role,
 			IsActive:  user.IsActive,
@@ -122,11 +128,13 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	}
 
 	user := models.User{
-		Username: req.Username,
-		Email:    req.Email,
-		Password: hashedPassword,
-		Role:     req.Role,
-		IsActive: true,
+		Username:  req.Username,
+		Firstname: req.Firstname,
+		Lastname:  req.Lastname,
+		Email:     req.Email,
+		Password:  hashedPassword,
+		Role:      req.Role,
+		IsActive:  true,
 	}
 
 	if err := database.GetDB().Create(&user).Error; err != nil {
@@ -140,6 +148,8 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 		"user": models.UserResponse{
 			ID:        user.ID,
 			Username:  user.Username,
+			Firstname: user.Firstname,
+			Lastname:  user.Lastname,
 			Email:     user.Email,
 			Role:      user.Role,
 			IsActive:  user.IsActive,
@@ -157,7 +167,7 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	var req models.UserCreateRequest
+	var req models.UserUpdateRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
@@ -171,17 +181,34 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		})
 	}
 
-	hashedPassword, err := auth.HashPassword(req.Password)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to hash password",
-		})
+	// Update fields if provided
+	if req.Username != nil {
+		user.Username = *req.Username
 	}
-
-	user.Username = req.Username
-	user.Email = req.Email
-	user.Password = hashedPassword
-	user.Role = req.Role
+	if req.Firstname != nil {
+		user.Firstname = *req.Firstname
+	}
+	if req.Lastname != nil {
+		user.Lastname = *req.Lastname
+	}
+	if req.Email != nil {
+		user.Email = *req.Email
+	}
+	if req.Password != nil && *req.Password != "" {
+		hashedPassword, err := auth.HashPassword(*req.Password)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to hash password",
+			})
+		}
+		user.Password = hashedPassword
+	}
+	if req.Role != nil {
+		user.Role = *req.Role
+	}
+	if req.IsActive != nil {
+		user.IsActive = *req.IsActive
+	}
 
 	if err := database.GetDB().Save(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -194,6 +221,8 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		"user": models.UserResponse{
 			ID:        user.ID,
 			Username:  user.Username,
+			Firstname: user.Firstname,
+			Lastname:  user.Lastname,
 			Email:     user.Email,
 			Role:      user.Role,
 			IsActive:  user.IsActive,

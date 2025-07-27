@@ -5,6 +5,17 @@ import { ArrowLeft, Edit, Trash2, Play, Pause, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { toast } from 'sonner';
@@ -30,6 +41,7 @@ export default function ScheduleTaskShow() {
   const navigate = useNavigate();
   const [task, setTask] = useState<ScheduleTask | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -53,11 +65,12 @@ export default function ScheduleTaskShow() {
 
   const handleDelete = async () => {
     if (!task) return;
-    
-    if (!confirm('Are you sure you want to delete this schedule task?')) {
-      return;
-    }
+    setDeleteDialogOpen(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!task) return;
+    
     try {
       await scheduleTasksService.deleteScheduleTask(task.id);
       toast.success('Schedule task deleted successfully');
@@ -399,6 +412,27 @@ export default function ScheduleTaskShow() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Schedule Task</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this schedule task? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

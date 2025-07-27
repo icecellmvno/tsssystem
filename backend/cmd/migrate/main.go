@@ -48,6 +48,12 @@ func runMigrations() error {
 		&models.ScheduleTaskExecution{},
 		&models.UssdLog{},
 		&models.SimCardRecord{},
+		&models.MccMnc{},
+		// New anti-detection models
+		&models.SmsRoutingRule{},
+		&models.SmppUserAntiDetectionConfig{},
+		&models.SmppUserSimPoolConfig{},
+		&models.SmppUserDelayConfig{},
 	)
 
 	if err != nil {

@@ -1,31 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, User, Mail, Shield } from 'lucide-react';
+import { ArrowLeft, Save, User as UserIcon, Mail, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { AppLayout } from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { useAuthStore } from '@/stores/auth-store';
-
-interface Role {
-  id: number;
-  name: string;
-  description?: string;
-}
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  username?: string;
-  created_at: string;
-  updated_at: string;
-  roles: Role[];
-}
+import { usersService, type User, type UserUpdateRequest } from '@/services/users';
 
 const breadcrumbs: BreadcrumbItem[] = [
   { title: 'User Management', href: '#' },
@@ -33,55 +18,49 @@ const breadcrumbs: BreadcrumbItem[] = [
   { title: 'Edit User', href: '#' },
 ];
 
+const availableRoles = [
+  { value: 'admin', label: 'Administrator' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'operator', label: 'Operator' },
+  { value: 'user', label: 'User' },
+];
+
 export default function UsersEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { token } = useAuthStore();
   const [user, setUser] = useState<User | null>(null);
-  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
+  const [formData, setFormData] = useState<UserUpdateRequest>({
     username: '',
-    role_ids: [] as number[]
+    firstname: '',
+    lastname: '',
+    email: '',
+    password: '',
+    role: '',
+    is_active: true
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Fetch user and roles from API
+  // Fetch user from API
   const fetchUser = async () => {
     if (!id) return;
     
     try {
       setLoading(true);
-      const [userResponse, rolesResponse] = await Promise.all([
-        fetch(`/api/users/${id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/roles', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      ]);
+      const response = await usersService.getUserById(parseInt(id));
+      const userInfo = response.user;
       
-      if (userResponse.ok && rolesResponse.ok) {
-        const userData = await userResponse.json();
-        const rolesData = await rolesResponse.json();
-        
-        const userInfo = userData.user || userData;
-        setUser(userInfo);
-        setRoles(rolesData.roles || []);
-        
-        setFormData({
-          name: userInfo.name || '',
-          email: userInfo.email || '',
-          username: userInfo.username || '',
-          role_ids: userInfo.roles?.map((r: Role) => r.id) || []
-        });
-      } else {
-        toast.error('Failed to fetch user data');
-      }
+      setUser(userInfo);
+      setFormData({
+        username: userInfo.username || '',
+        firstname: userInfo.firstname || '',
+        lastname: userInfo.lastname || '',
+        email: userInfo.email || '',
+        role: userInfo.role || '',
+        is_active: userInfo.is_active
+      });
     } catch (error) {
       console.error('Error fetching user:', error);
       toast.error('Failed to fetch user data');
@@ -96,49 +75,68 @@ export default function UsersEdit() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!id) return;
+    
     setSaving(true);
     setErrors({});
 
     try {
-      const response = await fetch(`/api/users/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        toast.success('User updated successfully');
-        navigate('/users');
-      } else {
-        const errorData = await response.json();
-        setErrors(errorData.errors || {});
-        toast.error('Failed to update user');
+      // Create update data with only changed fields
+      const updateData: UserUpdateRequest = {};
+      
+      // Only include fields that have been changed
+      if (formData.username !== user?.username) {
+        updateData.username = formData.username;
       }
-    } catch (error) {
+      if (formData.firstname !== user?.firstname) {
+        updateData.firstname = formData.firstname;
+      }
+      if (formData.lastname !== user?.lastname) {
+        updateData.lastname = formData.lastname;
+      }
+      if (formData.email !== user?.email) {
+        updateData.email = formData.email;
+      }
+      if (formData.role !== user?.role) {
+        updateData.role = formData.role;
+      }
+      if (formData.is_active !== user?.is_active) {
+        updateData.is_active = formData.is_active;
+      }
+      
+      // Only include password if it's not empty, meets minimum length, and has been changed
+      if (formData.password && formData.password.trim() !== '' && formData.password.trim().length >= 6) {
+        updateData.password = formData.password;
+      }
+      // If password field is empty or too short, don't include it in the update at all
+      // This prevents sending empty string which would be hashed as empty password
+      
+      await usersService.updateUser(parseInt(id), updateData);
+      toast.success('User updated successfully');
+      navigate('/users');
+    } catch (error: any) {
       console.error('Error updating user:', error);
+      if (error.errors) {
+        setErrors(error.errors);
+      }
       toast.error('Failed to update user');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  const handleRoleChange = (roleId: number, checked: boolean) => {
+  const handleInputChange = (field: keyof UserUpdateRequest, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
-      role_ids: checked 
-        ? [...prev.role_ids, roleId]
-        : prev.role_ids.filter(id => id !== roleId)
+      [field]: value
     }));
+    // Clear error when user starts typing
+    if (errors[field as string]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
   };
 
   if (loading) {
@@ -162,7 +160,7 @@ export default function UsersEdit() {
         <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <UserIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h2 className="text-xl font-semibold mb-2">User Not Found</h2>
               <p className="text-muted-foreground mb-4">The user you're looking for doesn't exist.</p>
               <Button variant="outline" onClick={() => navigate('/users')}>
@@ -198,23 +196,53 @@ export default function UsersEdit() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
+                <UserIcon className="h-5 w-5" />
                 User Information
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="firstname">First Name</Label>
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    placeholder="Full name"
+                    id="firstname"
+                    value={formData.firstname}
+                    onChange={(e) => handleInputChange('firstname', e.target.value)}
+                    placeholder="First name"
                     required
                   />
-                  {errors.name && (
-                    <p className="text-sm text-red-500 mt-1">{errors.name}</p>
+                  {errors.firstname && (
+                    <p className="text-sm text-red-500 mt-1">{errors.firstname}</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="lastname">Last Name</Label>
+                  <Input
+                    id="lastname"
+                    value={formData.lastname}
+                    onChange={(e) => handleInputChange('lastname', e.target.value)}
+                    placeholder="Last name"
+                    required
+                  />
+                  {errors.lastname && (
+                    <p className="text-sm text-red-500 mt-1">{errors.lastname}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => handleInputChange('username', e.target.value)}
+                    placeholder="Username"
+                    required
+                  />
+                  {errors.username && (
+                    <p className="text-sm text-red-500 mt-1">{errors.username}</p>
                   )}
                 </div>
 
@@ -235,16 +263,29 @@ export default function UsersEdit() {
               </div>
 
               <div>
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="password">Password (leave blank to keep current)</Label>
                 <Input
-                  id="username"
-                  value={formData.username}
-                  onChange={(e) => handleInputChange('username', e.target.value)}
-                  placeholder="Username (optional)"
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  placeholder="New password (optional, min 6 characters)"
                 />
-                {errors.username && (
-                  <p className="text-sm text-red-500 mt-1">{errors.username}</p>
+                {formData.password && formData.password.trim() !== '' && formData.password.trim().length < 6 && (
+                  <p className="text-sm text-red-500 mt-1">Password must be at least 6 characters long</p>
                 )}
+                {errors.password && (
+                  <p className="text-sm text-red-500 mt-1">{errors.password}</p>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => handleInputChange('is_active', checked as boolean)}
+                />
+                <Label htmlFor="is_active">Active User</Label>
               </div>
             </CardContent>
           </Card>
@@ -253,37 +294,33 @@ export default function UsersEdit() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Roles
+                Role
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {roles.map((role) => (
-                  <div key={role.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`role-${role.id}`}
-                      checked={formData.role_ids.includes(role.id)}
-                      onCheckedChange={(checked) => handleRoleChange(role.id, checked as boolean)}
-                    />
-                    <Label htmlFor={`role-${role.id}`} className="flex-1">
-                      <div>
-                        <div className="font-medium">{role.name}</div>
-                        {role.description && (
-                          <div className="text-sm text-muted-foreground">{role.description}</div>
-                        )}
-                      </div>
-                    </Label>
-                  </div>
-                ))}
-                {roles.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No roles available</p>
-                )}
-              </div>
+              <Select onValueChange={(value) => handleInputChange('role', value)} value={formData.role}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableRoles.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.role && (
+                <p className="text-sm text-red-500 mt-1">{errors.role}</p>
+              )}
             </CardContent>
           </Card>
 
           <div className="flex items-center gap-4">
-            <Button type="submit" disabled={saving}>
+            <Button 
+              type="submit" 
+              disabled={saving || (formData.password && formData.password.trim() !== '' && formData.password.trim().length < 6)}
+            >
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
             <Button

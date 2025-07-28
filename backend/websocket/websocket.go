@@ -211,8 +211,15 @@ func (ws *WebSocketServer) handleFrontendConnection(conn *websocket.Conn) {
 	claims, err := auth.ValidateToken(token, ws.cfg)
 	if err != nil {
 		log.Printf("ERROR: Frontend connection rejected - Invalid JWT token: %v", err)
+
+		// Send more specific error message
+		errorMsg := "Invalid token"
+		if err.Error() == "token is expired" {
+			errorMsg = "Token expired"
+		}
+
 		conn.WriteJSON(fiber.Map{
-			"error": "Invalid token",
+			"error": errorMsg,
 		})
 		return
 	}

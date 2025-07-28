@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
 import { useWebSocketStore } from '@/stores/websocket-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { isTokenExpired } from '@/utils/jwt';
 
 export interface WebSocketMessage {
   type: string;
@@ -67,6 +68,17 @@ class WebSocketService {
       return Promise.resolve();
     }
 
+    // Check if token is expired before connecting
+    if (token && isTokenExpired(token)) {
+      console.log('JWT token is expired, logging out user');
+      const authStore = useAuthStore.getState();
+      authStore.logout();
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+      return Promise.reject(new Error('Token expired'));
+    }
+
     this.isConnecting = true;
 
     return new Promise((resolve, reject) => {
@@ -102,7 +114,10 @@ class WebSocketService {
           this.notifyConnectionChange(false);
           
           // Check if the connection was closed due to authentication failure
-          if (event.code === 1008 || event.code === 1003 || event.reason?.includes('Invalid token') || event.reason?.includes('JWT')) {
+          if (event.code === 1008 || event.code === 1003 || 
+              event.reason?.includes('Invalid token') || 
+              event.reason?.includes('JWT') || 
+              event.reason?.includes('Token expired')) {
             console.log('WebSocket connection closed due to authentication failure, logging out user');
             const authStore = useAuthStore.getState();
             authStore.logout();

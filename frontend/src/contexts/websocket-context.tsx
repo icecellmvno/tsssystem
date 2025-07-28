@@ -3,6 +3,7 @@ import { useWebSocketStore } from '@/stores/websocket-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { websocketService } from '@/services/websocket';
+import { isTokenExpired } from '@/utils/jwt';
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -47,11 +48,33 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     getAllSmsLogs,
   } = useWebSocketStore();
 
-  const { token, isAuthenticated, user } = useAuthStore();
+  const { token, isAuthenticated, user, checkTokenExpiration } = useAuthStore();
+
+  // Periodic token expiration check
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      const interval = setInterval(() => {
+        checkTokenExpiration();
+      }, 60000); // Check every minute
+
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, token, checkTokenExpiration]);
 
   // Auto-connect when user is authenticated
   useEffect(() => {
     if (isAuthenticated && token && !isConnected && !isConnecting) {
+      // Check if token is expired before connecting
+      if (isTokenExpired(token)) {
+        console.log('JWT token is expired, logging out user');
+        const authStore = useAuthStore.getState();
+        authStore.logout();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return;
+      }
+      
       // Connect both WebSocket service and store
       Promise.all([
         websocketService.connect(token),

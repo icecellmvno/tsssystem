@@ -6,6 +6,7 @@ import { Toaster } from 'sonner'
 import { ProtectedRoute } from '@/components/protected-route'
 import { useAuthStore } from '@/stores/auth-store'
 import { WebSocketProvider } from '@/contexts/websocket-context'
+import { isTokenExpired } from '@/utils/jwt'
 import { SettingsPage } from '@/pages/SettingsPage'
 import Dashboard from '@/pages/dashboard'
 import Login from '@/pages/auth/login'
@@ -72,12 +73,42 @@ import SmppRoutingsShow from '@/pages/smpp-routings/show'
 import SmppRoutingsEdit from '@/pages/smpp-routings/edit'
 
 function App() {
-  const { checkAuth } = useAuthStore();
+  const { checkAuth, token, isAuthenticated } = useAuthStore();
 
   // Initialize auth state on app startup
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Check token expiration on app startup and periodically
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      // Check immediately
+      if (isTokenExpired(token)) {
+        console.log('JWT token is expired on app startup, logging out user');
+        const authStore = useAuthStore.getState();
+        authStore.logout();
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return;
+      }
+
+      // Check every 5 minutes
+      const interval = setInterval(() => {
+        if (isTokenExpired(token)) {
+          console.log('JWT token is expired, logging out user');
+          const authStore = useAuthStore.getState();
+          authStore.logout();
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, token]);
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">

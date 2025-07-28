@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { isTokenExpired, getTimeUntilExpiration } from '@/utils/jwt';
 
 interface User {
   id: number;
@@ -29,6 +30,7 @@ interface AuthActions {
   clearError: () => void;
   clearSuccess: () => void;
   checkAuth: () => boolean;
+  checkTokenExpiration: () => void;
   
   // State setters
   setLoading: (loading: boolean) => void;
@@ -135,10 +137,47 @@ export const useAuthStore = create<AuthStore>()(
       clearError: () => set({ error: null }),
       clearSuccess: () => set({ success: null }),
 
+      checkTokenExpiration: () => {
+        const { token } = get();
+        if (token) {
+          const timeUntilExpiration = getTimeUntilExpiration(token);
+          const fiveMinutes = 5 * 60; // 5 minutes in seconds
+          
+          if (timeUntilExpiration <= 0) {
+            // Token is expired, logout immediately
+            console.log('JWT token is expired, logging out user');
+            get().logout();
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          } else if (timeUntilExpiration <= fiveMinutes) {
+            // Token will expire soon, show warning
+            console.log(`JWT token will expire in ${Math.floor(timeUntilExpiration / 60)} minutes`);
+            // You can add a toast notification here if needed
+          }
+        }
+      },
+
       checkAuth: () => {
         const { token, user, rememberMe } = get();
         
         if (token && user) {
+          // Check if token is expired
+          if (isTokenExpired(token)) {
+            console.log('JWT token is expired, logging out user');
+            set({
+              user: null,
+              token: null,
+              isAuthenticated: false,
+            });
+            // Clear localStorage
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            // Redirect to login
+            window.location.href = '/login';
+            return false;
+          }
+          
           set({ isAuthenticated: true });
           return true;
         }

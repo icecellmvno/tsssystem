@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { useNotificationStore } from './notification-store';
 import { useAuthStore } from './auth-store';
+import { isTokenExpired } from '@/utils/jwt';
 import type { 
   WebSocketState, 
   WebSocketMessage, 
@@ -545,6 +546,17 @@ export const useWebSocketStore = create<WebSocketStore>()(
           return;
         }
 
+        // Check if token is expired before connecting
+        if (isTokenExpired(apiKey)) {
+          console.log('JWT token is expired, logging out user');
+          const authStore = useAuthStore.getState();
+          authStore.logout();
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
+
         set({ isConnecting: true, error: null });
 
         try {
@@ -576,7 +588,10 @@ export const useWebSocketStore = create<WebSocketStore>()(
             console.log('WebSocket disconnected:', event.code, event.reason);
             
             // Check if the connection was closed due to authentication failure
-            if (event.code === 1008 || event.code === 1003 || event.reason?.includes('Invalid token') || event.reason?.includes('JWT')) {
+            if (event.code === 1008 || event.code === 1003 || 
+                event.reason?.includes('Invalid token') || 
+                event.reason?.includes('JWT') || 
+                event.reason?.includes('Token expired')) {
               console.log('WebSocket connection closed due to authentication failure, logging out user');
               const authStore = useAuthStore.getState();
               authStore.logout();
@@ -774,8 +789,9 @@ export const useWebSocketStore = create<WebSocketStore>()(
             console.error('Error from server:', data);
             
             // Handle authentication errors
-            if (data && typeof data === 'object' && 'error' in data && data.error === 'Invalid token') {
-              console.log('Invalid token received, logging out user');
+            if (data && typeof data === 'object' && 'error' in data && 
+                (data.error === 'Invalid token' || data.error === 'Token expired')) {
+              console.log('Authentication error received, logging out user');
               const authStore = useAuthStore.getState();
               authStore.logout();
               // Also clear localStorage

@@ -111,6 +111,27 @@ export default function DeviceShow() {
       if (response.ok) {
         const deviceData = await response.json();
         setDevice(deviceData);
+        
+        // Set initial SIM info from backend data if available
+        if (deviceData.sim_cards && deviceData.sim_cards.length > 0) {
+          const simInfoData = {
+            sims: deviceData.sim_cards.map((sim: any) => ({
+              slot: sim.slot_index,
+              is_active: sim.is_active,
+              operator: sim.carrier_name || 'Unknown',
+              carrier_name: sim.carrier_name || 'Unknown',
+              phone_number: sim.phone_number || 'Unknown',
+              network_type: sim.network_type || 'Unknown',
+              signal_level: sim.signal_strength || 0,
+              signal_dbm: sim.signal_dbm || 0,
+              imsi: sim.imsi || 'Unknown',
+              iccid: sim.iccid || 'Unknown',
+              imei: sim.imei || 'Unknown',
+              has_sim: true
+            }))
+          };
+          setSimInfo(simInfoData);
+        }
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Error response:', errorData);
@@ -212,9 +233,11 @@ export default function DeviceShow() {
       }
 
       // Update SIM info only if it actually changes
-      if (wsDevice.sim_cards && wsDevice.sim_cards.length > 0) {
-        const simInfoData = {
-          sims: wsDevice.sim_cards.map((sim: any, index: number) => ({
+      if (wsDevice.sim_cards) {
+        // Create a map of existing SIM cards by slot
+        const simCardsMap = new Map();
+        wsDevice.sim_cards.forEach((sim: any, index: number) => {
+          simCardsMap.set(index + 1, {
             slot: index + 1,
             is_active: sim.is_active,
             operator: sim.carrier_name || 'Unknown',
@@ -226,8 +249,43 @@ export default function DeviceShow() {
             imsi: sim.imsi || 'Unknown',
             iccid: sim.iccid || 'Unknown',
             imei: sim.imei || 'Unknown',
-          }))
+            has_sim: true
+          });
+        });
+
+        // Create SIM info with all slots (including empty ones)
+        // Use the maximum of WebSocket data length, current simInfo length, or minimum 2 slots
+        const currentSimCount = simInfo ? simInfo.sims.length : 0;
+        const wsSimCount = wsDevice.sim_cards.length;
+        const maxSlots = Math.max(wsSimCount, currentSimCount, 2);
+        
+        const simInfoData = {
+          sims: Array.from({ length: maxSlots }, (_, index) => {
+            const slot = index + 1;
+            const existingSim = simCardsMap.get(slot);
+            
+            if (existingSim) {
+              return existingSim;
+            } else {
+              // Empty slot
+              return {
+                slot,
+                is_active: false,
+                operator: 'No SIM',
+                carrier_name: 'No SIM',
+                phone_number: 'No SIM',
+                network_type: 'No SIM',
+                signal_level: 0,
+                signal_dbm: 0,
+                imsi: 'No SIM',
+                iccid: 'No SIM',
+                imei: 'No SIM',
+                has_sim: false
+              };
+            }
+          })
         };
+        
         // Only update if simInfo is different
         if (JSON.stringify(simInfo) !== JSON.stringify(simInfoData)) {
           setSimInfo(simInfoData);
@@ -983,63 +1041,98 @@ export default function DeviceShow() {
                 {simInfo ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {simInfo.sims.map((sim: any) => (
-                      <Card key={sim.slot}>
+                      <Card key={sim.slot} className={!sim.has_sim ? "border-gray-200 bg-gray-50" : ""}>
                         <CardHeader>
-                          <CardTitle className="text-lg">SIM {sim.slot}</CardTitle>
+                          <CardTitle className={`text-lg ${!sim.has_sim ? "text-gray-500" : ""}`}>
+                            SIM {sim.slot}
+                            {!sim.has_sim && <span className="text-sm font-normal text-gray-400 ml-2">(Empty)</span>}
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-2">
                             <div className="text-sm font-medium">Status</div>
-                            <Badge variant={sim.is_active ? "default" : "secondary"}>
-                              {sim.is_active ? "Active" : "Inactive"}
+                            <Badge variant={!sim.has_sim ? "secondary" : sim.is_active ? "default" : "secondary"}>
+                              {!sim.has_sim ? "No SIM" : sim.is_active ? "Active" : "Inactive"}
                             </Badge>
                           </div>
-                          <div className="space-y-2 mt-4">
-                            <div className="text-sm font-medium">Operator</div>
-                            <div className="text-sm">{sim.operator}</div>
-                          </div>
-                          <div className="space-y-2 mt-4">
-                            <div className="text-sm font-medium">Carrier Name</div>
-                            <div className="text-sm">{sim.carrier_name}</div>
-                          </div>
-                          <div className="space-y-2 mt-4">
-                            <div className="text-sm font-medium">Phone Number</div>
-                            <div className="text-sm">{sim.phone_number}</div>
-                          </div>
-                          <div className="space-y-2 mt-4">
-                            <div className="text-sm font-medium">Network Type</div>
-                            <div className="text-sm">{sim.network_type}</div>
-                          </div>
-                          <div className="space-y-2 mt-4">
-                            <div className="text-sm font-medium">Signal Strength</div>
-                            <div className="text-sm">
-                              {sim.signal_level === 5 ? "Excellent" :
-                               sim.signal_level === 4 ? "Good" :
-                               sim.signal_level === 3 ? "Fair" :
-                               sim.signal_level === 2 ? "Poor" :
-                               sim.signal_level === 1 ? "Very Poor" : "Unknown"} ({sim.signal_level}/5)
-                              {sim.signal_dbm && ` (${sim.signal_dbm} dBm)`}
+                          
+                          {sim.has_sim ? (
+                            <>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">Operator</div>
+                                <div className="text-sm">{sim.operator}</div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">Carrier Name</div>
+                                <div className="text-sm">{sim.carrier_name}</div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">Phone Number</div>
+                                <div className="text-sm">{sim.phone_number}</div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">Network Type</div>
+                                <div className="text-sm">{sim.network_type}</div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">Signal Strength</div>
+                                <div className="text-sm">
+                                  {sim.signal_level === 5 ? "Excellent" :
+                                   sim.signal_level === 4 ? "Good" :
+                                   sim.signal_level === 3 ? "Fair" :
+                                   sim.signal_level === 2 ? "Poor" :
+                                   sim.signal_level === 1 ? "Very Poor" : "Unknown"} ({sim.signal_level}/5)
+                                  {sim.signal_dbm && ` (${sim.signal_dbm} dBm)`}
+                                </div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">IMSI</div>
+                                <div className="text-sm font-mono text-xs">{sim.imsi}</div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">ICCID</div>
+                                <div className="text-sm font-mono text-xs">{sim.iccid}</div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">IMEI</div>
+                                <div className="text-sm font-mono text-xs">{sim.imei}</div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+                              <div className="text-sm text-gray-500 text-center">
+                                No SIM card inserted in this slot
+                              </div>
                             </div>
-                          </div>
-                          <div className="space-y-2 mt-4">
-                            <div className="text-sm font-medium">IMSI</div>
-                            <div className="text-sm font-mono text-xs">{sim.imsi}</div>
-                          </div>
-                          <div className="space-y-2 mt-4">
-                            <div className="text-sm font-medium">ICCID</div>
-                            <div className="text-sm font-mono text-xs">{sim.iccid}</div>
-                          </div>
-                          <div className="space-y-2 mt-4">
-                            <div className="text-sm font-medium">IMEI</div>
-                            <div className="text-sm font-mono text-xs">{sim.imei}</div>
-                          </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
                   </div>
                 ) : (
-                  <div className="flex justify-center py-8">
-                    <div className="text-sm text-muted-foreground">No SIM information available</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Show at least 2 empty slots if no SIM info available */}
+                    {[1, 2].map((slot) => (
+                      <Card key={slot} className="border-gray-200 bg-gray-50">
+                        <CardHeader>
+                          <CardTitle className="text-lg text-gray-500">
+                            SIM {slot}
+                            <span className="text-sm font-normal text-gray-400 ml-2">(Empty)</span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium">Status</div>
+                            <Badge variant="secondary">No SIM</Badge>
+                          </div>
+                          <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+                            <div className="text-sm text-gray-500 text-center">
+                              No SIM card inserted in this slot
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 )}
               </CardContent>

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"time"
 	"tsimsocketserver/database"
 	"tsimsocketserver/models"
@@ -417,7 +418,7 @@ func (h *DeviceHandler) UpdateDeviceName(c *fiber.Ctx) error {
 	})
 }
 
-// GetDeviceByID returns a specific device by IMEI
+// GetDeviceByID returns a specific device by IMEI with SIM card information
 func (h *DeviceHandler) GetDeviceByID(c *fiber.Ctx) error {
 	imei := c.Params("imei")
 	if imei == "" {
@@ -435,7 +436,45 @@ func (h *DeviceHandler) GetDeviceByID(c *fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(device)
+	// Get SIM card information for this device
+	var deviceSimCards []models.DeviceSimCard
+	if err := database.GetDB().Where("device_imei = ?", imei).Order("slot_index ASC").Find(&deviceSimCards).Error; err != nil {
+		// Log error but don't fail the request
+		log.Printf("Error fetching SIM cards for device %s: %v", imei, err)
+	}
+
+	// Create response with device and SIM card information
+	response := fiber.Map{
+		"id":                    device.ID,
+		"imei":                  device.IMEI,
+		"name":                  device.Name,
+		"device_group_id":       device.DeviceGroupID,
+		"device_group":          device.DeviceGroup,
+		"country_site_id":       device.CountrySiteID,
+		"country_site":          device.CountrySite,
+		"device_type":           device.DeviceType,
+		"manufacturer":          device.Manufacturer,
+		"model":                 device.Model,
+		"android_version":       device.AndroidVersion,
+		"battery_level":         device.BatteryLevel,
+		"battery_status":        device.BatteryStatus,
+		"signal_strength":       device.SignalStrength,
+		"signal_dbm":            device.SignalDBM,
+		"network_type":          device.NetworkType,
+		"latitude":              device.Latitude,
+		"longitude":             device.Longitude,
+		"is_active":             device.IsActive,
+		"is_online":             device.IsOnline,
+		"maintenance_mode":      device.MaintenanceMode,
+		"maintenance_reason":    device.MaintenanceReason,
+		"maintenance_started_at": device.MaintenanceStartedAt,
+		"last_seen":             device.LastSeen,
+		"created_at":            device.CreatedAt,
+		"updated_at":            device.UpdatedAt,
+		"sim_cards":             deviceSimCards,
+	}
+
+	return c.JSON(response)
 }
 
 // ToggleDevice toggles device active status

@@ -86,7 +86,7 @@ copy_binaries() {
         cd backend
         log_info "Backend build ediliyor..."
         if go build -o server ./cmd/server/; then
-            cp server /opt/tsimcloud/backend/
+            cp -f server /opt/tsimcloud/backend/
             chmod +x /opt/tsimcloud/backend/server
             log_success "Backend build edildi ve kopyalandı"
         else
@@ -103,7 +103,7 @@ copy_binaries() {
         cd smppserver
         log_info "SMPP server build ediliyor..."
         if go build -o server ./cmd/server/; then
-            cp server /opt/tsimcloud/smppserver/
+            cp -f server /opt/tsimcloud/smppserver/
             chmod +x /opt/tsimcloud/smppserver/server
             log_success "SMPP server build edildi ve kopyalandı"
         else
@@ -122,13 +122,13 @@ copy_configs() {
     
     # Backend config
     if [[ -f "backend/config/config.yaml" ]]; then
-        cp backend/config/config.yaml /opt/tsimcloud/config/backend.yaml
+        cp -f backend/config/config.yaml /opt/tsimcloud/config/backend.yaml
         log_success "Backend config kopyalandı"
     fi
     
     # SMPP server config
     if [[ -f "smppserver/config/config.yaml" ]]; then
-        cp smppserver/config/config.yaml /opt/tsimcloud/config/smpp.yaml
+        cp -f smppserver/config/config.yaml /opt/tsimcloud/config/smpp.yaml
         log_success "SMPP server config kopyalandı"
     fi
     
@@ -142,8 +142,8 @@ install_services() {
     log_info "Systemd servisleri kuruluyor..."
     
     # Servis dosyalarını kopyala
-    cp tsimcloud-backend.service /etc/systemd/system/
-    cp tsimcloud-smpp.service /etc/systemd/system/
+    cp -f tsimcloud-backend.service /etc/systemd/system/
+    cp -f tsimcloud-smpp.service /etc/systemd/system/
     
     # Systemd'yi yeniden yükle
     systemctl daemon-reload

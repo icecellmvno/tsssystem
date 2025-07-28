@@ -17,7 +17,7 @@ export default defineConfig({
     // Assets klasörünü temizle ve yeniden oluştur
     emptyOutDir: true,
     // Source map'leri devre dışı bırak (production için)
-    sourcemap: false,
+    sourcemap: true,
     // Chunk boyutunu optimize et
     rollupOptions: {
       output: {

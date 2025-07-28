@@ -225,14 +225,14 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	mccMnc.Delete("/:id", mccMncHandler.DeleteMccMnc)
 	mccMnc.Delete("/bulk-delete", mccMncHandler.BulkDeleteMccMnc)
 
-	// SMS Routing routes
-	smsRoutings := protected.Group("/sms-routings")
-	smsRoutings.Post("/", smsRoutingHandler.CreateSmsRouting)
-	smsRoutings.Get("/", smsRoutingHandler.GetAllSmsRoutings)
-	smsRoutings.Get("/filter-options", smsRoutingHandler.GetSmsRoutingFilterOptions)
-	smsRoutings.Get("/:id", smsRoutingHandler.GetSmsRoutingByID)
-	smsRoutings.Put("/:id", smsRoutingHandler.UpdateSmsRouting)
-	smsRoutings.Delete("/:id", smsRoutingHandler.DeleteSmsRouting)
+	// SMPP Routing routes
+	smppRoutings := protected.Group("/smpp-routings")
+	smppRoutings.Post("/", smsRoutingHandler.CreateSmsRouting)
+	smppRoutings.Get("/", smsRoutingHandler.GetAllSmsRoutings)
+	smppRoutings.Get("/filter-options", smsRoutingHandler.GetSmsRoutingFilterOptions)
+	smppRoutings.Get("/:id", smsRoutingHandler.GetSmsRoutingByID)
+	smppRoutings.Put("/:id", smsRoutingHandler.UpdateSmsRouting)
+	smppRoutings.Delete("/:id", smsRoutingHandler.DeleteSmsRouting)
 
 	// WebSocket config route
 	protected.Get("/websocket-config", websocketHandler.GetWebSocketConfig)

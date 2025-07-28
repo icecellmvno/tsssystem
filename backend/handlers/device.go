@@ -236,6 +236,7 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 		PhoneNumber: request.PhoneNumber,
 		Message:     request.Message,
 		Priority:    request.Priority,
+		MessageID:   messageID,
 	}
 
 	if err := h.wsServer.SendSms(imei, data); err != nil {

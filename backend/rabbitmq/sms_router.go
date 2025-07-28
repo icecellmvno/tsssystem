@@ -168,6 +168,7 @@ func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubm
 		Message:     smppMsg.ShortMessage,
 		SimSlot:     1, // Use first SIM slot
 		Priority:    sr.convertPriority(smppMsg.PriorityFlag),
+		MessageID:   deviceMessageID,
 	}
 
 	if err := sr.wsServer.SendSms(device.IMEI, wsData); err != nil {

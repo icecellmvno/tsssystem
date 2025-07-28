@@ -240,6 +240,7 @@ type SendSmsData struct {
 	PhoneNumber string `json:"phone_number"`
 	Message     string `json:"message"`
 	Priority    string `json:"priority"`
+	MessageID   string `json:"message_id"`
 }
 
 // SendUssdData represents send USSD command data

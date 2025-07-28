@@ -165,6 +165,7 @@ func (sc *SmsConsumer) processRegularSmsMessage(smsMsg SmsMessage) error {
 		Message:     smsMsg.Message,
 		SimSlot:     smsMsg.SimSlot,
 		Priority:    smsMsg.Priority,
+		MessageID:   smsMsg.MessageID,
 	}
 
 	if err := sc.wsServer.SendSms(smsMsg.DeviceID, wsData); err != nil {

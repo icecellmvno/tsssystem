@@ -165,6 +165,7 @@ func (h *BulkSmsHandler) SendBulkSms(c *fiber.Ctx) error {
 			PhoneNumber: phoneNumber,
 			Message:     req.Message,
 			Priority:    req.Priority,
+			MessageID:   messageID,
 		}
 
 		if err := h.wsServer.SendSms(device.IMEI, data); err != nil {

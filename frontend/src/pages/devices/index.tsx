@@ -52,6 +52,8 @@ export default function DevicesIndex() {
   // State
   const [devices, setDevices] = useState<Device[]>([]);
   const [alarmLogs, setAlarmLogs] = useState<AlarmLog[]>([]);
+  const [apiDevices, setApiDevices] = useState<Device[]>([]); // API'den gelen veriler
+  const [apiAlarmLogs, setApiAlarmLogs] = useState<AlarmLog[]>([]); // API'den gelen alarm logları
   const [stats, setStats] = useState<DeviceStatsType>({
     total: 0,
     active: 0,
@@ -103,14 +105,7 @@ export default function DevicesIndex() {
         maintenance: maintenanceFilter !== 'all' ? maintenanceFilter : undefined,
       });
       
-      // Merge with WebSocket real-time data
-      const wsDevices = ws.devices || [];
-      const mergedDevices = (response.data || []).map(apiDevice => {
-        const wsDevice = wsDevices.find(wsDevice => wsDevice.imei === apiDevice.imei);
-        return wsDevice ? { ...apiDevice, ...wsDevice } : apiDevice;
-      });
-      
-      setDevices(mergedDevices);
+      setApiDevices(response.data || []);
     } catch (error) {
       console.error('Error fetching devices:', error);
       toast.error('Failed to fetch devices');
@@ -130,18 +125,7 @@ export default function DevicesIndex() {
         status: alarmStatusFilter !== 'all' ? alarmStatusFilter : undefined,
       });
       
-      // Merge with WebSocket real-time data
-      const wsAlarmLogs = ws.alarmLogs || [];
-      const mergedAlarmLogs = [...(response.data || []), ...wsAlarmLogs];
-      
-      // Remove duplicates based on id and created_at
-      const uniqueAlarmLogs = mergedAlarmLogs.filter((log, index, self) => 
-        index === self.findIndex(l => 
-          l.id === log.id && l.created_at === log.created_at
-        )
-      );
-      
-      setAlarmLogs(uniqueAlarmLogs);
+      setApiAlarmLogs(response.data || []);
     } catch (error) {
       console.error('Error fetching alarm logs:', error);
       toast.error('Failed to fetch alarm logs');
@@ -435,7 +419,7 @@ export default function DevicesIndex() {
   // Effects
   useEffect(() => {
     fetchDevices();
-      fetchAlarmLogs();
+    fetchAlarmLogs();
     fetchStats();
   }, []);
 
@@ -456,20 +440,46 @@ export default function DevicesIndex() {
     fetchAlarmLogs();
   }, [alarmGlobalFilter, alarmDeviceFilter, alarmTypeFilter, alarmSeverityFilter, alarmStatusFilter]);
 
-  // WebSocket effect
+  // WebSocket effect - API verileriyle WebSocket verilerini merge et
   useEffect(() => {
-    if (ws.devices.length > 0) {
-        fetchDevices();
-        // Stats are now calculated from real-time device data, no need to fetch separately
+    const wsDevices = ws.devices || [];
+    const apiDevicesData = apiDevices || [];
+    
+    if (wsDevices.length > 0 || apiDevicesData.length > 0) {
+      // API verilerini WebSocket verileriyle merge et
+      const mergedDevices = apiDevicesData.map(apiDevice => {
+        const wsDevice = wsDevices.find(wsDevice => wsDevice.imei === apiDevice.imei);
+        return wsDevice ? { ...apiDevice, ...wsDevice } : apiDevice;
+      });
+      
+      // WebSocket'te olup API'de olmayan cihazları ekle
+      const wsOnlyDevices = wsDevices.filter(wsDevice => 
+        !apiDevicesData.find(apiDevice => apiDevice.imei === wsDevice.imei)
+      );
+      
+      setDevices([...mergedDevices, ...wsOnlyDevices]);
     }
-  }, [ws.devices]);
+  }, [ws.devices, apiDevices]);
 
-  // WebSocket alarm logs effect
+  // WebSocket alarm logs effect - API verileriyle WebSocket verilerini merge et
   useEffect(() => {
-    if (ws.alarmLogs.length > 0) {
-      fetchAlarmLogs();
+    const wsAlarmLogs = ws.alarmLogs || [];
+    const apiAlarmLogsData = apiAlarmLogs || [];
+    
+    if (wsAlarmLogs.length > 0 || apiAlarmLogsData.length > 0) {
+      // API ve WebSocket alarm loglarını birleştir
+      const mergedAlarmLogs = [...apiAlarmLogsData, ...wsAlarmLogs];
+      
+      // Duplicate'ları temizle (id ve created_at'e göre)
+      const uniqueAlarmLogs = mergedAlarmLogs.filter((log, index, self) => 
+        index === self.findIndex(l => 
+          l.id === log.id && l.created_at === log.created_at
+        )
+      );
+      
+      setAlarmLogs(uniqueAlarmLogs);
     }
-  }, [ws.alarmLogs]);
+  }, [ws.alarmLogs, apiAlarmLogs]);
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
@@ -487,11 +497,13 @@ export default function DevicesIndex() {
               variant="ghost"
               size="sm"
               onClick={() => {
+                // API verilerini yenile (WebSocket verileri gerçek zamanlı güncelleniyor)
                 fetchDevices();
                 fetchAlarmLogs();
                 fetchStats();
               }}
               disabled={loading || alarmLogsLoading || statsLoading}
+              title="Refresh API data (WebSocket data updates in real-time)"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
@@ -499,17 +511,28 @@ export default function DevicesIndex() {
         </div>
 
                 {/* Status Legend */}
-        <div className="flex items-center gap-3 text-xs">
-          <span className="font-medium text-muted-foreground">Status:</span>
-          <Badge variant="default" className="text-xs bg-green-500 hover:bg-green-600">
-            🟢 Ready
-          </Badge>
-          <Badge variant="secondary" className="text-xs bg-yellow-500 text-white hover:bg-yellow-600">
-            🟡 Maintenance
-          </Badge>
-          <Badge variant="destructive" className="text-xs">
-            🔴 Alarm
-          </Badge>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-xs">
+            <span className="font-medium text-muted-foreground">Status:</span>
+            <Badge variant="default" className="text-xs bg-green-500 hover:bg-green-600">
+              🟢 Ready
+            </Badge>
+            <Badge variant="secondary" className="text-xs bg-yellow-500 text-white hover:bg-yellow-600">
+              🟡 Maintenance
+            </Badge>
+            <Badge variant="destructive" className="text-xs">
+              🔴 Alarm
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-medium text-muted-foreground">Connection:</span>
+            <Badge 
+              variant={ws.isConnected ? "default" : "destructive"} 
+              className={`text-xs ${ws.isConnected ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
+            >
+              {ws.isConnected ? '🟢 WebSocket Connected' : '🔴 WebSocket Disconnected'}
+            </Badge>
+          </div>
         </div>
 
         {/* Stats */}
@@ -545,6 +568,7 @@ export default function DevicesIndex() {
               setMaintenanceFilter={setMaintenanceFilter}
               onClearFilters={handleClearFilters}
               onRefresh={() => {
+                // API verilerini yenile (WebSocket verileri gerçek zamanlı güncelleniyor)
                 fetchDevices();
                 fetchStats();
               }}

@@ -439,18 +439,29 @@ export default function DevicesIndex() {
     const apiDevicesData = apiDevices || [];
     
     if (wsDevices.length > 0 || apiDevicesData.length > 0) {
+      // Sadece geçerli IMEI'si olan WebSocket cihazlarını filtrele
+      const validWsDevices = wsDevices.filter(wsDevice => 
+        wsDevice.imei && wsDevice.imei.trim() !== '' && wsDevice.imei !== 'null' && wsDevice.imei !== 'undefined'
+      );
+      
       // API verilerini WebSocket verileriyle merge et
       const mergedDevices = apiDevicesData.map(apiDevice => {
-        const wsDevice = wsDevices.find(wsDevice => wsDevice.imei === apiDevice.imei);
+        const wsDevice = validWsDevices.find(wsDevice => wsDevice.imei === apiDevice.imei);
         return wsDevice ? { ...apiDevice, ...wsDevice } : apiDevice;
       });
       
-      // WebSocket'te olup API'de olmayan cihazları ekle
-      const wsOnlyDevices = wsDevices.filter(wsDevice => 
+      // WebSocket'te olup API'de olmayan cihazları ekle (sadece geçerli IMEI'li olanlar)
+      const wsOnlyDevices = validWsDevices.filter(wsDevice => 
         !apiDevicesData.find(apiDevice => apiDevice.imei === wsDevice.imei)
       );
       
-      setDevices([...mergedDevices, ...wsOnlyDevices]);
+      // Son olarak tüm cihazları filtrele - sadece geçerli IMEI'si olanları göster
+      const allDevices = [...mergedDevices, ...wsOnlyDevices];
+      const finalDevices = allDevices.filter(device => 
+        device.imei && device.imei.trim() !== '' && device.imei !== 'null' && device.imei !== 'undefined'
+      );
+      
+      setDevices(finalDevices);
     }
   }, [ws.devices, apiDevices]);
 
@@ -460,8 +471,13 @@ export default function DevicesIndex() {
     const apiAlarmLogsData = apiAlarmLogs || [];
     
     if (wsAlarmLogs.length > 0 || apiAlarmLogsData.length > 0) {
+      // Sadece geçerli device_id'si olan WebSocket alarm loglarını filtrele
+      const validWsAlarmLogs = wsAlarmLogs.filter(log => 
+        log.device_id && log.device_id.trim() !== '' && log.device_id !== 'null' && log.device_id !== 'undefined'
+      );
+      
       // API ve WebSocket alarm loglarını birleştir
-      const mergedAlarmLogs = [...apiAlarmLogsData, ...wsAlarmLogs];
+      const mergedAlarmLogs = [...apiAlarmLogsData, ...validWsAlarmLogs];
       
       // Duplicate'ları temizle (id ve created_at'e göre)
       const uniqueAlarmLogs = mergedAlarmLogs.filter((log, index, self) => 
@@ -470,7 +486,12 @@ export default function DevicesIndex() {
         )
       );
       
-      setAlarmLogs(uniqueAlarmLogs);
+      // Son olarak tüm alarm loglarını filtrele - sadece geçerli device_id'si olanları göster
+      const finalAlarmLogs = uniqueAlarmLogs.filter(log => 
+        log.device_id && log.device_id.trim() !== '' && log.device_id !== 'null' && log.device_id !== 'undefined'
+      );
+      
+      setAlarmLogs(finalAlarmLogs);
     }
   }, [ws.alarmLogs, apiAlarmLogs]);
 

@@ -158,11 +158,21 @@ export const createDeviceColumns = (
   {
     accessorKey: 'imei',
     header: 'IMEI',
-    cell: ({ row }) => (
-      <div className="font-mono text-sm">
-        {row.getValue('imei')}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const imei = row.getValue('imei') as string;
+      if (!imei || imei.trim() === '' || imei === 'null' || imei === 'undefined') {
+        return (
+          <div className="font-mono text-sm text-red-500">
+            No IMEI
+          </div>
+        );
+      }
+      return (
+        <div className="font-mono text-sm">
+          {imei}
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'name',

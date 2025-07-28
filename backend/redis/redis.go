@@ -195,3 +195,182 @@ func (r *RedisService) Close() error {
 	}
 	return nil
 }
+
+// WebSocketConnection represents a websocket connection stored in Redis
+type WebSocketConnection struct {
+	DeviceID       string    `json:"device_id"`
+	DeviceGroup    string    `json:"device_group"`
+	CountrySite    string    `json:"country_site"`
+	ConnectionType string    `json:"connection_type"` // android, frontend
+	IsHandicap     bool      `json:"is_handicap"`
+	ConnectedAt    time.Time `json:"connected_at"`
+	LastHeartbeat  time.Time `json:"last_heartbeat"`
+	ServerID       string    `json:"server_id"` // Which server instance this connection belongs to
+}
+
+// StoreWebSocketConnection stores a websocket connection in Redis
+func (r *RedisService) StoreWebSocketConnection(conn *WebSocketConnection) error {
+	connKey := fmt.Sprintf("websocket_connection:%s", conn.DeviceID)
+	connBytes, err := json.Marshal(conn)
+	if err != nil {
+		return fmt.Errorf("failed to marshal connection data: %v", err)
+	}
+
+	// Store connection with 1 hour expiration (will be refreshed on heartbeat)
+	err = r.client.Set(r.ctx, connKey, connBytes, time.Hour).Err()
+	if err != nil {
+		return fmt.Errorf("failed to store connection in Redis: %v", err)
+	}
+
+	// Also add to set of all connections for this server
+	serverConnectionsKey := fmt.Sprintf("websocket_server_connections:%s", conn.ServerID)
+	err = r.client.SAdd(r.ctx, serverConnectionsKey, conn.DeviceID).Err()
+	if err != nil {
+		return fmt.Errorf("failed to add connection to server set: %v", err)
+	}
+
+	// Set expiration for server connections set
+	r.client.Expire(r.ctx, serverConnectionsKey, time.Hour)
+
+	log.Printf("Successfully stored websocket connection in Redis: %s (Type: %s)", conn.DeviceID, conn.ConnectionType)
+	return nil
+}
+
+// GetWebSocketConnection retrieves a websocket connection from Redis
+func (r *RedisService) GetWebSocketConnection(deviceID string) (*WebSocketConnection, error) {
+	connKey := fmt.Sprintf("websocket_connection:%s", deviceID)
+	connData, err := r.client.Get(r.ctx, connKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, fmt.Errorf("connection not found in Redis")
+		}
+		return nil, fmt.Errorf("failed to get connection from Redis: %v", err)
+	}
+
+	var conn WebSocketConnection
+	if err := json.Unmarshal([]byte(connData), &conn); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal connection data: %v", err)
+	}
+
+	return &conn, nil
+}
+
+// RemoveWebSocketConnection removes a websocket connection from Redis
+func (r *RedisService) RemoveWebSocketConnection(deviceID, serverID string) error {
+	connKey := fmt.Sprintf("websocket_connection:%s", deviceID)
+
+	// Remove connection data
+	err := r.client.Del(r.ctx, connKey).Err()
+	if err != nil {
+		return fmt.Errorf("failed to remove connection from Redis: %v", err)
+	}
+
+	// Remove from server connections set
+	serverConnectionsKey := fmt.Sprintf("websocket_server_connections:%s", serverID)
+	err = r.client.SRem(r.ctx, serverConnectionsKey, deviceID).Err()
+	if err != nil {
+		return fmt.Errorf("failed to remove connection from server set: %v", err)
+	}
+
+	log.Printf("Successfully removed websocket connection from Redis: %s", deviceID)
+	return nil
+}
+
+// UpdateWebSocketHeartbeat updates the last heartbeat time for a connection
+func (r *RedisService) UpdateWebSocketHeartbeat(deviceID string) error {
+	conn, err := r.GetWebSocketConnection(deviceID)
+	if err != nil {
+		return err
+	}
+
+	conn.LastHeartbeat = time.Now()
+	return r.StoreWebSocketConnection(conn)
+}
+
+// GetServerConnections returns all connections for a specific server
+func (r *RedisService) GetServerConnections(serverID string) ([]string, error) {
+	serverConnectionsKey := fmt.Sprintf("websocket_server_connections:%s", serverID)
+	connections, err := r.client.SMembers(r.ctx, serverConnectionsKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server connections: %v", err)
+	}
+
+	return connections, nil
+}
+
+// GetAllWebSocketConnections returns all websocket connections from Redis
+func (r *RedisService) GetAllWebSocketConnections() ([]*WebSocketConnection, error) {
+	// Get all connection keys
+	pattern := "websocket_connection:*"
+	keys, err := r.client.Keys(r.ctx, pattern).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection keys: %v", err)
+	}
+
+	var connections []*WebSocketConnection
+	for _, key := range keys {
+		connData, err := r.client.Get(r.ctx, key).Result()
+		if err != nil {
+			log.Printf("Warning: failed to get connection data for key %s: %v", key, err)
+			continue
+		}
+
+		var conn WebSocketConnection
+		if err := json.Unmarshal([]byte(connData), &conn); err != nil {
+			log.Printf("Warning: failed to unmarshal connection data for key %s: %v", key, err)
+			continue
+		}
+
+		connections = append(connections, &conn)
+	}
+
+	return connections, nil
+}
+
+// CleanupExpiredConnections removes connections that haven't had a heartbeat in the last 5 minutes
+func (r *RedisService) CleanupExpiredConnections() error {
+	connections, err := r.GetAllWebSocketConnections()
+	if err != nil {
+		return err
+	}
+
+	expiredThreshold := time.Now().Add(-5 * time.Minute)
+	var expiredConnections []string
+
+	for _, conn := range connections {
+		if conn.LastHeartbeat.Before(expiredThreshold) {
+			expiredConnections = append(expiredConnections, conn.DeviceID)
+		}
+	}
+
+	for _, deviceID := range expiredConnections {
+		conn, err := r.GetWebSocketConnection(deviceID)
+		if err != nil {
+			continue
+		}
+
+		log.Printf("Removing expired websocket connection: %s (Last heartbeat: %s)",
+			deviceID, conn.LastHeartbeat.Format("2006-01-02 15:04:05"))
+
+		r.RemoveWebSocketConnection(deviceID, conn.ServerID)
+	}
+
+	if len(expiredConnections) > 0 {
+		log.Printf("Cleaned up %d expired websocket connections", len(expiredConnections))
+	}
+
+	return nil
+}
+
+// StartWebSocketCleanupRoutine starts a routine to clean up expired websocket connections
+func (r *RedisService) StartWebSocketCleanupRoutine() {
+	ticker := time.NewTicker(2 * time.Minute) // Check every 2 minutes
+	go func() {
+		for range ticker.C {
+			if err := r.CleanupExpiredConnections(); err != nil {
+				log.Printf("Error cleaning up expired websocket connections: %v", err)
+			}
+		}
+	}()
+	log.Println("Started websocket connection cleanup routine")
+}

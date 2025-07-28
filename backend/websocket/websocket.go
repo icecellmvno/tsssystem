@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"tsimsocketserver/database"
 	"tsimsocketserver/interfaces"
 	"tsimsocketserver/models"
+	"tsimsocketserver/redis"
 	"tsimsocketserver/websocket_handlers"
 
 	"github.com/gofiber/fiber/v2"
@@ -24,16 +26,111 @@ type WebSocketServer struct {
 	frontendConns map[string]*websocket.Conn
 	mutex         sync.RWMutex
 	cfg           *config.Config
+	redisService  *redis.RedisService
+	serverID      string // Unique server instance ID
 }
 
 // Ensure WebSocketServer implements WebSocketServerInterface
 var _ interfaces.WebSocketServerInterface = (*WebSocketServer)(nil)
 
 func NewWebSocketServer(cfg *config.Config) *WebSocketServer {
-	return &WebSocketServer{
+	// Generate unique server ID
+	hostname, _ := os.Hostname()
+	serverID := fmt.Sprintf("%s_%d", hostname, time.Now().Unix())
+
+	ws := &WebSocketServer{
 		connections:   make(map[string]*models.DeviceConnection),
 		frontendConns: make(map[string]*websocket.Conn),
 		cfg:           cfg,
+		serverID:      serverID,
+	}
+
+	// Initialize Redis service if available
+	if redisService, err := redis.NewRedisService(cfg.Redis.URL); err == nil {
+		ws.redisService = redisService
+		log.Printf("WebSocket server initialized with Redis support (Server ID: %s)", serverID)
+
+		// Start cleanup routine
+		ws.redisService.StartWebSocketCleanupRoutine()
+
+		// Restore connections from Redis on startup
+		ws.restoreConnectionsFromRedis()
+	} else {
+		log.Printf("Warning: Failed to initialize Redis service: %v", ws)
+		log.Printf("WebSocket server will run without Redis persistence (Server ID: %s)", serverID)
+	}
+
+	return ws
+}
+
+// restoreConnectionsFromRedis restores connection metadata from Redis on server startup
+func (ws *WebSocketServer) restoreConnectionsFromRedis() {
+	if ws.redisService == nil {
+		return
+	}
+
+	connections, err := ws.redisService.GetAllWebSocketConnections()
+	if err != nil {
+		log.Printf("Warning: Failed to restore connections from Redis: %v", err)
+		return
+	}
+
+	log.Printf("Found %d connections in Redis, checking for expired ones...", len(connections))
+
+	expiredThreshold := time.Now().Add(-5 * time.Minute)
+	for _, conn := range connections {
+		if conn.LastHeartbeat.Before(expiredThreshold) {
+			log.Printf("Removing expired connection from Redis: %s (Last heartbeat: %s)",
+				conn.DeviceID, conn.LastHeartbeat.Format("2006-01-02 15:04:05"))
+			ws.redisService.RemoveWebSocketConnection(conn.DeviceID, conn.ServerID)
+		} else {
+			log.Printf("Found active connection in Redis: %s (Type: %s, Last heartbeat: %s)",
+				conn.DeviceID, conn.ConnectionType, conn.LastHeartbeat.Format("2006-01-02 15:04:05"))
+		}
+	}
+}
+
+// storeConnectionInRedis stores connection metadata in Redis
+func (ws *WebSocketServer) storeConnectionInRedis(deviceID, deviceGroup, countrySite, connectionType string, isHandicap bool) {
+	if ws.redisService == nil {
+		return
+	}
+
+	conn := &redis.WebSocketConnection{
+		DeviceID:       deviceID,
+		DeviceGroup:    deviceGroup,
+		CountrySite:    countrySite,
+		ConnectionType: connectionType,
+		IsHandicap:     isHandicap,
+		ConnectedAt:    time.Now(),
+		LastHeartbeat:  time.Now(),
+		ServerID:       ws.serverID,
+	}
+
+	if err := ws.redisService.StoreWebSocketConnection(conn); err != nil {
+		log.Printf("Warning: Failed to store connection in Redis: %v", err)
+	}
+}
+
+// removeConnectionFromRedis removes connection metadata from Redis
+func (ws *WebSocketServer) removeConnectionFromRedis(deviceID string) {
+	if ws.redisService == nil {
+		return
+	}
+
+	if err := ws.redisService.RemoveWebSocketConnection(deviceID, ws.serverID); err != nil {
+		log.Printf("Warning: Failed to remove connection from Redis: %v", err)
+	}
+}
+
+// updateHeartbeatInRedis updates heartbeat time in Redis
+func (ws *WebSocketServer) updateHeartbeatInRedis(deviceID string) {
+	if ws.redisService == nil {
+		return
+	}
+
+	if err := ws.redisService.UpdateWebSocketHeartbeat(deviceID); err != nil {
+		log.Printf("Warning: Failed to update heartbeat in Redis: %v", err)
 	}
 }
 
@@ -130,6 +227,9 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	}
 	ws.mutex.Unlock()
 
+	// Store connection metadata in Redis
+	ws.storeConnectionInRedis(deviceID, deviceGroup.DeviceGroup, deviceGroup.CountrySite, "android", false)
+
 	log.Printf("=== CONNECTION ESTABLISHED ===")
 	log.Printf("Device ID: %s", deviceID)
 	log.Printf("Device Group: %s", deviceGroup.DeviceGroup)
@@ -188,6 +288,9 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	delete(ws.connections, deviceID)
 	ws.mutex.Unlock()
 
+	// Remove connection metadata from Redis
+	ws.removeConnectionFromRedis(deviceID)
+
 	log.Printf("=== DEVICE DISCONNECTED ===")
 	log.Printf("Device ID: %s", deviceID)
 	log.Printf("Connection removed from registry")
@@ -232,6 +335,9 @@ func (ws *WebSocketServer) handleFrontendConnection(conn *websocket.Conn) {
 	ws.mutex.Lock()
 	ws.frontendConns[deviceID] = conn
 	ws.mutex.Unlock()
+
+	// Store connection metadata in Redis
+	ws.storeConnectionInRedis(deviceID, "", "", "frontend", false)
 
 	log.Printf("=== FRONTEND CONNECTION ESTABLISHED ===")
 	log.Printf("Frontend User ID: %s", deviceID)
@@ -286,6 +392,9 @@ func (ws *WebSocketServer) handleFrontendConnection(conn *websocket.Conn) {
 	delete(ws.frontendConns, deviceID)
 	ws.mutex.Unlock()
 
+	// Remove connection metadata from Redis
+	ws.removeConnectionFromRedis(deviceID)
+
 	log.Printf("=== FRONTEND USER DISCONNECTED ===")
 	log.Printf("Frontend User ID: %s", deviceID)
 	log.Printf("Connection removed from registry")
@@ -326,6 +435,10 @@ func (ws *WebSocketServer) handleMessage(deviceID string, message models.WebSock
 				heartbeatData.BatteryLevel, heartbeatData.SignalStrength, heartbeatData.NetworkType)
 		}
 		websocket_handlers.HandleHeartbeat(ws, deviceID, heartbeatData)
+
+		// Update heartbeat in Redis
+		ws.updateHeartbeatInRedis(deviceID)
+
 		log.Printf("Heartbeat processed for %s", deviceID)
 
 	case "device_status":
@@ -627,6 +740,15 @@ func (ws *WebSocketServer) sendToDevice(deviceID string, message models.WebSocke
 	log.Printf("Timestamp: %d", message.Timestamp)
 	log.Printf("Sending at: %s", time.Now().Format("2006-01-02 15:04:05.000"))
 
+	// Check if device exists in Redis first (if Redis is available)
+	if ws.redisService != nil {
+		if _, err := ws.redisService.GetWebSocketConnection(deviceID); err != nil {
+			log.Printf("ERROR: Device %s not found in Redis connections", deviceID)
+			log.Printf("=== MESSAGE SEND FAILED ===")
+			return
+		}
+	}
+
 	ws.mutex.RLock()
 	conn, exists := ws.connections[deviceID]
 	ws.mutex.RUnlock()
@@ -642,7 +764,7 @@ func (ws *WebSocketServer) sendToDevice(deviceID string, message models.WebSocke
 			log.Printf("ERROR: Invalid connection type for device %s", deviceID)
 		}
 	} else {
-		log.Printf("ERROR: Device %s not found in connections", deviceID)
+		log.Printf("ERROR: Device %s not found in local connections", deviceID)
 	}
 
 	log.Printf("=== MESSAGE SEND COMPLETED ===")

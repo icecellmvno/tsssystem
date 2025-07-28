@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { type BreadcrumbItem } from '@/types';
-import { smsRoutingsService, type SmsRoutingItem } from '@/services/sms-routings';
+import { smppRoutingsService, type SmppRoutingItem } from '@/services/smpp-routings';
 import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -17,7 +17,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function SmppRoutingShow() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
-    const [routing, setRouting] = useState<SmsRoutingItem | null>(null);
+    const [routing, setRouting] = useState<SmppRoutingItem | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +28,7 @@ export default function SmppRoutingShow() {
             try {
                 setLoading(true);
                 setError(null);
-                const routingData = await smsRoutingsService.getById(parseInt(id));
+                const routingData = await smppRoutingsService.getById(parseInt(id));
                 setRouting(routingData);
             } catch (error) {
                 console.error('Error fetching routing:', error);

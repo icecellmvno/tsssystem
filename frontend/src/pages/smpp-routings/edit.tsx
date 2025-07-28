@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { type BreadcrumbItem } from '@/types';
-import { smsRoutingsService, type SmsRoutingItem, type SmsRoutingsFilterOptions } from '@/services/sms-routings';
+import { smppRoutingsService, type SmppRoutingItem, type SmppRoutingFilterOptions } from '@/services/smpp-routings';
 import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -20,8 +20,8 @@ export default function SmppRoutingEdit() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const [loading, setLoading] = useState(false);
-    const [routing, setRouting] = useState<SmsRoutingItem | null>(null);
-    const [filterOptions, setFilterOptions] = useState<SmsRoutingsFilterOptions | null>(null);
+    const [routing, setRouting] = useState<SmppRoutingItem | null>(null);
+    const [filterOptions, setFilterOptions] = useState<SmppRoutingFilterOptions | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const [form, setForm] = useState({
@@ -47,8 +47,8 @@ export default function SmppRoutingEdit() {
 
             try {
                 const [routingData, options] = await Promise.all([
-                    smsRoutingsService.getById(parseInt(id)),
-                    smsRoutingsService.getFilterOptions()
+                    smppRoutingsService.getById(parseInt(id)),
+                    smppRoutingsService.getFilterOptions()
                 ]);
 
                 setRouting(routingData);
@@ -139,15 +139,15 @@ export default function SmppRoutingEdit() {
                 submitData.target_system_id = form.target_system_id;
             }
 
-            await smsRoutingsService.update(parseInt(id), submitData);
-            toast.success('SMS routing updated successfully');
+            await smppRoutingsService.update(parseInt(id), submitData);
+            toast.success('SMPP routing updated successfully');
             navigate('/smpp-routings');
         } catch (error: any) {
-            console.error('Error updating SMS routing:', error);
+            console.error('Error updating SMPP routing:', error);
             if (error.response?.data?.errors) {
                 setErrors(error.response.data.errors);
             } else {
-                toast.error(error.message || 'Failed to update SMS routing');
+                toast.error(error.message || 'Failed to update SMPP routing');
             }
         } finally {
             setLoading(false);

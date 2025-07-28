@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { type BreadcrumbItem } from '@/types';
-import { smsRoutingsService, type SmsRoutingsFilterOptions } from '@/services/sms-routings';
+import { smppRoutingsService, type SmppRoutingFilterOptions } from '@/services/smpp-routings';
 import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -19,7 +19,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function SmppRoutingCreate() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
-    const [filterOptions, setFilterOptions] = useState<SmsRoutingsFilterOptions | null>(null);
+    const [filterOptions, setFilterOptions] = useState<SmppRoutingFilterOptions | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const [form, setForm] = useState({
@@ -42,7 +42,7 @@ export default function SmppRoutingCreate() {
     useEffect(() => {
         const fetchFilterOptions = async () => {
             try {
-                const options = await smsRoutingsService.getFilterOptions();
+                const options = await smppRoutingsService.getFilterOptions();
                 setFilterOptions(options);
             } catch (error) {
                 console.error('Error fetching filter options:', error);
@@ -112,15 +112,15 @@ export default function SmppRoutingCreate() {
                 submitData.target_system_id = form.target_system_id;
             }
 
-            await smsRoutingsService.create(submitData);
-            toast.success('SMS routing created successfully');
+            await smppRoutingsService.create(submitData);
+            toast.success('SMPP routing created successfully');
             navigate('/smpp-routings');
         } catch (error: any) {
-            console.error('Error creating SMS routing:', error);
+            console.error('Error creating SMPP routing:', error);
             if (error.response?.data?.errors) {
                 setErrors(error.response.data.errors);
             } else {
-                toast.error(error.message || 'Failed to create SMS routing');
+                toast.error(error.message || 'Failed to create SMPP routing');
             }
         } finally {
             setLoading(false);

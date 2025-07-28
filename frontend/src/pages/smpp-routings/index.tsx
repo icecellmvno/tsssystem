@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
 import { Search, Plus, ArrowUpDown, Settings, Route, Edit, Trash2, Eye } from 'lucide-react';
-import { smsRoutingsService, type SmsRoutingItem, type SmsRoutingsListResponse } from '@/services/sms-routings';
+import { smppRoutingsService, type SmppRoutingItem, type SmppRoutingsListResponse } from '@/services/smpp-routings';
 import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -25,7 +25,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function SmppRoutingsIndex() {
     const navigate = useNavigate();
-    const [routings, setRoutings] = useState<SmsRoutingsListResponse | null>(null);
+    const [routings, setRoutings] = useState<SmppRoutingsListResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
@@ -54,12 +54,12 @@ export default function SmppRoutingsIndex() {
                 sort_order: sortOrder,
             };
 
-            const response = await smsRoutingsService.getAll(params);
+            const response = await smppRoutingsService.getAll(params);
             setRoutings(response);
         } catch (error) {
-            console.error('Error fetching SMS routings:', error);
-            setError(error instanceof Error ? error.message : 'Failed to fetch SMS routings');
-            toast.error('Failed to fetch SMS routings');
+            console.error('Error fetching SMPP routings:', error);
+            setError(error instanceof Error ? error.message : 'Failed to fetch SMPP routings');
+            toast.error('Failed to fetch SMPP routings');
         } finally {
             setLoading(false);
         }
@@ -89,15 +89,15 @@ export default function SmppRoutingsIndex() {
         setSortOrder('desc');
     };
 
-    const handleDelete = async (routing: SmsRoutingItem) => {
+    const handleDelete = async (routing: SmppRoutingItem) => {
         if (confirm(`Are you sure you want to delete "${routing.name}"?`)) {
             try {
-                await smsRoutingsService.delete(routing.id);
-                toast.success('SMS routing deleted successfully');
+                await smppRoutingsService.delete(routing.id);
+                toast.success('SMPP routing deleted successfully');
                 fetchRoutings();
             } catch (error) {
-                console.error('Error deleting SMS routing:', error);
-                toast.error('Failed to delete SMS routing');
+                console.error('Error deleting SMPP routing:', error);
+                toast.error('Failed to delete SMPP routing');
             }
         }
     };
@@ -108,7 +108,7 @@ export default function SmppRoutingsIndex() {
                 <div className="flex items-center justify-center h-64">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                        <p className="text-muted-foreground">Loading SMS routings...</p>
+                        <p className="text-muted-foreground">Loading SMPP routings...</p>
                     </div>
                 </div>
             </AppLayout>
@@ -120,7 +120,7 @@ export default function SmppRoutingsIndex() {
             <AppLayout breadcrumbs={breadcrumbs}>
                 <div className="flex items-center justify-center h-64">
                     <div className="text-center">
-                        <p className="text-destructive">Error loading SMS routings: {error}</p>
+                        <p className="text-destructive">Error loading SMPP routings: {error}</p>
                         <Button onClick={fetchRoutings} className="mt-4">
                             Retry
                         </Button>

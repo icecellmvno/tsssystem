@@ -41,7 +41,6 @@ func (h *SmsRoutingHandler) GetAllSmsRoutings(c *fiber.Ctx) error {
 
 	// Build query with joins
 	query := h.db.Model(&models.SmsRouting{}).
-		Preload("DeviceGroup").
 		Preload("User")
 
 	// Apply filters

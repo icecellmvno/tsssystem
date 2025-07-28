@@ -28,6 +28,9 @@ type SmsRouting struct {
 
 	// Relations
 	User *User `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	
+	// Virtual fields for computed values
+	DeviceGroupNames []string `json:"device_group_names,omitempty" gorm:"-"`
 }
 
 // TableName specifies the table name for SmsRouting

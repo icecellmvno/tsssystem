@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, type ReactNode } from 'rea
 import { useWebSocketStore } from '@/stores/websocket-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { websocketService } from '@/services/websocket';
 import { isTokenExpired } from '@/utils/jwt';
 
 interface WebSocketContextType {
@@ -24,6 +23,14 @@ interface WebSocketContextType {
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
+
+export const useWebSocket = () => {
+  const context = useContext(WebSocketContext);
+  if (context === undefined) {
+    throw new Error('useWebSocket must be used within a WebSocketProvider');
+  }
+  return context;
+};
 
 interface WebSocketProviderProps {
   children: ReactNode;
@@ -75,11 +82,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
         return;
       }
       
-      // Connect both WebSocket service and store
-      Promise.all([
-        websocketService.connect(token),
-        connect(token, false)
-      ]).catch((error) => {
+      // Connect using only useWebSocketStore (no more websocketService)
+      connect(token, false).catch((error) => {
         console.error('Failed to connect to WebSocket:', error);
       });
     }
@@ -88,7 +92,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
   // Auto-disconnect when user logs out
   useEffect(() => {
     if (!isAuthenticated && isConnected) {
-      websocketService.disconnect();
       disconnect();
     }
   }, [isAuthenticated, isConnected]);
@@ -97,10 +100,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
   useEffect(() => {
     if (error && isAuthenticated && !isConnecting && token) {
       const timeoutId = setTimeout(() => {
-        Promise.all([
-          websocketService.connect(token),
-          reconnect()
-        ]).catch((error) => {
+        reconnect().catch((error) => {
           console.error('Failed to reconnect:', error);
         });
       }, 5000);
@@ -147,12 +147,4 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
       {children}
     </WebSocketContext.Provider>
   );
-};
-
-export const useWebSocket = (): WebSocketContextType => {
-  const context = useContext(WebSocketContext);
-  if (context === undefined) {
-    throw new Error('useWebSocket must be used within a WebSocketProvider');
-  }
-  return context;
 }; 

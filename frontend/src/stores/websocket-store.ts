@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import { useNotificationStore } from './notification-store';
 import { useAuthStore } from './auth-store';
 import { isTokenExpired } from '@/utils/jwt';
+import { toast } from 'sonner';
 import type { 
   WebSocketState, 
   WebSocketMessage, 
@@ -26,11 +27,51 @@ import type {
   UssdCancelledData
 } from '@/types/websocket';
 
+// Additional interfaces from websocketService
+export interface DeviceUpdate {
+  id: number;
+  device_id: string;
+  name: string;
+  is_online: boolean;
+  battery_level?: number;
+  battery_status?: string;
+  latitude?: number;
+  longitude?: number;
+  last_seen_at: string;
+  status?: string;
+}
+
+export interface DeviceAlert {
+  device_id: string;
+  device_name: string;
+  alert_type: 'android_alert' | 'usb_modem_alert' | 'connection_lost' | 'battery_low';
+  message: string;
+  severity: 'info' | 'warning' | 'error';
+  timestamp: string;
+}
+
+export interface SmppUserStatusUpdate {
+  system_id: string;
+  session_id: string;
+  remote_addr: string;
+  bind_type: string;
+  is_online: boolean;
+  timestamp: string;
+}
+
 interface WebSocketActions {
   // Connection management
   connect: (apiKey: string, isHandicapDevice?: boolean) => Promise<void>;
   disconnect: () => void;
   reconnect: () => Promise<void>;
+  
+  // Message handling
+  send: (message: Partial<WebSocketMessage>) => void;
+  onMessage: (type: string, handler: (data: any) => void) => void;
+  offMessage: (type: string, handler: (data: any) => void) => void;
+  onConnectionChange: (handler: (connected: boolean) => void) => void;
+  offConnectionChange: (handler: (connected: boolean) => void) => void;
+  ping: () => void;
   
   // Device management
   updateDevice: (deviceId: string, data: Partial<Device>) => void;
@@ -61,10 +102,6 @@ interface WebSocketActions {
   FindDevice: (deviceId: string, data: any) => Promise<void>;
   StartAlarm: (deviceId: string, data: any) => Promise<void>;
   StopAlarm: (deviceId: string) => Promise<void>;
-  
-  // State setters
-  setError: (error: string | null) => void;
-  setConnecting: (connecting: boolean) => void;
 }
 
 type WebSocketStore = WebSocketState & WebSocketActions;
@@ -76,6 +113,10 @@ export const useWebSocketStore = create<WebSocketStore>()(
     const maxReconnectAttempts = 5;
     const reconnectDelay = 5000;
     let heartbeatInterval: NodeJS.Timeout | null = null;
+    
+    // Message handlers from websocketService
+    const messageHandlers: Map<string, ((data: any) => void)[]> = new Map();
+    const connectionHandlers: ((connected: boolean) => void)[] = [];
 
     const startHeartbeat = () => {
       heartbeatInterval = setInterval(() => {
@@ -91,6 +132,21 @@ export const useWebSocketStore = create<WebSocketStore>()(
         heartbeatInterval = null;
       }
     };
+
+    // Setup page visibility reconnection (from websocketService)
+    const setupPageVisibilityReconnection = () => {
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && ws?.readyState === WebSocket.CLOSED) {
+          const { token } = useAuthStore.getState();
+          if (token) {
+            get().connect(token);
+          }
+        }
+      });
+    };
+
+    // Initialize page visibility handler
+    setupPageVisibilityReconnection();
 
     const handleHeartbeat = (data: any) => {
       const deviceId = data.device_info.imei;
@@ -116,418 +172,293 @@ export const useWebSocketStore = create<WebSocketStore>()(
     };
 
     const handleDeviceStatus = (data: DeviceStatusData) => {
-      const devices = get().getAllDevices();
-      devices.forEach(device => {
-        if (device.device_group === data.device_group && device.sitename === data.sitename) {
-          get().updateDevice(device.id, { status: data.status });
-        }
-      });
-
-      if (data.status === 'error' || data.status === 'offline') {
-        useNotificationStore.getState().addNotification({
-          type: 'device_status',
-          title: `Device Status: ${data.status.toUpperCase()}`,
-          message: `Device group "${data.device_group}" at "${data.sitename}" is ${data.status}`,
-          severity: data.status === 'error' ? 'error' : 'warning',
-          device_group: data.device_group,
-          sitename: data.sitename,
-        });
-      }
+      console.log('WebSocket: Device status received:', data);
+      // Handle device status updates
     };
 
     const handleAlarm = (data: AlarmData) => {
       console.log('WebSocket: Alarm received:', data);
       
-      // Update device alarms
-      if (data.device_id) {
-        get().updateDevice(data.device_id, {
-          alarms: [...(get().getDevice(data.device_id)?.alarms || []), data]
-        });
-          
-        // Check for critical scenarios and set maintenance mode
-          if (data.alarm_type === 'sim_card_change') {
-          const isCriticalScenario = data.message.includes('SIM tray opened') || 
-                                   data.message.includes('IMSI changed') ||
-                                   data.message.includes('SIM card count changed');
-          if (isCriticalScenario) {
-            get().updateDevice(data.device_id, {
-              maintenance_mode: true,
-              maintenance_reason: `SIM card change: ${data.message}`,
-              maintenance_started_at: new Date().toISOString(),
-              is_active: false
-            });
+             // Add to alarm logs
+       get().addAlarmLog({
+         id: Date.now(),
+         alarm_type: data.alarm_type,
+         message: data.message,
+         severity: data.severity,
+         device_group: data.device_group,
+         country_site: data.sitename,
+         created_at: new Date().toISOString(),
+       });
+
+      // Show toast notification (from websocketService)
+      const severityConfig: Record<string, { icon: string; duration: number }> = {
+        warning: { icon: '⚠️', duration: 6000 },
+        error: { icon: '🚨', duration: 8000 },
+        critical: { icon: '🚨', duration: 0 } // Critical alarms don't auto-dismiss
+      };
+
+      const config = severityConfig[data.severity] || severityConfig.warning;
+      
+      toast(`Alarm: ${data.alarm_type.replace('_', ' ').toUpperCase()}`, {
+        description: data.message,
+        duration: config.duration,
+        icon: config.icon,
+        action: {
+          label: 'View Alarms',
+          onClick: () => {
+            window.location.href = '/alarm-logs';
           }
         }
-      }
-
-      // Add to real-time alarm logs
-      const alarmLog = {
-        id: Date.now(), // Temporary ID for real-time logs
-        device_id: data.device_id || 'Unknown',
-        device_name: data.device_id || 'Unknown',
-        device_group: data.device_group,
-        country_site: data.sitename,
-        alarm_type: data.alarm_type,
-        message: data.message,
-        severity: data.severity,
-        status: 'started',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      get().addAlarmLog(alarmLog);
-            
-      // Create notification
-      let notificationTitle = `Alarm: ${data.alarm_type.replace('_', ' ').toUpperCase()}`;
-      let notificationMessage = data.message;
-            if (data.alarm_type === 'sim_card_change') {
-        if (data.message.includes('SIM tray opened')) {
-          notificationTitle = '🚨 SIM Tray Opened';
-          notificationMessage = `Device ${data.device_id || 'Unknown'} SIM tray has been opened - all SIM cards removed`;
-        } else if (data.message.includes('IMSI changed')) {
-          notificationTitle = '🔄 SIM Card Changed';
-          notificationMessage = `Device ${data.device_id || 'Unknown'} has different IMSI detected`;
-        } else if (data.message.includes('SIM card count changed')) {
-          notificationTitle = '📊 SIM Card Count Changed';
-          notificationMessage = `Device ${data.device_id || 'Unknown'} SIM card count has changed`;
-            }
-      }
-
-      useNotificationStore.getState().addNotification({
-        type: 'alarm',
-        title: notificationTitle,
-        message: notificationMessage,
-        severity: data.severity,
-        device_group: data.device_group,
-        sitename: data.sitename,
       });
     };
 
     const handleAlarmResolved = (data: AlarmData) => {
-      console.log('WebSocket: Alarm resolved:', data);
+      console.log('WebSocket: Alarm resolved received:', data);
       
-      // Update device alarms
-      if (data.device_id) {
-        const device = get().getDevice(data.device_id);
-        if (device) {
-          const updatedAlarms = device.alarms.filter(alarm => 
-            alarm.alarm_type !== data.alarm_type || alarm.message !== data.message
-          );
-          get().updateDevice(data.device_id, { alarms: updatedAlarms });
-          
-          // Remove maintenance mode for specific scenarios
-          if (data.alarm_type === 'sim_card_change') {
-            const shouldRemoveMaintenance = data.message.includes('SIM tray closed with same IMSIs') || 
-                                         data.message.includes('SIM card reinserted') ||
-                                         data.message.includes('SIM card configuration resolved');
-            if (shouldRemoveMaintenance) {
-            get().updateDevice(data.device_id, {
-                maintenance_mode: false,
-                maintenance_reason: '',
-                maintenance_started_at: '',
-                is_active: true
-              });
-            }
-          }
-        }
-      }
+      // Update alarm log
+      get().updateAlarmLog(Date.now(), {
+        resolved: true,
+        resolved_at: new Date().toISOString(),
+      });
 
-      // Add resolved alarm to real-time logs
-      const alarmLog = {
-        id: Date.now(), // Temporary ID for real-time logs
-        device_id: data.device_id || 'Unknown',
-        device_name: data.device_id || 'Unknown',
-        device_group: data.device_group,
-        country_site: data.sitename,
-        alarm_type: data.alarm_type,
-        message: data.message,
-        severity: data.severity,
-        status: 'resolved',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      get().addAlarmLog(alarmLog);
-
-      // Create notification
-      let notificationTitle = `Alarm Resolved: ${data.alarm_type.replace('_', ' ').toUpperCase()}`;
-      let notificationMessage = data.message;
-      if (data.alarm_type === 'sim_card_change') {
-        if (data.message.includes('SIM tray closed with same IMSIs')) {
-          notificationTitle = '✅ SIM Tray Closed - Same IMSIs';
-          notificationMessage = `Device ${data.device_id || 'Unknown'} SIM tray closed with same IMSIs - normal operation resumed`;
-        } else if (data.message.includes('SIM card reinserted')) {
-          notificationTitle = '✅ SIM Cards Reinserted';
-          notificationMessage = `Device ${data.device_id || 'Unknown'} SIM cards have been reinserted`;
-        } else if (data.message.includes('SIM card configuration resolved')) {
-          notificationTitle = '✅ SIM Configuration Resolved';
-          notificationMessage = `Device ${data.device_id || 'Unknown'} SIM card configuration has been resolved`;
-        }
-      }
-
-      useNotificationStore.getState().addNotification({
-        type: 'info',
-        title: notificationTitle,
-        message: notificationMessage,
-        severity: 'info',
-        device_group: data.device_group,
-        sitename: data.sitename,
+      // Show toast notification
+      toast('✅ Alarm Resolved', {
+        description: `${data.alarm_type}: ${data.message}`,
+        duration: 4000,
       });
     };
 
     const handleSmsLog = (data: SmsLogData) => {
-      // Add SMS log to store for real-time updates
-      const smsLog = {
-        id: Date.now(), // Temporary ID for real-time logs
-        message_id: `realtime_${Date.now()}`,
-        device_id: null,
-        device_name: null,
-        device_imei: null,
-        device_imsi: null,
-        simcard_name: null,
-        sim_slot: data.sim_slot,
-        simcard_number: null,
-        simcard_iccid: null,
-        source_addr: null,
-        source_connector: 'android',
-        source_user: 'device',
-        destination_addr: data.phone_number,
-        message: data.message,
-        message_length: data.message.length,
-        direction: 'outbound',
-        priority: 'normal',
-        status: data.status,
-        sent_at: new Date().toISOString(),
-        delivered_at: data.status === 'delivered' ? new Date().toISOString() : null,
-        delivery_report_status: data.status,
-        delivery_report_received_at: new Date().toISOString(),
-        received_at: null,
-        error_message: data.status === 'failed' ? 'SMS sending failed' : null,
-        device_group_id: null,
-        device_group: data.device_group,
-        country_site_id: null,
-        country_site: data.sitename,
-        campaign_id: null,
-        batch_id: null,
-        queued_at: null,
-        metadata: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      console.log('WebSocket: SMS log received:', data);
       
-      get().addSmsLog(smsLog);
-
-      useNotificationStore.getState().addNotification({
-        type: 'sms',
-        title: `SMS ${data.status.toUpperCase()}`,
-        message: `SMS to ${data.phone_number}: ${data.message.substring(0, 50)}${data.message.length > 50 ? '...' : ''}`,
-        severity: data.status === 'failed' ? 'error' : 'info',
-        device_group: data.device_group,
-        sitename: data.sitename,
-      });
+             // Add to SMS logs
+       get().addSmsLog({
+         id: Date.now(),
+         sim_slot: data.sim_slot,
+         phone_number: data.phone_number,
+         message: data.message,
+         status: data.status,
+         device_group: data.device_group,
+         country_site: data.sitename,
+         created_at: new Date().toISOString(),
+       });
     };
 
     const handleSmsMessage = (data: SmsMessageData) => {
-      if (data.direction === 'received') {
-        // Add inbound SMS log to store for real-time updates
-        const smsLog = {
-          id: Date.now(), // Temporary ID for real-time logs
-          message_id: `realtime_inbound_${Date.now()}`,
-          device_id: null,
-          device_name: null,
-          device_imei: null,
-          device_imsi: null,
-          simcard_name: null,
-          sim_slot: data.sim_slot,
-          simcard_number: null,
-          simcard_iccid: null,
-          source_addr: data.phone_number,
-          source_connector: 'android',
-          source_user: 'device',
-          destination_addr: 'Device',
-          message: data.message,
-          message_length: data.message.length,
-          direction: 'inbound',
-          priority: 'normal',
-          status: 'received',
-          sent_at: null,
-          delivered_at: null,
-          delivery_report_status: null,
-          delivery_report_received_at: null,
-          received_at: new Date().toISOString(),
-          error_message: null,
-          device_group_id: null,
-          device_group: data.device_group,
-          country_site_id: null,
-          country_site: data.sitename,
-          campaign_id: null,
-          batch_id: null,
-          queued_at: null,
-          metadata: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        
-        get().addSmsLog(smsLog);
-
-        useNotificationStore.getState().addNotification({
-          type: 'sms',
-          title: 'SMS Received',
-          message: `From ${data.phone_number}: ${data.message.substring(0, 50)}${data.message.length > 50 ? '...' : ''}`,
-          severity: 'info',
-          device_group: data.device_group,
-          sitename: data.sitename,
-        });
-      }
+      console.log('WebSocket: SMS message received:', data);
+      
+             // Add to SMS logs
+       get().addSmsLog({
+         id: Date.now(),
+         sim_slot: data.sim_slot,
+         phone_number: data.phone_number,
+         message: data.message,
+         direction: data.direction,
+         device_group: data.device_group,
+         country_site: data.sitename,
+         created_at: new Date(data.timestamp).toISOString(),
+       });
     };
 
     const handleUssdResponse = (data: UssdResponseData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'ussd',
-        title: 'USSD Response',
-        message: `USSD response received: ${data.cleaned_response.substring(0, 50)}${data.cleaned_response.length > 50 ? '...' : ''}`,
-        severity: 'info',
+      console.log('WebSocket: USSD response received:', data);
+      
+      // Add to USSD logs
+      get().addSmsLog({
+        id: Date.now(),
+        session_id: data.session_id,
+        message_id: data.message_id,
+        ussd_code: data.ussd_code,
+        response: data.cleaned_response,
+        status: data.status,
+        is_menu: data.is_menu,
+        auto_cancel: data.auto_cancel,
+        created_at: new Date(data.timestamp).toISOString(),
       });
     };
 
     const handleUssdResponseFailed = (data: UssdResponseFailedData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'ussd',
-        title: 'USSD Failed',
-        message: `USSD code ${data.ussd_code} failed: ${data.error_message}`,
-        severity: 'error',
+      console.log('WebSocket: USSD response failed received:', data);
+      
+      // Add to USSD logs
+      get().addSmsLog({
+        id: Date.now(),
+        session_id: data.session_id,
+        message_id: data.message_id,
+        ussd_code: data.ussd_code,
+        failure_code: data.failure_code,
+        error_message: data.error_message,
+        status: data.status,
+        created_at: new Date().toISOString(),
       });
     };
 
     const handleMmsReceived = (data: MmsReceivedData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'sms',
-        title: 'MMS Received',
-        message: `MMS from ${data.sender}: ${data.subject} (${data.parts_count} parts)`,
-        severity: 'info',
+      console.log('WebSocket: MMS received:', data);
+      
+      // Add to MMS logs
+      get().addSmsLog({
+        id: Date.now(),
+        sender: data.sender,
+        subject: data.subject,
+        parts_count: data.parts_count,
+        sim_slot: data.sim_slot,
         device_group: data.device_group,
-        sitename: data.sitename,
+        country_site: data.country_site,
+        created_at: new Date(data.timestamp).toISOString(),
       });
     };
 
     const handleRcsReceived = (data: RcsReceivedData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'sms',
-        title: 'RCS Received',
-        message: `RCS ${data.message_type} from ${data.sender}`,
-        severity: 'info',
+      console.log('WebSocket: RCS received:', data);
+      
+      // Add to RCS logs
+      get().addSmsLog({
+        id: Date.now(),
+        sender: data.sender,
+        message: data.message,
+        message_type: data.message_type,
+        sim_slot: data.sim_slot,
         device_group: data.device_group,
-        sitename: data.sitename,
+        country_site: data.country_site,
+        created_at: new Date(data.timestamp).toISOString(),
       });
     };
 
     const handleUssdCode = (data: UssdCodeData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'ussd',
-        title: 'USSD Code Received',
-        message: `USSD code ${data.ussd_code} from ${data.sender}`,
-        severity: 'info',
+      console.log('WebSocket: USSD code received:', data);
+      
+      // Add to USSD logs
+      get().addSmsLog({
+        id: Date.now(),
+        sender: data.sender,
+        ussd_code: data.ussd_code,
+        sim_slot: data.sim_slot,
         device_group: data.device_group,
-        sitename: data.sitename,
+        country_site: data.country_site,
+        created_at: new Date(data.timestamp).toISOString(),
       });
     };
 
     const handleFindDeviceSuccess = (data: FindDeviceSuccessData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'device_status',
-        title: 'Find Device Success',
-        message: data.message,
-        severity: 'info',
+      console.log('WebSocket: Find device success:', data);
+      
+      toast('🔍 Device Found', {
+        description: data.message,
+        duration: 4000,
       });
     };
 
     const handleFindDeviceFailed = (data: FindDeviceFailedData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'device_status',
-        title: 'Find Device Failed',
-        message: data.error,
-        severity: 'error',
+      console.log('WebSocket: Find device failed:', data);
+      
+      toast('❌ Device Not Found', {
+        description: data.error,
+        duration: 4000,
       });
     };
 
     const handleAlarmStarted = (data: AlarmStartedData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'alarm',
-        title: 'Alarm Started',
-        message: data.message,
-        severity: 'warning',
+      console.log('WebSocket: Alarm started:', data);
+      
+      toast('🚨 Alarm Started', {
+        description: `${data.alarm_type}: ${data.message}`,
+        duration: 8000,
+        action: {
+          label: 'View Alarms',
+          onClick: () => {
+            window.location.href = '/alarm-logs';
+          }
+        }
       });
     };
 
     const handleAlarmFailed = (data: AlarmFailedData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'alarm',
-        title: 'Alarm Failed',
-        message: data.error,
-        severity: 'error',
+      console.log('WebSocket: Alarm failed:', data);
+      
+      toast('❌ Alarm Failed', {
+        description: data.error,
+        duration: 4000,
       });
     };
 
-    const handleAlarmStopped = (_data: AlarmStoppedData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'alarm',
-        title: 'Alarm Stopped',
-        message: 'Alarm has been stopped',
-        severity: 'info',
+    const handleAlarmStopped = (data: AlarmStoppedData) => {
+      console.log('WebSocket: Alarm stopped:', data);
+      
+      toast('✅ Alarm Stopped', {
+        description: 'Alarm has been stopped',
+        duration: 4000,
       });
     };
 
     const handleAlarmStopFailed = (data: AlarmStopFailedData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'alarm',
-        title: 'Alarm Stop Failed',
-        message: data.error,
-        severity: 'error',
+      console.log('WebSocket: Alarm stop failed:', data);
+      
+      toast('❌ Alarm Stop Failed', {
+        description: data.error,
+        duration: 4000,
       });
     };
 
     const handleUssdCancelled = (data: UssdCancelledData) => {
-      useNotificationStore.getState().addNotification({
-        type: 'ussd',
-        title: 'USSD Cancelled',
-        message: `USSD code ${data.ussd_code} cancelled: ${data.reason}`,
-        severity: 'warning',
+      console.log('WebSocket: USSD cancelled:', data);
+      
+      toast('❌ USSD Cancelled', {
+        description: data.reason,
+        duration: 4000,
       });
     };
 
-    const handleDeviceOnline = (data: any) => {
-      const deviceId = data.device_id;
-      get().updateDevice(deviceId, {
-        status: 'online',
-        last_heartbeat: Date.now(),
+    // Handle SMPP User Status Update (from websocketService)
+    const handleSmppUserStatusUpdate = (data: SmppUserStatusUpdate) => {
+      console.log('SMPP User Status Update:', data);
+      
+      // Show notification for status change
+      const statusText = data.is_online ? 'connected' : 'disconnected';
+      const icon = data.is_online ? '🟢' : '🔴';
+      
+      toast(`${icon} SMPP User ${statusText}`, {
+        description: `${data.system_id} (${data.bind_type}) - ${data.remote_addr}`,
+        duration: 4000,
+        action: {
+          label: 'View Users',
+          onClick: () => {
+            window.location.href = '/smpp-users';
+          }
+        }
       });
 
-      useNotificationStore.getState().addNotification({
-        type: 'device_status',
-        title: 'Device Online',
-        message: `${data.device_name} (${data.device_id}) is now online`,
-        severity: 'info',
-        device_group: data.device_group,
-        sitename: data.sitename,
+      // Dispatch custom event for components to listen to
+      const event = new CustomEvent('smpp-user-status-update', {
+        detail: data
       });
+      window.dispatchEvent(event);
     };
 
-    const handleDeviceOffline = (data: any) => {
-      const deviceId = data.device_id;
-      get().updateDevice(deviceId, {
-        status: 'offline',
-        last_heartbeat: Date.now(),
-        // Ensure we have the device name for display
-        name: data.device_name || `Device-${deviceId}`,
-        device_group: data.device_group || '',
-        sitename: data.sitename || '',
-      });
+    // Handle Device Alert (from websocketService)
+    const handleDeviceAlert = (alert: DeviceAlert) => {
+      console.log('Device alert received:', alert);
+      
+      // Show notification based on alert type
+      const alertConfig = {
+        info: { icon: 'ℹ️', duration: 4000 },
+        warning: { icon: '⚠️', duration: 6000 },
+        error: { icon: '🚨', duration: 8000 }
+      };
 
-      useNotificationStore.getState().addNotification({
-        type: 'device_status',
-        title: 'Device Offline',
-        message: `${data.device_name} (${data.device_id}) is now offline`,
-        severity: 'warning',
-        device_group: data.device_group,
-        sitename: data.sitename,
+      const config = alertConfig[alert.severity];
+      
+      toast(alert.message, {
+        description: `${alert.device_name} (${alert.device_id})`,
+        duration: config.duration,
+        icon: config.icon,
+        action: {
+          label: 'View Device',
+          onClick: () => {
+            // Navigate to device details
+            window.location.href = `/devices/${alert.device_id}`;
+          }
+        }
       });
     };
 
@@ -569,6 +500,9 @@ export const useWebSocketStore = create<WebSocketStore>()(
             reconnectAttempts = 0;
             console.log('WebSocket connected');
             startHeartbeat();
+            
+            // Notify connection change handlers
+            connectionHandlers.forEach(handler => handler(true));
           };
 
           ws.onmessage = (event) => {
@@ -586,6 +520,9 @@ export const useWebSocketStore = create<WebSocketStore>()(
             stopHeartbeat();
             
             console.log('WebSocket disconnected:', event.code, event.reason);
+            
+            // Notify connection change handlers
+            connectionHandlers.forEach(handler => handler(false));
             
             // Check if the connection was closed due to authentication failure
             if (event.code === 1008 || event.code === 1003 || 
@@ -629,10 +566,58 @@ export const useWebSocketStore = create<WebSocketStore>()(
         }
         stopHeartbeat();
         set({ isConnected: false, isConnecting: false });
+        
+        // Notify connection change handlers
+        connectionHandlers.forEach(handler => handler(false));
       },
 
       reconnect: async () => {
         get().disconnect();
+        const { token } = useAuthStore.getState();
+        if (token) {
+          await get().connect(token);
+        }
+      },
+
+      // Message handling (from websocketService)
+      send: (message: Partial<WebSocketMessage>) => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(message));
+        } else {
+          console.warn('WebSocket is not connected');
+        }
+      },
+
+      onMessage: (type: string, handler: (data: any) => void) => {
+        if (!messageHandlers.has(type)) {
+          messageHandlers.set(type, []);
+        }
+        messageHandlers.get(type)!.push(handler);
+      },
+
+      offMessage: (type: string, handler: (data: any) => void) => {
+        const handlers = messageHandlers.get(type);
+        if (handlers) {
+          const index = handlers.indexOf(handler);
+          if (index > -1) {
+            handlers.splice(index, 1);
+          }
+        }
+      },
+
+      onConnectionChange: (handler: (connected: boolean) => void) => {
+        connectionHandlers.push(handler);
+      },
+
+      offConnectionChange: (handler: (connected: boolean) => void) => {
+        const index = connectionHandlers.indexOf(handler);
+        if (index > -1) {
+          connectionHandlers.splice(index, 1);
+        }
+      },
+
+      ping: () => {
+        get().send({ type: 'ping', data: 'ping' });
       },
 
       // Device management
@@ -642,29 +627,10 @@ export const useWebSocketStore = create<WebSocketStore>()(
           const existingDevice = devices.get(deviceId);
           
           if (existingDevice) {
-            // Update existing device with new data
-            const updatedDevice = { 
-              ...existingDevice, 
-              ...data,
-              // Ensure battery_level is only updated if it's a valid value
-              battery_level: data.battery_level !== undefined && data.battery_level !== null && data.battery_level > 0 
-                ? data.battery_level 
-                : existingDevice.battery_level,
-              // Ensure signal_strength is only updated if it's a valid value
-              signal_strength: data.signal_strength !== undefined && data.signal_strength !== null 
-                ? data.signal_strength 
-                : existingDevice.signal_strength,
-              // Ensure signal_dbm is only updated if it's a valid value
-              signal_dbm: data.signal_dbm !== undefined && data.signal_dbm !== null 
-                ? data.signal_dbm 
-                : existingDevice.signal_dbm,
-            };
+            // Update existing device
+            const updatedDevice = { ...existingDevice, ...data };
             devices.set(deviceId, updatedDevice);
-            
-            // Log device status changes
-            if (data.status && data.status !== existingDevice.status) {
-              console.log(`WebSocket: Device ${deviceId} status changed from ${existingDevice.status} to ${data.status}`);
-            }
+            console.log(`WebSocket: Device updated: ${deviceId} (${updatedDevice.name})`);
           } else {
             // New device: create with provided data
             const newDevice = {
@@ -714,15 +680,11 @@ export const useWebSocketStore = create<WebSocketStore>()(
       },
 
       getDevicesByGroup: (deviceGroup: string) => {
-        return Array.from(get().devices.values()).filter(
-          device => device.device_group === deviceGroup
-        );
+        return Array.from(get().devices.values()).filter(device => device.device_group === deviceGroup);
       },
 
       getDevicesBySitename: (sitename: string) => {
-        return Array.from(get().devices.values()).filter(
-          device => device.sitename === sitename
-        );
+        return Array.from(get().devices.values()).filter(device => device.sitename === sitename);
       },
 
       // Alarm logs management
@@ -731,18 +693,21 @@ export const useWebSocketStore = create<WebSocketStore>()(
           alarmLogs: [...state.alarmLogs, alarmLog]
         }));
       },
+
       updateAlarmLog: (alarmLogId: number, data: Partial<any>) => {
         set((state) => ({
-          alarmLogs: state.alarmLogs.map((log, index) =>
-            index === alarmLogId ? { ...log, ...data } : log
+          alarmLogs: state.alarmLogs.map(log => 
+            log.id === alarmLogId ? { ...log, ...data } : log
           )
         }));
       },
+
       removeAlarmLog: (alarmLogId: number) => {
         set((state) => ({
-          alarmLogs: state.alarmLogs.filter((_, index) => index !== alarmLogId)
+          alarmLogs: state.alarmLogs.filter(log => log.id !== alarmLogId)
         }));
       },
+
       getAllAlarmLogs: () => {
         return get().alarmLogs;
       },
@@ -753,20 +718,73 @@ export const useWebSocketStore = create<WebSocketStore>()(
           smsLogs: [...state.smsLogs, smsLog]
         }));
       },
+
       updateSmsLog: (smsLogId: number, data: Partial<any>) => {
         set((state) => ({
-          smsLogs: state.smsLogs.map((log, index) =>
-            index === smsLogId ? { ...log, ...data } : log
+          smsLogs: state.smsLogs.map(log => 
+            log.id === smsLogId ? { ...log, ...data } : log
           )
         }));
       },
+
       removeSmsLog: (smsLogId: number) => {
         set((state) => ({
-          smsLogs: state.smsLogs.filter((_, index) => index !== smsLogId)
+          smsLogs: state.smsLogs.filter(log => log.id !== smsLogId)
         }));
       },
+
       getAllSmsLogs: () => {
         return get().smsLogs;
+      },
+
+      // Device commands
+      SendSms: async (deviceId: string, data: any) => {
+        get().send({
+          type: 'send_sms',
+          data: {
+            device_id: deviceId,
+            ...data
+          }
+        });
+      },
+
+      SendUssd: async (deviceId: string, data: any) => {
+        get().send({
+          type: 'send_ussd',
+          data: {
+            device_id: deviceId,
+            ...data
+          }
+        });
+      },
+
+      FindDevice: async (deviceId: string, data: any) => {
+        get().send({
+          type: 'find_device',
+          data: {
+            device_id: deviceId,
+            ...data
+          }
+        });
+      },
+
+      StartAlarm: async (deviceId: string, data: any) => {
+        get().send({
+          type: 'alarm_start',
+          data: {
+            device_id: deviceId,
+            ...data
+          }
+        });
+      },
+
+      StopAlarm: async (deviceId: string) => {
+        get().send({
+          type: 'alarm_stop',
+          data: {
+            device_id: deviceId
+          }
+        });
       },
 
       // Message handling
@@ -774,6 +792,12 @@ export const useWebSocketStore = create<WebSocketStore>()(
         const { type, data } = message;
         
         console.log('WebSocket message received:', { type, data });
+
+        // Call registered message handlers first
+        const handlers = messageHandlers.get(type);
+        if (handlers) {
+          handlers.forEach(handler => handler(data));
+        }
 
         switch (type) {
           case 'connection_established':
@@ -822,10 +846,6 @@ export const useWebSocketStore = create<WebSocketStore>()(
           case 'sms_message':
             handleSmsMessage(data as SmsMessageData);
             break;
-          case 'sms_delivery_report':
-            // Handle SMS delivery report
-            console.log('SMS delivery report received:', data);
-            break;
           case 'ussd_response':
             handleUssdResponse(data as UssdResponseData);
             break;
@@ -862,59 +882,16 @@ export const useWebSocketStore = create<WebSocketStore>()(
           case 'ussd_cancelled':
             handleUssdCancelled(data as UssdCancelledData);
             break;
-          case 'device_online':
-            handleDeviceOnline(data);
+          case 'device_alert':
+            handleDeviceAlert(data as DeviceAlert);
             break;
-          case 'device_offline':
-            handleDeviceOffline(data);
+          case 'smpp_user_status_update':
+            handleSmppUserStatusUpdate(data as SmppUserStatusUpdate);
             break;
           default:
-            console.log('Unknown message type:', type);
+            console.log('Unhandled message type:', type);
         }
       },
-
-      // Device commands
-      SendSms: async (deviceId: string, data: any) => {
-        // TODO: Implement API call to backend
-        console.log('Sending SMS to device:', deviceId, data);
-      },
-      SendUssd: async (deviceId: string, data: any) => {
-        // TODO: Implement API call to backend
-        console.log('Sending USSD to device:', deviceId, data);
-      },
-      FindDevice: async (deviceId: string, data: any) => {
-        // TODO: Implement API call to backend
-        console.log('Finding device:', deviceId, data);
-      },
-      StartAlarm: async (deviceId: string, data: any) => {
-        // TODO: Implement API call to backend
-        console.log('Starting alarm for device:', deviceId, data);
-      },
-      StopAlarm: async (deviceId: string) => {
-        try {
-          const response = await fetch(`/api/devices/${deviceId}/alarm/stop`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const result = await response.json();
-          console.log('Stop alarm response:', result);
-          return result;
-        } catch (error) {
-          console.error('Failed to stop alarm:', error);
-          throw error;
-        }
-      },
-
-      // State setters
-      setError: (error: string | null) => set({ error }),
-      setConnecting: (connecting: boolean) => set({ isConnecting: connecting }),
     };
   })
 ); 

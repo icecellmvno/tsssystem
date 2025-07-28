@@ -51,6 +51,7 @@ func runMigrations() error {
 		&models.MccMnc{},
 		// New anti-detection models
 		&models.SmsRoutingRule{},
+		&models.SmsRouting{},
 		&models.SmppUserAntiDetectionConfig{},
 		&models.SmppUserSimPoolConfig{},
 		&models.SmppUserDelayConfig{},

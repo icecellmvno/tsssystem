@@ -240,8 +240,9 @@ export default function SmppRoutingsIndex() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {routings?.data.map((item) => (
-                                        <TableRow key={item.id}>
+                                    {routings?.data && routings.data.length > 0 ? (
+                                        routings.data.map((item) => (
+                                            <TableRow key={item.id}>
                                             <TableCell>
                                                 <div className="space-y-1">
                                                     <div className="text-sm font-medium">{item.name}</div>
@@ -324,7 +325,16 @@ export default function SmppRoutingsIndex() {
                                                 </div>
                                             </TableCell>
                                         </TableRow>
-                                    ))}
+                                    ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={9} className="text-center py-8">
+                                                <div className="text-muted-foreground">
+                                                    {loading ? 'Loading...' : 'No SMPP routings found'}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
                                 </TableBody>
                             </Table>
                         </div>

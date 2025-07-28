@@ -2,7 +2,7 @@ import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
-import { LayoutGrid, Users, Database, Building2, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, Send, Filter, PhoneOff, MessageSquare, Settings } from 'lucide-react';
+import { LayoutGrid, Users, Database, Building2, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, Send, Filter, PhoneOff, MessageSquare, Settings, Route } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems = [
@@ -63,6 +63,11 @@ const mainNavItems = [
             {
                 title: 'SMPP Users',
                 url: '/smpp-users',
+            },
+            {
+                title: 'SMPP Routings',
+                url: '/smpp-routings',
+                icon: Route,
             },
             {
                 title: 'SMS Routing Rules',

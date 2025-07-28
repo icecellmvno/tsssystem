@@ -39,10 +39,10 @@ export default function AlarmLogsIndex() {
   const fetchAlarmLogs = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await alarmLogsService.getAlarmLogs();
+      const response = await alarmLogsService.getAlarmLogs();
       
       // Transform data to include BaseRecord properties
-      const transformedData: AlarmLogWithBase[] = data.alarm_logs.map(log => ({
+      const transformedData: AlarmLogWithBase[] = response.data.map(log => ({
         ...log,
         id: log.id,
         created_at: log.created_at,
@@ -144,7 +144,7 @@ export default function AlarmLogsIndex() {
     {
       accessorKey: 'device_name',
       header: 'Device Name',
-      cell: ({ row }) => row.getValue('device_name') || 'N/A',
+      cell: ({ row }) => row.getValue('device_name'),
     },
     {
       accessorKey: 'alarm_type',

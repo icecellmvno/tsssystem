@@ -85,8 +85,8 @@ copy_binaries() {
     if [[ -d "backend" ]]; then
         cd backend
         log_info "Backend build ediliyor..."
-        if go build -o server ./cmd/server/; then
-            cp -f server /opt/tsimcloud/backend/
+        if go build -o backend-server ./cmd/server/; then
+            cp -f backend-server /opt/tsimcloud/backend/server
             chmod +x /opt/tsimcloud/backend/server
             log_success "Backend build edildi ve kopyalandı"
         else
@@ -102,8 +102,8 @@ copy_binaries() {
     if [[ -d "smppserver" ]]; then
         cd smppserver
         log_info "SMPP server build ediliyor..."
-        if go build -o server ./cmd/server/; then
-            cp -f server /opt/tsimcloud/smppserver/
+        if go build -o smpp-server ./cmd/server/; then
+            cp -f smpp-server /opt/tsimcloud/smppserver/server
             chmod +x /opt/tsimcloud/smppserver/server
             log_success "SMPP server build edildi ve kopyalandı"
         else

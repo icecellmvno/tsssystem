@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle, Edit, Trash2, Copy, MessageSquare, Phone, Search, Bell, Power, Smartphone, Wrench, MapPin } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle, Edit, Trash2, Copy, MessageSquare, Phone, Search, Bell, Power, Smartphone, Wrench, MapPin, RefreshCw, Battery, Signal, Wifi, Clock, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,10 @@ import { useWebSocket } from '@/contexts/websocket-context';
 import { SmsForm } from '@/components/device-commands/sms-form';
 import { UssdForm } from '@/components/device-commands/ussd-form';
 import { AlarmForm } from '@/components/device-commands/alarm-form';
+import { DataTable } from '@/components/ui/data-table';
+import { alarmLogsColumns } from '@/components/devices/alarm-logs-table-columns';
+import { alarmLogsService, type AlarmLog } from '@/services/alarm-logs';
+import { ColumnDef } from '@tanstack/react-table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +73,179 @@ interface Props {
   simInfo?: any;
 }
 
+// Utility functions for alarm logs
+const getAlarmIcon = (type: string) => {
+  switch (type.toLowerCase()) {
+    case 'battery_low':
+      return <Battery className="h-4 w-4 text-red-600" />;
+    case 'signal_low':
+      return <Signal className="h-4 w-4 text-red-600" />;
+    case 'sim_card_change':
+      return <AlertTriangle className="h-4 w-4 text-orange-600" />;
+    case 'sim_card_change_resolved':
+      return <CheckCircle className="h-4 w-4 text-green-600" />;
+    case 'device_offline':
+      return <Wifi className="h-4 w-4 text-red-600" />;
+    case 'error_count':
+      return <XCircle className="h-4 w-4 text-red-600" />;
+    default:
+      return <AlertTriangle className="h-4 w-4 text-gray-600" />;
+  }
+};
+
+const getAlarmTypeDisplay = (type: string) => {
+  switch (type.toLowerCase()) {
+    case 'battery_low':
+      return 'Battery Low';
+    case 'signal_low':
+      return 'Signal Low';
+    case 'sim_card_change':
+      return 'SIM Card Change';
+    case 'sim_card_change_resolved':
+      return 'SIM Card Change Resolved';
+    case 'device_offline':
+      return 'Device Offline';
+    case 'error_count':
+      return 'Error Count';
+    default:
+      return type;
+  }
+};
+
+const getSeverityColor = (severity: string) => {
+  switch (severity.toLowerCase()) {
+    case 'critical':
+      return 'bg-red-50 text-red-700 border-red-300';
+    case 'warning':
+      return 'bg-yellow-50 text-yellow-700 border-yellow-300';
+    case 'info':
+      return 'bg-blue-50 text-blue-700 border-blue-300';
+    default:
+      return 'bg-gray-50 text-gray-700 border-gray-300';
+  }
+};
+
+const getStatusColor = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'active':
+      return 'bg-red-50 text-red-700 border-red-300';
+    case 'resolved':
+      return 'bg-green-50 text-green-700 border-green-300';
+    default:
+      return 'bg-gray-50 text-gray-700 border-gray-300';
+  }
+};
+
+// Custom columns for device alarm logs (without device info and actions)
+const deviceAlarmLogsColumns: ColumnDef<AlarmLog>[] = [
+  {
+    accessorKey: 'alarm_type',
+    header: 'Alarm Type',
+    cell: ({ row }) => {
+      const type = row.getValue('alarm_type') as string;
+      
+      return (
+        <div className="flex items-center gap-2">
+          {getAlarmIcon(type)}
+          <span className="text-sm font-medium">
+            {getAlarmTypeDisplay(type)}
+          </span>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'message',
+    header: 'Message',
+    cell: ({ row }) => {
+      const message = row.getValue('message') as string;
+      return (
+        <div className="max-w-[300px] truncate text-sm" title={message}>
+          {message}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'severity',
+    header: 'Severity',
+    cell: ({ row }) => {
+      const severity = row.getValue('severity') as string;
+      
+      return (
+        <Badge variant="outline" className={`text-xs ${getSeverityColor(severity)}`}>
+          {severity.toUpperCase()}
+        </Badge>
+      );
+    },
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => {
+      const status = row.getValue('status') as string;
+      
+      return (
+        <Badge variant="outline" className={`text-xs ${getStatusColor(status)}`}>
+          {status.toUpperCase()}
+        </Badge>
+      );
+    },
+  },
+  {
+    accessorKey: 'battery_level',
+    header: 'Battery',
+    cell: ({ row }) => {
+      const batteryLevel = row.getValue('battery_level') as number;
+      return (
+        <div className="text-sm">
+          {batteryLevel > 0 ? `${batteryLevel}%` : 'Unknown'}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'signal_strength',
+    header: 'Signal',
+    cell: ({ row }) => {
+      const signalStrength = row.getValue('signal_strength') as number;
+      const signalDBM = row.getValue('signal_dbm') as number;
+      return (
+        <div className="text-sm">
+          {signalStrength > 0 ? `${signalStrength}/5 (${signalDBM} dBm)` : 'Unknown'}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'created_at',
+    header: 'Created At',
+    cell: ({ row }) => {
+      const createdAt = row.getValue('created_at') as string;
+      if (!createdAt) return <span className="text-muted-foreground">-</span>;
+      
+      const date = new Date(createdAt);
+      const now = new Date();
+      const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+      
+      let timeAgo = '';
+      if (diffInMinutes < 1) timeAgo = 'Just now';
+      else if (diffInMinutes < 60) timeAgo = `${diffInMinutes}m ago`;
+      else if (diffInMinutes < 1440) timeAgo = `${Math.floor(diffInMinutes / 60)}h ago`;
+      else timeAgo = `${Math.floor(diffInMinutes / 1440)}d ago`;
+      
+      return (
+        <div className="text-sm">
+          <div>{timeAgo}</div>
+          <div className="text-xs text-muted-foreground">
+            {date.toLocaleDateString()} {date.toLocaleTimeString()}
+          </div>
+        </div>
+      );
+    },
+  },
+];
+
 // Breadcrumbs will be created dynamically based on device data
 
 export default function DeviceShow() {
@@ -83,6 +260,8 @@ export default function DeviceShow() {
   const [ussdDialog, setUssdDialog] = useState(false);
   const [alarmDialog, setAlarmDialog] = useState(false);
   const [simInfo, setSimInfo] = useState<any>(null);
+  const [alarmLogs, setAlarmLogs] = useState<AlarmLog[]>([]);
+  const [alarmLogsLoading, setAlarmLogsLoading] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -179,6 +358,42 @@ export default function DeviceShow() {
   useEffect(() => {
     fetchDevice();
   }, [imei, token, isAuthenticated]);
+
+  // Fetch alarm logs for this device
+  const fetchAlarmLogs = async () => {
+    if (!imei || !isAuthenticated || !token) {
+      return;
+    }
+    
+    setAlarmLogsLoading(true);
+    try {
+      const response = await fetch(`/api/alarm-logs?device_id=${imei}&limit=100`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAlarmLogs(data.data || []);
+      } else {
+        console.error('Failed to fetch alarm logs');
+        setAlarmLogs([]);
+      }
+    } catch (error) {
+      console.error('Error fetching alarm logs:', error);
+      setAlarmLogs([]);
+    } finally {
+      setAlarmLogsLoading(false);
+    }
+  };
+
+  // Fetch alarm logs when device is loaded
+  useEffect(() => {
+    if (device) {
+      fetchAlarmLogs();
+    }
+  }, [device]);
 
   // Update device with WebSocket real-time data
   useEffect(() => {
@@ -493,6 +708,8 @@ export default function DeviceShow() {
       if (response.ok) {
         toast.success('Alarm started successfully');
         setAlarmDialog(false);
+        // Refresh alarm logs after sending alarm
+        fetchAlarmLogs();
       } else {
         const errorData = await response.json();
         toast.error(errorData.message || 'Failed to start alarm');
@@ -685,11 +902,12 @@ export default function DeviceShow() {
         </div>
 
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="commands">Commands</TabsTrigger>
             <TabsTrigger value="sims">SIM Cards</TabsTrigger>
+            <TabsTrigger value="alarms">Alarm Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -1135,6 +1353,43 @@ export default function DeviceShow() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="alarms" className="space-y-4">
+            {/* Alarm Logs */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5" />
+                    Alarm Logs
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchAlarmLogs}
+                    disabled={alarmLogsLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${alarmLogsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <DataTable
+                  data={alarmLogs}
+                  columns={deviceAlarmLogsColumns}
+                  loading={alarmLogsLoading}
+                  showSearch={true}
+                  searchPlaceholder="Search alarm logs..."
+                  showRowSelection={false}
+                  title={`Device Alarm Logs (${alarmLogs.length} records)`}
+                  description={`Showing alarm logs for device: ${device?.name || device?.imei}`}
+                  showPagination={true}
+                  pageSize={10}
+                />
               </CardContent>
             </Card>
           </TabsContent>

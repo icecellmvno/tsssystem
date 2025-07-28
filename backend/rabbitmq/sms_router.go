@@ -103,7 +103,7 @@ func (sr *SmsRouter) findActiveAndroidDevices() ([]models.Device, error) {
 	var devices []models.Device
 
 	// Find devices that are active, online, and of type android
-	err := database.GetDB().Where("is_active = ? AND is_online = ? AND device_type = ?",
+	err := database.GetDB().Where("is_online = ? AND device_type = ?",
 		true, true, "android").Find(&devices).Error
 
 	return devices, err

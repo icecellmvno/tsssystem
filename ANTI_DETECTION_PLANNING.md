@@ -2,15 +2,15 @@
 
 ## 📋 **Project Overview**
 
-Bu doküman, TSIM Cloud sistemine entegre edilecek kapsamlı anti-detection sisteminin planlamasını içerir. Sistem, SMS gönderimlerini tespit edilmeden gerçekleştirmek için akıllı pool yönetimi, davranış simülasyonu ve gerçek zamanlı monitoring sağlar.
+This document contains the comprehensive planning for an anti-detection system to be integrated into the TSIM Cloud system. The system provides intelligent pool management, behavior simulation, and real-time monitoring to send SMS messages without being detected.
 
 ## 🎯 **System Goals**
 
-1. **Detection Avoidance**: SMS gönderimlerinin bot olarak tespit edilmesini önlemek
-2. **Natural Behavior Simulation**: Gerçek kullanıcı davranışlarını taklit etmek
-3. **Risk Management**: Yüksek riskli operasyonları minimize etmek
-4. **Scalability**: Büyük hacimli SMS gönderimlerini güvenli şekilde yönetmek
-5. **Real-time Monitoring**: Sistem performansını sürekli izlemek
+1. **Detection Avoidance**: Prevent SMS sending operations from being detected as bots
+2. **Natural Behavior Simulation**: Mimic real user behaviors
+3. **Risk Management**: Minimize high-risk operations
+4. **Scalability**: Safely manage high-volume SMS sending
+5. **Real-time Monitoring**: Continuously monitor system performance
 
 ## 🏗️ **System Architecture**
 
@@ -919,4 +919,4 @@ func (a *AnalyticsService) GenerateSystemAnalytics() *SystemAnalytics {
 
 ---
 
-Bu planlama dokümanı, anti-detection sisteminin kapsamlı implementasyonu için gerekli tüm bileşenleri ve stratejileri içerir. Her aşama detaylı olarak tanımlanmış ve ölçülebilir hedefler belirlenmiştir. 
+This planning document contains all the necessary components and strategies for the comprehensive implementation of the anti-detection system. Each phase is defined in detail and measurable goals are set. 

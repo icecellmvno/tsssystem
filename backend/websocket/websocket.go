@@ -749,6 +749,22 @@ func (ws *WebSocketServer) sendToDevice(deviceID string, message models.WebSocke
 		}
 	}
 
+	// First check if it's a frontend connection
+	ws.mutex.RLock()
+	frontendConn, frontendExists := ws.frontendConns[deviceID]
+	ws.mutex.RUnlock()
+
+	if frontendExists {
+		if err := frontendConn.WriteJSON(message); err != nil {
+			log.Printf("ERROR: Failed to send message to frontend %s: %v", deviceID, err)
+		} else {
+			log.Printf("Message sent successfully to frontend: %s", deviceID)
+		}
+		log.Printf("=== MESSAGE SEND COMPLETED ===")
+		return
+	}
+
+	// Then check if it's a device connection
 	ws.mutex.RLock()
 	conn, exists := ws.connections[deviceID]
 	ws.mutex.RUnlock()

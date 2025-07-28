@@ -31,7 +31,7 @@ export default function SmppRoutingCreate() {
         system_id: '',
         destination_address: '',
         target_type: 'device_group',
-        device_group_ids: [] as number[],
+        device_group_id: null as number | null,
         user_id: '',
         is_active: true,
         priority: 50,
@@ -98,8 +98,8 @@ export default function SmppRoutingCreate() {
             }
 
             // Add target-specific fields
-            if (form.target_type === 'device_group' && form.device_group_ids.length > 0) {
-                submitData.device_group_ids = form.device_group_ids;
+            if (form.target_type === 'device_group' && form.device_group_id) {
+                submitData.device_group_ids = [form.device_group_id];
             }
 
             await smppRoutingsService.create(submitData);
@@ -232,21 +232,19 @@ export default function SmppRoutingCreate() {
                                     </div>
                                     {form.target_type === 'device_group' && (
                                         <div>
-                                            <Label htmlFor="device_groups">Device Groups</Label>
+                                            <Label htmlFor="device_group">Device Group</Label>
                                             <Select 
-                                                value="" 
+                                                value={form.device_group_id ? form.device_group_id.toString() : ""} 
                                                 onValueChange={(value) => {
                                                     const groupId = parseInt(value);
-                                                    if (!form.device_group_ids.includes(groupId)) {
-                                                        setForm(prev => ({
-                                                            ...prev,
-                                                            device_group_ids: [...prev.device_group_ids, groupId]
-                                                        }));
-                                                    }
+                                                    setForm(prev => ({
+                                                        ...prev,
+                                                        device_group_id: groupId
+                                                    }));
                                                 }}
                                             >
-                                                <SelectTrigger id="device_groups" className="w-full">
-                                                    <SelectValue placeholder="Select Device Groups" />
+                                                <SelectTrigger id="device_group" className="w-full">
+                                                    <SelectValue placeholder="Select Device Group" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {filterOptions.device_groups.map((g: any) => (
@@ -256,29 +254,26 @@ export default function SmppRoutingCreate() {
                                                     ))}
                                                 </SelectContent>
                                             </Select>
-                                            {form.device_group_ids.length > 0 && (
-                                                <div className="mt-2 space-y-1">
-                                                    {form.device_group_ids.map((groupId) => {
-                                                        const group = filterOptions.device_groups.find((g: any) => g.id === groupId);
-                                                        return group ? (
-                                                            <div key={groupId} className="flex items-center justify-between p-2 bg-muted rounded-md">
-                                                                <span className="text-sm">{group.name}</span>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    onClick={() => {
-                                                                        setForm(prev => ({
-                                                                            ...prev,
-                                                                            device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
-                                                                        }));
-                                                                    }}
-                                                                >
-                                                                    <X className="h-3 w-3" />
-                                                                </Button>
-                                                            </div>
-                                                        ) : null;
-                                                    })}
+                                            {form.device_group_id && (
+                                                <div className="mt-2">
+                                                    <div className="flex items-center justify-between p-2 bg-muted rounded-md">
+                                                        <span className="text-sm">
+                                                            {filterOptions.device_groups.find((g: any) => g.id === form.device_group_id)?.name}
+                                                        </span>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setForm(prev => ({
+                                                                    ...prev,
+                                                                    device_group_id: null
+                                                                }));
+                                                            }}
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>

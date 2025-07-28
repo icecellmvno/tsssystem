@@ -1,0 +1,40 @@
+[Unit]
+Description=TsimCloud SMPP Server
+Documentation=https://github.com/tarikogut/tssystem
+After=network.target mysql.service redis.service rabbitmq-server.service
+Wants=mysql.service redis.service rabbitmq-server.service
+
+[Service]
+Type=simple
+User=tsimcloud
+Group=tsimcloud
+WorkingDirectory=/opt/tssystem/smppserver
+ExecStart=/opt/tssystem/smppserver/server
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tsimcloud-smpp
+
+# Environment variables
+Environment=GO_ENV=production
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/tssystem/smppserver/logs
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Health check
+ExecStartPre=/bin/bash -c 'until curl -f http://localhost:3306 >/dev/null 2>&1; do echo "Waiting for MySQL..."; sleep 2; done'
+ExecStartPre=/bin/bash -c 'until curl -f http://localhost:6379 >/dev/null 2>&1; do echo "Waiting for Redis..."; sleep 2; done'
+ExecStartPre=/bin/bash -c 'until curl -f http://localhost:15672 >/dev/null 2>&1; do echo "Waiting for RabbitMQ..."; sleep 2; done'
+
+[Install]
+WantedBy=multi-user.target 

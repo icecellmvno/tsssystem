@@ -183,9 +183,7 @@ export default function SmppRoutingsIndex() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">All Targets</SelectItem>
-                            <SelectItem value="http">HTTP</SelectItem>
                             <SelectItem value="device_group">Device Group</SelectItem>
-                            <SelectItem value="smpp">SMPP</SelectItem>
                         </SelectContent>
                     </Select>
                     <Select value={isActive} onValueChange={setIsActive}>

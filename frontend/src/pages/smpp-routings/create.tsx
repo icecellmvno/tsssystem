@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { type BreadcrumbItem } from '@/types';
 import { smppRoutingsService, type SmppRoutingFilterOptions } from '@/services/smpp-routings';
 import { toast } from 'sonner';
+import { X } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -29,10 +30,8 @@ export default function SmppRoutingCreate() {
         direction: 'inbound',
         system_id: '',
         destination_address: '',
-        target_type: 'http',
-        target_url: '',
-        target_queue_name: '',
-        target_system_id: '',
+        target_type: 'device_group',
+        device_group_ids: [] as number[],
         user_id: '',
         is_active: true,
         priority: 50,
@@ -99,17 +98,8 @@ export default function SmppRoutingCreate() {
             }
 
             // Add target-specific fields
-            if (form.target_type === 'http' && form.target_url) {
-                submitData.target_url = form.target_url;
-            }
-            if (form.target_type === 'device_group' && form.target_queue_name) {
-                const deviceGroup = filterOptions?.device_groups.find(g => g.queue_name === form.target_queue_name);
-                if (deviceGroup) {
-                    submitData.device_group_id = deviceGroup.id;
-                }
-            }
-            if (form.target_type === 'smpp' && form.target_system_id) {
-                submitData.target_system_id = form.target_system_id;
+            if (form.target_type === 'device_group' && form.device_group_ids.length > 0) {
+                submitData.device_group_ids = form.device_group_ids;
             }
 
             await smppRoutingsService.create(submitData);
@@ -236,56 +226,61 @@ export default function SmppRoutingCreate() {
                                                 <SelectValue placeholder="Target Type" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="http">HTTP</SelectItem>
                                                 <SelectItem value="device_group">Device Group</SelectItem>
-                                                <SelectItem value="smpp">SMPP</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    {form.target_type === 'http' && (
-                                        <div>
-                                            <Label htmlFor="target_url">Target URL</Label>
-                                            <Input 
-                                                id="target_url" 
-                                                name="target_url" 
-                                                placeholder="https://..." 
-                                                value={form.target_url} 
-                                                onChange={handleChange} 
-                                                required 
-                                            />
-                                            {errors.target_url && <p className="text-sm text-destructive mt-1">{errors.target_url}</p>}
-                                        </div>
-                                    )}
                                     {form.target_type === 'device_group' && (
                                         <div>
-                                            <Label htmlFor="target_queue_name">Device Group</Label>
-                                            <Select value={form.target_queue_name} onValueChange={(v) => handleSelect('target_queue_name', v)}>
-                                                <SelectTrigger id="target_queue_name" className="w-full">
-                                                    <SelectValue placeholder="Select Device Group" />
+                                            <Label htmlFor="device_groups">Device Groups</Label>
+                                            <Select 
+                                                value="" 
+                                                onValueChange={(value) => {
+                                                    const groupId = parseInt(value);
+                                                    if (!form.device_group_ids.includes(groupId)) {
+                                                        setForm(prev => ({
+                                                            ...prev,
+                                                            device_group_ids: [...prev.device_group_ids, groupId]
+                                                        }));
+                                                    }
+                                                }}
+                                            >
+                                                <SelectTrigger id="device_groups" className="w-full">
+                                                    <SelectValue placeholder="Select Device Groups" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {filterOptions.device_groups.map((g: any) => (
-                                                        <SelectItem key={g.id} value={g.queue_name || ''}>
+                                                        <SelectItem key={g.id} value={g.id.toString()}>
                                                             {g.name} {g.queue_name && `(${g.queue_name})`}
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
-                                        </div>
-                                    )}
-                                    {form.target_type === 'smpp' && (
-                                        <div>
-                                            <Label htmlFor="target_system_id">Target System ID</Label>
-                                            <Select value={form.target_system_id} onValueChange={(v) => handleSelect('target_system_id', v)}>
-                                                <SelectTrigger id="target_system_id" className="w-full">
-                                                    <SelectValue placeholder="Select Target System ID" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {filterOptions.smpp_users.map((cid: string) => (
-                                                        <SelectItem key={cid} value={cid}>{cid}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            {form.device_group_ids.length > 0 && (
+                                                <div className="mt-2 space-y-1">
+                                                    {form.device_group_ids.map((groupId) => {
+                                                        const group = filterOptions.device_groups.find((g: any) => g.id === groupId);
+                                                        return group ? (
+                                                            <div key={groupId} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                                                                <span className="text-sm">{group.name}</span>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setForm(prev => ({
+                                                                            ...prev,
+                                                                            device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
+                                                                        }));
+                                                                    }}
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                        ) : null;
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     <div>

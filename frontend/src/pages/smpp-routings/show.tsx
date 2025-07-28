@@ -87,13 +87,13 @@ export default function SmppRoutingShow() {
                             <div><b>Destination Address:</b> {routing.destination_address || <span className="text-muted-foreground">N/A</span>}</div>
                             <div><b>Target Type:</b> <Badge variant={routing.target_type_badge_variant}>{routing.target_type}</Badge></div>
                             {routing.target_type === 'http' && (
-                                <div><b>Target URL:</b> {routing.target_url}</div>
+                                <div><b>Device Group IDs:</b> {routing.device_group_ids || 'N/A'}</div>
                             )}
                             {routing.target_type === 'device_group' && (
-                                <div><b>Device Group:</b> {routing.device_group?.name || 'N/A'}</div>
+                                <div><b>Device Group IDs:</b> {routing.device_group_ids || 'N/A'}</div>
                             )}
                             {routing.target_type === 'smpp' && (
-                                <div><b>SMPP Target:</b> {routing.target_system_id || 'N/A'}</div>
+                                <div><b>Device Group IDs:</b> {routing.device_group_ids || 'N/A'}</div>
                             )}
                             <div><b>Priority:</b> {routing.priority}</div>
                             <div><b>Status:</b> <Badge variant={routing.status_badge_variant}>{routing.is_active ? 'Active' : 'Inactive'}</Badge></div>

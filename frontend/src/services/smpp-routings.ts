@@ -9,9 +9,7 @@ export interface SmppRoutingItem {
   system_id?: string;
   destination_address?: string;
   target_type: string;
-  target_url?: string;
-  device_group_id?: number;
-  target_system_id?: string;
+  device_group_ids?: string; // JSON array of device group IDs
   user_id?: number;
   is_active: boolean;
   priority: number;
@@ -29,10 +27,6 @@ export interface SmppRoutingItem {
   routing_summary: string;
   
   // Relations
-  device_group?: {
-    id: number;
-    name: string;
-  };
   user?: {
     id: number;
     username: string;
@@ -72,9 +66,7 @@ export interface SmppRoutingCreateData {
   system_id?: string;
   destination_address?: string;
   target_type: string;
-  target_url?: string;
-  device_group_id?: number;
-  target_system_id?: string;
+  device_group_ids?: number[]; // Array of device group IDs
   user_id?: number;
   priority: number;
   is_active: boolean;

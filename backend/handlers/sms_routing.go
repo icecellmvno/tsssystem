@@ -103,9 +103,7 @@ func (h *SmsRoutingHandler) GetAllSmsRoutings(c *fiber.Ctx) error {
 			"system_id":                 routing.SystemID,
 			"destination_address":       routing.DestinationAddress,
 			"target_type":               routing.TargetType,
-			"target_url":                routing.TargetURL,
-			"device_group_id":           routing.DeviceGroupID,
-			"target_system_id":          routing.TargetSystemID,
+			"device_group_ids":          routing.DeviceGroupIDs,
 			"user_id":                   routing.UserID,
 			"is_active":                 routing.IsActive,
 			"priority":                  routing.Priority,
@@ -119,13 +117,6 @@ func (h *SmsRoutingHandler) GetAllSmsRoutings(c *fiber.Ctx) error {
 			"source_display_name":       routing.GetSourceDisplayName(),
 			"target_display_name":       routing.GetDisplayName(),
 			"routing_summary":           routing.GetRoutingSummary(),
-		}
-
-		if routing.DeviceGroup != nil {
-			item["device_group"] = map[string]interface{}{
-				"id":   routing.DeviceGroup.ID,
-				"name": routing.DeviceGroup.DeviceGroup,
-			}
 		}
 
 		responseData = append(responseData, item)
@@ -147,7 +138,7 @@ func (h *SmsRoutingHandler) GetSmsRoutingByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	var routing models.SmsRouting
-	if err := h.db.Preload("DeviceGroup").Preload("User").First(&routing, id).Error; err != nil {
+	if err := h.db.Preload("User").First(&routing, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"error":   "Not found",
@@ -170,9 +161,7 @@ func (h *SmsRoutingHandler) GetSmsRoutingByID(c *fiber.Ctx) error {
 		"system_id":                 routing.SystemID,
 		"destination_address":       routing.DestinationAddress,
 		"target_type":               routing.TargetType,
-		"target_url":                routing.TargetURL,
-		"device_group_id":           routing.DeviceGroupID,
-		"target_system_id":          routing.TargetSystemID,
+		"device_group_ids":          routing.DeviceGroupIDs,
 		"user_id":                   routing.UserID,
 		"is_active":                 routing.IsActive,
 		"priority":                  routing.Priority,
@@ -248,24 +237,10 @@ func (h *SmsRoutingHandler) CreateSmsRouting(c *fiber.Ctx) error {
 	}
 
 	// Validate target-specific fields
-	if routing.TargetType == "http" && (routing.TargetURL == nil || *routing.TargetURL == "") {
+	if routing.TargetType == "device_group" && (routing.DeviceGroupIDs == nil || *routing.DeviceGroupIDs == "[]") {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Validation failed",
-			"message": "Target URL is required for HTTP target type",
-		})
-	}
-
-	if routing.TargetType == "device_group" && routing.DeviceGroupID == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Validation failed",
-			"message": "Device group ID is required for device group target type",
-		})
-	}
-
-	if routing.TargetType == "smpp" && (routing.TargetSystemID == nil || *routing.TargetSystemID == "") {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Validation failed",
-			"message": "Target system ID is required for SMPP target type",
+			"message": "Device group IDs are required for device group target type",
 		})
 	}
 

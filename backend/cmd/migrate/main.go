@@ -49,9 +49,10 @@ func runMigrations() error {
 		&models.UssdLog{},
 		&models.SimCardRecord{},
 		&models.MccMnc{},
-		// New anti-detection models
-		&models.SmsRoutingRule{},
+		// SMS routing models
 		&models.SmsRouting{},
+		&models.SmsRoutingDeviceGroup{},
+		// Anti-detection models
 		&models.SmppUserAntiDetectionConfig{},
 		&models.SmppUserSimPoolConfig{},
 		&models.SmppUserDelayConfig{},

@@ -42,7 +42,7 @@ create_user() {
     log_info "TsimCloud kullanıcısı oluşturuluyor..."
     
     if ! id "tsimcloud" &>/dev/null; then
-        useradd -r -s /bin/bash -d /opt/tssystem tsimcloud
+        useradd -r -s /bin/bash -d /opt/tsimcloud tsimcloud
         log_success "TsimCloud kullanıcısı oluşturuldu"
     else
         log_info "TsimCloud kullanıcısı zaten mevcut"
@@ -63,13 +63,13 @@ create_directories() {
     log_info "Dizin yapısı oluşturuluyor..."
     
     # Ana dizinler
-    mkdir -p /opt/tssystem/{backend,smppserver,logs,config}
-    mkdir -p /opt/tssystem/backend/{logs,static}
-    mkdir -p /opt/tssystem/smppserver/logs
+    mkdir -p /opt/tsimcloud/{backend,smppserver,logs,config}
+    mkdir -p /opt/tsimcloud/backend/{logs,static}
+    mkdir -p /opt/tsimcloud/smppserver/logs
     
     # İzinleri ayarla
-    chown -R tsimcloud:tsimcloud /opt/tssystem
-    chmod -R 755 /opt/tssystem
+    chown -R tsimcloud:tsimcloud /opt/tsimcloud
+    chmod -R 755 /opt/tsimcloud
     
     log_success "Dizin yapısı oluşturuldu"
 }
@@ -78,22 +78,41 @@ create_directories() {
 copy_binaries() {
     log_info "Binary dosyaları kopyalanıyor..."
     
-    # Backend binary
-    if [[ -f "backend/server" ]]; then
-        cp backend/server /opt/tssystem/backend/
-        chmod +x /opt/tssystem/backend/server
-        log_success "Backend binary kopyalandı"
+    # Kaynak kodlarından build et
+    log_info "Kaynak kodlarından build ediliyor..."
+    
+    # Backend build
+    if [[ -d "backend" ]]; then
+        cd backend
+        log_info "Backend build ediliyor..."
+        if go build -o server ./cmd/server/; then
+            cp server /opt/tsimcloud/backend/
+            chmod +x /opt/tsimcloud/backend/server
+            log_success "Backend build edildi ve kopyalandı"
+        else
+            log_error "Backend build başarısız"
+            return 1
+        fi
+        cd ..
     else
-        log_warning "Backend binary bulunamadı, manuel olarak kopyalayın"
+        log_warning "Backend kaynak kodu bulunamadı"
     fi
     
-    # SMPP server binary
-    if [[ -f "smppserver/server" ]]; then
-        cp smppserver/server /opt/tssystem/smppserver/
-        chmod +x /opt/tssystem/smppserver/server
-        log_success "SMPP server binary kopyalandı"
+    # SMPP server build
+    if [[ -d "smppserver" ]]; then
+        cd smppserver
+        log_info "SMPP server build ediliyor..."
+        if go build -o server ./cmd/server/; then
+            cp server /opt/tsimcloud/smppserver/
+            chmod +x /opt/tsimcloud/smppserver/server
+            log_success "SMPP server build edildi ve kopyalandı"
+        else
+            log_error "SMPP server build başarısız"
+            return 1
+        fi
+        cd ..
     else
-        log_warning "SMPP server binary bulunamadı, manuel olarak kopyalayın"
+        log_warning "SMPP server kaynak kodu bulunamadı"
     fi
 }
 
@@ -103,19 +122,19 @@ copy_configs() {
     
     # Backend config
     if [[ -f "backend/config/config.yaml" ]]; then
-        cp backend/config/config.yaml /opt/tssystem/config/backend.yaml
+        cp backend/config/config.yaml /opt/tsimcloud/config/backend.yaml
         log_success "Backend config kopyalandı"
     fi
     
     # SMPP server config
     if [[ -f "smppserver/config/config.yaml" ]]; then
-        cp smppserver/config/config.yaml /opt/tssystem/config/smpp.yaml
+        cp smppserver/config/config.yaml /opt/tsimcloud/config/smpp.yaml
         log_success "SMPP server config kopyalandı"
     fi
     
     # İzinleri ayarla
-    chown -R tsimcloud:tsimcloud /opt/tssystem/config
-    chmod 644 /opt/tssystem/config/*.yaml
+    chown -R tsimcloud:tsimcloud /opt/tsimcloud/config
+    chmod 644 /opt/tsimcloud/config/*.yaml
 }
 
 # Systemd servislerini kur
@@ -141,7 +160,7 @@ setup_logrotate() {
     log_info "Logrotate konfigürasyonu ayarlanıyor..."
     
     cat > /etc/logrotate.d/tsimcloud-services << EOF
-/opt/tssystem/logs/*.log {
+/opt/tsimcloud/logs/*.log {
     daily
     missingok
     rotate 30
@@ -163,7 +182,7 @@ EOF
 create_monitoring_script() {
     log_info "Monitoring script'i oluşturuluyor..."
     
-    cat > /opt/tssystem/monitor-services.sh << 'EOF'
+    cat > /opt/tsimcloud/monitor-services.sh << 'EOF'
 #!/bin/bash
 
 # TsimCloud Services Monitoring Script
@@ -194,8 +213,8 @@ ps aux | grep -E "(tsimcloud-backend|tsimcloud-smpp)" | grep -v grep
 echo "====================="
 EOF
     
-    chmod +x /opt/tssystem/monitor-services.sh
-    chown tsimcloud:tsimcloud /opt/tssystem/monitor-services.sh
+    chmod +x /opt/tsimcloud/monitor-services.sh
+    chown tsimcloud:tsimcloud /opt/tsimcloud/monitor-services.sh
     
     log_success "Monitoring script'i oluşturuldu"
 }
@@ -205,7 +224,7 @@ setup_cron() {
     log_info "Cron job ayarlanıyor..."
     
     # Monitoring için cron job
-    (crontab -l 2>/dev/null; echo "*/5 * * * * /opt/tssystem/monitor-services.sh >> /opt/tssystem/logs/monitor.log 2>&1") | crontab -
+    (crontab -l 2>/dev/null; echo "*/5 * * * * /opt/tsimcloud/monitor-services.sh >> /opt/tsimcloud/logs/monitor.log 2>&1") | crontab -
     
     log_success "Cron job ayarlandı"
 }

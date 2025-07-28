@@ -4,8 +4,17 @@ Bu dokümantasyon, TsimCloud backend ve SMPP server için systemd servislerinin 
 
 ## 📁 Dizin Yapısı
 
+### Kaynak Kodlar
 ```
-/opt/tssystem/
+/opt/tssystem/          # Kaynak kodlar burada
+├── backend/
+├── smppserver/
+└── frontend/
+```
+
+### Deploy Edilen Dosyalar
+```
+/opt/tsimcloud/         # Deploy edilen dosyalar burada
 ├── backend/
 │   ├── server (binary)
 │   ├── logs/
@@ -36,28 +45,33 @@ sudo ./install-services.sh
 
 ```bash
 # 1. Kullanıcı oluştur
-sudo useradd -r -s /bin/bash -d /opt/tssystem tsimcloud
+sudo useradd -r -s /bin/bash -d /opt/tsimcloud tsimcloud
 sudo groupadd tsimcloud
 sudo usermod -a -G tsimcloud tsimcloud
 
 # 2. Dizinleri oluştur
-sudo mkdir -p /opt/tssystem/{backend,smppserver,logs,config}
-sudo mkdir -p /opt/tssystem/backend/{logs,static}
-sudo mkdir -p /opt/tssystem/smppserver/logs
+sudo mkdir -p /opt/tsimcloud/{backend,smppserver,logs,config}
+sudo mkdir -p /opt/tsimcloud/backend/{logs,static}
+sudo mkdir -p /opt/tsimcloud/smppserver/logs
 
 # 3. İzinleri ayarla
-sudo chown -R tsimcloud:tsimcloud /opt/tssystem
-sudo chmod -R 755 /opt/tssystem
+sudo chown -R tsimcloud:tsimcloud /opt/tsimcloud
+sudo chmod -R 755 /opt/tsimcloud
 
-# 4. Binary dosyalarını kopyala
-sudo cp backend/server /opt/tssystem/backend/
-sudo cp smppserver/server /opt/tssystem/smppserver/
-sudo chmod +x /opt/tssystem/backend/server
-sudo chmod +x /opt/tssystem/smppserver/server
+# 4. Kaynak kodlarından build et
+cd /opt/tssystem/backend
+go build -o server ./cmd/server/
+sudo cp server /opt/tsimcloud/backend/
+sudo chmod +x /opt/tsimcloud/backend/server
+
+cd /opt/tssystem/smppserver
+go build -o server ./cmd/server/
+sudo cp server /opt/tsimcloud/smppserver/
+sudo chmod +x /opt/tsimcloud/smppserver/server
 
 # 5. Konfigürasyon dosyalarını kopyala
-sudo cp backend/config/config.yaml /opt/tssystem/config/backend.yaml
-sudo cp smppserver/config/config.yaml /opt/tssystem/config/smpp.yaml
+sudo cp /opt/tssystem/backend/config/config.yaml /opt/tsimcloud/config/backend.yaml
+sudo cp /opt/tssystem/smppserver/config/config.yaml /opt/tsimcloud/config/smpp.yaml
 
 # 6. Systemd servislerini kur
 sudo cp tsimcloud-backend.service /etc/systemd/system/
@@ -133,20 +147,20 @@ sudo journalctl -u tsimcloud-backend.service -f
 sudo journalctl -u tsimcloud-smpp.service -f
 
 # Uygulama logları
-sudo tail -f /opt/tssystem/logs/*.log
+sudo tail -f /opt/tsimcloud/logs/*.log
 
 # Monitoring logları
-sudo tail -f /opt/tssystem/logs/monitor.log
+sudo tail -f /opt/tsimcloud/logs/monitor.log
 ```
 
 ### Monitoring Script
 
 ```bash
 # Manuel monitoring
-sudo /opt/tssystem/monitor-services.sh
+sudo /opt/tsimcloud/monitor-services.sh
 
 # Monitoring script'ini çalıştırılabilir yap
-sudo chmod +x /opt/tssystem/monitor-services.sh
+sudo chmod +x /opt/tsimcloud/monitor-services.sh
 ```
 
 ### Otomatik Monitoring
@@ -180,11 +194,11 @@ Monitoring script'i her 5 dakikada bir otomatik olarak çalışır ve:
 3. **İzin Sorunları**
    ```bash
    # Dizin izinlerini kontrol et
-   ls -la /opt/tssystem/
-   
-   # İzinleri düzelt
-   sudo chown -R tsimcloud:tsimcloud /opt/tssystem
-   sudo chmod -R 755 /opt/tssystem
+ls -la /opt/tsimcloud/
+
+# İzinleri düzelt
+sudo chown -R tsimcloud:tsimcloud /opt/tsimcloud
+sudo chmod -R 755 /opt/tsimcloud
    ```
 
 ### Debug Komutları
@@ -217,7 +231,7 @@ sudo systemctl show tsimcloud-smpp.service --property=LimitNOFILE
 
 ```bash
 # TsimCloud kullanıcısı sadece gerekli dizinlere erişebilir
-sudo -u tsimcloud ls -la /opt/tssystem/
+sudo -u tsimcloud ls -la /opt/tsimcloud/
 
 # Sistem dizinlerine erişim engellenmiş
 sudo -u tsimcloud ls /etc/  # Hata verecek
@@ -250,10 +264,10 @@ ps aux | grep -E "(tsimcloud-backend|tsimcloud-smpp)" | grep -v grep
 sudo systemctl stop tsimcloud-backend.service tsimcloud-smpp.service
 
 # Yeni binary'leri kopyala
-sudo cp backend/server /opt/tssystem/backend/
-sudo cp smppserver/server /opt/tssystem/smppserver/
-sudo chmod +x /opt/tssystem/backend/server
-sudo chmod +x /opt/tssystem/smppserver/server
+sudo cp backend/server /opt/tsimcloud/backend/
+sudo cp smppserver/server /opt/tsimcloud/smppserver/
+sudo chmod +x /opt/tsimcloud/backend/server
+sudo chmod +x /opt/tsimcloud/smppserver/server
 
 # Servisleri başlat
 sudo systemctl start tsimcloud-backend.service tsimcloud-smpp.service
@@ -263,8 +277,8 @@ sudo systemctl start tsimcloud-backend.service tsimcloud-smpp.service
 
 ```bash
 # Konfigürasyon dosyalarını güncelle
-sudo cp backend/config/config.yaml /opt/tssystem/config/backend.yaml
-sudo cp smppserver/config/config.yaml /opt/tssystem/config/smpp.yaml
+sudo cp backend/config/config.yaml /opt/tsimcloud/config/backend.yaml
+sudo cp smppserver/config/config.yaml /opt/tsimcloud/config/smpp.yaml
 
 # Servisleri yeniden başlat
 sudo systemctl restart tsimcloud-backend.service tsimcloud-smpp.service
@@ -287,7 +301,7 @@ sudo rm /etc/systemd/system/tsimcloud-smpp.service
 sudo systemctl daemon-reload
 
 # Dizinleri sil (isteğe bağlı)
-sudo rm -rf /opt/tssystem
+sudo rm -rf /opt/tsimcloud
 
 # Kullanıcıyı sil (isteğe bağlı)
 sudo userdel tsimcloud

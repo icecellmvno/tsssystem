@@ -8,8 +8,8 @@ Wants=mysql.service redis.service rabbitmq-server.service
 Type=simple
 User=tsimcloud
 Group=tsimcloud
-WorkingDirectory=/opt/tssystem/smppserver
-ExecStart=/opt/tssystem/smppserver/server
+WorkingDirectory=/opt/tsimcloud/smppserver
+ExecStart=/opt/tsimcloud/smppserver/server
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=10
@@ -25,7 +25,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/tssystem/smppserver/logs
+ReadWritePaths=/opt/tsimcloud/smppserver/logs
 
 # Resource limits
 LimitNOFILE=65536

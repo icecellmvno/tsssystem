@@ -32,10 +32,7 @@ ReadWritePaths=/opt/tsimcloud/backend/logs /opt/tsimcloud/backend/static
 LimitNOFILE=65536
 LimitNPROC=4096
 
-# Health check
-ExecStartPre=/bin/bash -c 'until curl -f http://localhost:3306 >/dev/null 2>&1; do echo "Waiting for MySQL..."; sleep 2; done'
-ExecStartPre=/bin/bash -c 'until curl -f http://localhost:6379 >/dev/null 2>&1; do echo "Waiting for Redis..."; sleep 2; done'
-ExecStartPre=/bin/bash -c 'until curl -f http://localhost:15672 >/dev/null 2>&1; do echo "Waiting for RabbitMQ..."; sleep 2; done'
+
 
 [Install]
 WantedBy=multi-user.target 

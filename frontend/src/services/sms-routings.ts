@@ -72,36 +72,36 @@ export const smsRoutingsService = {
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.per_page) searchParams.append('per_page', params.per_page.toString());
 
-    const response = await apiClient.get<SmsRoutingsListResponse>(`/sms-routings?${searchParams.toString()}`);
+    const response = await apiClient.get<SmsRoutingsListResponse>(`/smpp-routings?${searchParams.toString()}`);
     return response;
   },
 
   // Get SMS routing by ID
   getById: async (id: number): Promise<SmsRoutingItem> => {
-    const response = await apiClient.get<SmsRoutingItem>(`/sms-routings/${id}`);
+    const response = await apiClient.get<SmsRoutingItem>(`/smpp-routings/${id}`);
     return response;
   },
 
   // Create SMS routing
   create: async (data: Partial<SmsRoutingItem>): Promise<SmsRoutingItem> => {
-    const response = await apiClient.post<SmsRoutingItem>('/sms-routings', data);
+    const response = await apiClient.post<SmsRoutingItem>('/smpp-routings', data);
     return response;
   },
 
   // Update SMS routing
   update: async (id: number, data: Partial<SmsRoutingItem>): Promise<SmsRoutingItem> => {
-    const response = await apiClient.put<SmsRoutingItem>(`/sms-routings/${id}`, data);
+    const response = await apiClient.put<SmsRoutingItem>(`/smpp-routings/${id}`, data);
     return response;
   },
 
   // Delete SMS routing
   delete: async (id: number): Promise<void> => {
-    await apiClient.delete<void>(`/sms-routings/${id}`);
+    await apiClient.delete<void>(`/smpp-routings/${id}`);
   },
 
   // Get filter options
   getFilterOptions: async (): Promise<SmsRoutingsFilterOptions> => {
-    const response = await apiClient.get<SmsRoutingsFilterOptions>('/sms-routings/filter-options');
+    const response = await apiClient.get<SmsRoutingsFilterOptions>('/smpp-routings/filter-options');
     return response;
   },
 }; 

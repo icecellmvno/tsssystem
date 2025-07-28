@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log"
 	"strconv"
 	"tsimsocketserver/database"
@@ -175,13 +176,6 @@ func (h *SmsRoutingHandler) GetSmsRoutingByID(c *fiber.Ctx) error {
 		"source_display_name":       routing.GetSourceDisplayName(),
 		"target_display_name":       routing.GetDisplayName(),
 		"routing_summary":           routing.GetRoutingSummary(),
-	}
-
-	if routing.DeviceGroup != nil {
-		response["device_group"] = map[string]interface{}{
-			"id":   routing.DeviceGroup.ID,
-			"name": routing.DeviceGroup.DeviceGroup,
-		}
 	}
 
 	if routing.User != nil {
@@ -387,7 +381,6 @@ func (h *SmsRoutingHandler) RouteSms(c *fiber.Ctx) error {
 	// Find matching routing rule
 	var routing models.SmsRouting
 	if err := h.db.Where("is_active = ? AND direction = ?", true, request.Direction).
-		Preload("DeviceGroup").
 		Preload("User").
 		Order("priority DESC").
 		First(&routing).Error; err != nil {
@@ -407,19 +400,41 @@ func (h *SmsRoutingHandler) RouteSms(c *fiber.Ctx) error {
 	log.Printf("Routing SMS - Source: %s, Dest: %s, Direction: %s, Routing ID: %d",
 		request.SourceAddress, request.DestAddress, request.Direction, routing.ID)
 
-	// Send to all connected devices in the device group
-	if routing.DeviceGroupID != nil {
+	// Send to all connected devices in the device groups
+	if routing.DeviceGroupIDs != nil && *routing.DeviceGroupIDs != "" {
+		var deviceGroupIDs []uint
+		if err := json.Unmarshal([]byte(*routing.DeviceGroupIDs), &deviceGroupIDs); err != nil {
+			log.Printf("Error parsing device group IDs: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":   "Invalid device group configuration",
+				"message": "Failed to parse device group IDs",
+			})
+		}
+
+		// Get device group names from IDs
+		var deviceGroupNames []string
+		for _, groupID := range deviceGroupIDs {
+			var deviceGroup models.DeviceGroup
+			if err := h.db.First(&deviceGroup, groupID).Error; err == nil {
+				deviceGroupNames = append(deviceGroupNames, deviceGroup.DeviceGroup)
+			}
+		}
+
 		devices := wsServer.GetConnectedDevices()
 		for _, device := range devices {
-			if device.DeviceGroup == routing.DeviceGroup.DeviceGroup {
-				// Create SMS message data
-				smsData := models.SendSmsData{
-					PhoneNumber: request.DestAddress,
-					Message:     request.Message,
-					SimSlot:     1, // Default to SIM slot 1
-					Priority:    "normal",
+			// Check if device belongs to any of the target device groups
+			for _, groupName := range deviceGroupNames {
+				if device.DeviceGroup == groupName {
+					// Create SMS message data
+					smsData := models.SendSmsData{
+						PhoneNumber: request.DestAddress,
+						Message:     request.Message,
+						SimSlot:     1, // Default to SIM slot 1
+						Priority:    "normal",
+					}
+					wsServer.SendSms(device.DeviceID, smsData)
+					break // Send only once per device
 				}
-				wsServer.SendSms(device.DeviceID, smsData)
 			}
 		}
 	}
@@ -450,7 +465,7 @@ func (h *SmsRoutingHandler) GetSmsRoutingStats(c *fiber.Ctx) error {
 	h.db.Model(&models.SmsRouting{}).Where("is_active = ?", false).Count(&stats.InactiveRoutings)
 
 	// Get device group routings
-	h.db.Model(&models.SmsRouting{}).Where("device_group_id IS NOT NULL").Count(&stats.DeviceGroupRoutings)
+	h.db.Model(&models.SmsRouting{}).Where("device_group_ids IS NOT NULL AND device_group_ids != '[]'").Count(&stats.DeviceGroupRoutings)
 
 	// Get user routings
 	h.db.Model(&models.SmsRouting{}).Where("user_id IS NOT NULL").Count(&stats.UserRoutings)

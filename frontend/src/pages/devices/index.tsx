@@ -344,13 +344,15 @@ export default function DevicesIndex() {
   const countrySites = useMemo(() => {
     if (!devices || devices.length === 0) return [];
     const uniqueSites = [...new Set(devices.map(device => device.country_site))];
-    return uniqueSites.sort();
+    // Boş string değerleri filtrele
+    return uniqueSites.filter(site => site && site.trim() !== '').sort();
   }, [devices]);
 
   const deviceGroups = useMemo(() => {
     if (!devices || devices.length === 0) return [];
     const uniqueGroups = [...new Set(devices.map(device => device.device_group))];
-    return uniqueGroups.sort();
+    // Boş string değerleri filtrele
+    return uniqueGroups.filter(group => group && group.trim() !== '').sort();
   }, [devices]);
 
   // Real-time stats calculation
@@ -407,13 +409,15 @@ export default function DevicesIndex() {
   const alarmDevices = useMemo(() => {
     if (!alarmLogs || alarmLogs.length === 0) return [];
     const uniqueDevices = [...new Set(alarmLogs.map(log => log.device_id))];
-    return uniqueDevices.sort();
+    // Boş string değerleri filtrele
+    return uniqueDevices.filter(device => device && device.trim() !== '').sort();
   }, [alarmLogs]);
 
   const alarmTypes = useMemo(() => {
     if (!alarmLogs || alarmLogs.length === 0) return [];
     const uniqueTypes = [...new Set(alarmLogs.map(log => log.alarm_type))];
-    return uniqueTypes.sort();
+    // Boş string değerleri filtrele
+    return uniqueTypes.filter(type => type && type.trim() !== '').sort();
   }, [alarmLogs]);
 
   // Effects
@@ -810,8 +814,8 @@ export default function DevicesIndex() {
                 >
                   <option value="all">All devices</option>
                   {alarmDevices.map((device) => (
-                    <option key={device} value={device}>
-                      {device}
+                    <option key={device} value={device || 'unknown'}>
+                      {device || 'Unknown Device'}
                     </option>
                   ))}
                 </select>
@@ -826,8 +830,8 @@ export default function DevicesIndex() {
                 >
                   <option value="all">All types</option>
                   {alarmTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type.replace('_', ' ').toUpperCase()}
+                    <option key={type} value={type || 'unknown'}>
+                      {(type || 'Unknown Type').replace('_', ' ').toUpperCase()}
                     </option>
                   ))}
                 </select>

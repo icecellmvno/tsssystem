@@ -263,18 +263,17 @@ export const useWebSocketStore = create<WebSocketStore>()(
     const handleUssdResponse = (data: UssdResponseData) => {
       console.log('WebSocket: USSD response received:', data);
       
-      // Add to USSD logs
-      get().addSmsLog({
-        id: Date.now(),
-        session_id: data.session_id,
-        message_id: data.message_id,
-        ussd_code: data.ussd_code,
-        response: data.cleaned_response,
-        status: data.status,
-        is_menu: data.is_menu,
-        auto_cancel: data.auto_cancel,
-        created_at: new Date(data.timestamp).toISOString(),
-      });
+             // Add to USSD logs
+       get().addSmsLog({
+         id: Date.now(),
+         session_id: data.session_id,
+         message_id: data.message_id,
+         response: data.cleaned_response,
+         status: data.status,
+         is_menu: data.is_menu,
+         auto_cancel: data.auto_cancel,
+         created_at: new Date(data.timestamp).toISOString(),
+       });
     };
 
     const handleUssdResponseFailed = (data: UssdResponseFailedData) => {
@@ -296,48 +295,48 @@ export const useWebSocketStore = create<WebSocketStore>()(
     const handleMmsReceived = (data: MmsReceivedData) => {
       console.log('WebSocket: MMS received:', data);
       
-      // Add to MMS logs
-      get().addSmsLog({
-        id: Date.now(),
-        sender: data.sender,
-        subject: data.subject,
-        parts_count: data.parts_count,
-        sim_slot: data.sim_slot,
-        device_group: data.device_group,
-        country_site: data.country_site,
-        created_at: new Date(data.timestamp).toISOString(),
-      });
+             // Add to MMS logs
+       get().addSmsLog({
+         id: Date.now(),
+         sender: data.sender,
+         subject: data.subject,
+         parts_count: data.parts_count,
+         sim_slot: data.sim_slot,
+         device_group: data.device_group,
+         country_site: data.sitename,
+         created_at: new Date(data.timestamp).toISOString(),
+       });
     };
 
     const handleRcsReceived = (data: RcsReceivedData) => {
       console.log('WebSocket: RCS received:', data);
       
-      // Add to RCS logs
-      get().addSmsLog({
-        id: Date.now(),
-        sender: data.sender,
-        message: data.message,
-        message_type: data.message_type,
-        sim_slot: data.sim_slot,
-        device_group: data.device_group,
-        country_site: data.country_site,
-        created_at: new Date(data.timestamp).toISOString(),
-      });
+             // Add to RCS logs
+       get().addSmsLog({
+         id: Date.now(),
+         sender: data.sender,
+         message: data.message,
+         message_type: data.message_type,
+         sim_slot: data.sim_slot,
+         device_group: data.device_group,
+         country_site: data.sitename,
+         created_at: new Date(data.timestamp).toISOString(),
+       });
     };
 
     const handleUssdCode = (data: UssdCodeData) => {
       console.log('WebSocket: USSD code received:', data);
       
-      // Add to USSD logs
-      get().addSmsLog({
-        id: Date.now(),
-        sender: data.sender,
-        ussd_code: data.ussd_code,
-        sim_slot: data.sim_slot,
-        device_group: data.device_group,
-        country_site: data.country_site,
-        created_at: new Date(data.timestamp).toISOString(),
-      });
+             // Add to USSD logs
+       get().addSmsLog({
+         id: Date.now(),
+         sender: data.sender,
+         ussd_code: data.ussd_code,
+         sim_slot: data.sim_slot,
+         device_group: data.device_group,
+         country_site: data.sitename,
+         created_at: new Date(data.timestamp).toISOString(),
+       });
     };
 
     const handleFindDeviceSuccess = (data: FindDeviceSuccessData) => {

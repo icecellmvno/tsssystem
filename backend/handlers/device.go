@@ -837,3 +837,21 @@ func (h *DeviceHandler) ExitMaintenanceModeBulk(c *fiber.Ctx) error {
 		"message": "Devices exited maintenance mode",
 	})
 }
+
+// GetActiveDevices returns all active devices
+func (h *DeviceHandler) GetActiveDevices(c *fiber.Ctx) error {
+	var devices []models.Device
+
+	// Get active devices (not in maintenance mode and is_active = true)
+	if err := database.GetDB().Where("is_active = ? AND maintenance_mode = ?", true, false).Find(&devices).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to fetch active devices",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    devices,
+	})
+}

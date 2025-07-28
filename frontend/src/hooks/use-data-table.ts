@@ -10,6 +10,7 @@ import {
   getFilteredRowModel,
   getSortedRowModel,
   getPaginationRowModel,
+  FilterFn,
 } from '@tanstack/react-table'
 
 interface UseDataTableProps<TData> {
@@ -21,9 +22,7 @@ interface UseDataTableProps<TData> {
   enableSorting?: boolean
   enableGlobalFilter?: boolean
   enableColumnFilters?: boolean
-  enableColumnVisibility?: boolean
-  enablePagination?: boolean
-  globalFilterFn?: 'includesString' | 'fuzzy' | 'equals' | 'startsWith' | 'endsWith'
+  globalFilterFn?: FilterFn<TData>
 }
 
 export function useDataTable<TData>({
@@ -35,9 +34,7 @@ export function useDataTable<TData>({
   enableSorting = true,
   enableGlobalFilter = true,
   enableColumnFilters = true,
-  enableColumnVisibility = true,
-  enablePagination = true,
-  globalFilterFn = 'includesString',
+  globalFilterFn,
 }: UseDataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -51,16 +48,16 @@ export function useDataTable<TData>({
     onSortingChange: enableSorting ? setSorting : undefined,
     onColumnFiltersChange: enableColumnFilters ? setColumnFilters : undefined,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
     getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: enableColumnVisibility ? setColumnVisibility : undefined,
+    onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: enableRowSelection ? setRowSelection : undefined,
     onGlobalFilterChange: enableGlobalFilter ? setGlobalFilter : undefined,
     state: {
       sorting: enableSorting ? sorting : [],
       columnFilters: enableColumnFilters ? columnFilters : [],
-      columnVisibility: enableColumnVisibility ? columnVisibility : {},
+      columnVisibility,
       rowSelection: enableRowSelection ? rowSelection : {},
       globalFilter: enableGlobalFilter ? globalFilter : '',
     },
@@ -70,13 +67,13 @@ export function useDataTable<TData>({
     enableSorting,
     enableGlobalFilter,
     enableColumnFilters,
-    enableColumnVisibility,
-    enablePagination,
+
+
     initialState: {
-      pagination: enablePagination ? { 
+      pagination: { 
         pageSize: pageSize || 15,
         pageIndex: 0,
-      } : undefined,
+      },
     },
   })
 

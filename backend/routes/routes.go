@@ -92,7 +92,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	devices.Get("/", deviceHandler.GetAllDevices)
 	devices.Get("/stats", deviceHandler.GetDeviceStats)
 	devices.Get("/connected", deviceHandler.GetConnectedDevices)
-	devices.Get("/active", handlers.GetActiveDevices)
+	devices.Get("/active", deviceHandler.GetActiveDevices)
 	devices.Get("/:imei", deviceHandler.GetDeviceByID)
 	devices.Post("/:imei/sms", deviceHandler.SendSms)
 	devices.Post("/:imei/ussd", deviceHandler.SendUssd)
@@ -120,9 +120,9 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 
 	// SMS Routing routes
 	smsRouting := protected.Group("/sms-routing")
-	smsRouting.Post("/send", handlers.RouteSms)
-	smsRouting.Get("/stats", handlers.GetSmsRoutingStats)
-	smsRouting.Get("/active-devices", handlers.GetActiveDevices)
+	smsRouting.Post("/send", smsRoutingHandler.RouteSms)
+	smsRouting.Get("/stats", smsRoutingHandler.GetSmsRoutingStats)
+	smsRouting.Get("/active-devices", deviceHandler.GetActiveDevices)
 
 	// Alarm Log routes
 	alarmLogs := protected.Group("/alarm-logs")

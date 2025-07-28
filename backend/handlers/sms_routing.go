@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"log"
 	"strconv"
 	"tsimsocketserver/database"
 	"tsimsocketserver/models"
+
+	"tsimsocketserver/websocket"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -378,5 +381,107 @@ func (h *SmsRoutingHandler) GetSmsRoutingFilterOptions(c *fiber.Ctx) error {
 		"device_groups": deviceGroups,
 		"smpp_users":    smppUserIDs,
 		"users":         users,
+	})
+}
+
+// RouteSms handles SMS routing logic
+func (h *SmsRoutingHandler) RouteSms(c *fiber.Ctx) error {
+	var request struct {
+		SourceAddress string `json:"source_address"`
+		DestAddress   string `json:"dest_address"`
+		Message       string `json:"message"`
+		Direction     string `json:"direction"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "Invalid request body",
+			"message": err.Error(),
+		})
+	}
+
+	// Get WebSocket server from context
+	wsServer := c.Locals("ws_server").(*websocket.WebSocketServer)
+	if wsServer == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "WebSocket server not available",
+			"message": "Cannot route SMS without WebSocket server",
+		})
+	}
+
+	// Find matching routing rule
+	var routing models.SmsRouting
+	if err := h.db.Where("is_active = ? AND direction = ?", true, request.Direction).
+		Preload("DeviceGroup").
+		Preload("User").
+		Order("priority DESC").
+		First(&routing).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error":   "No routing rule found",
+				"message": "No active routing rule found for the given direction",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "Database error",
+			"message": err.Error(),
+		})
+	}
+
+	// Log routing information
+	log.Printf("Routing SMS - Source: %s, Dest: %s, Direction: %s, Routing ID: %d",
+		request.SourceAddress, request.DestAddress, request.Direction, routing.ID)
+
+	// Send to all connected devices in the device group
+	if routing.DeviceGroupID != nil {
+		devices := wsServer.GetConnectedDevices()
+		for _, device := range devices {
+			if device.DeviceGroup == routing.DeviceGroup.DeviceGroup {
+				// Create SMS message data
+				smsData := models.SendSmsData{
+					PhoneNumber: request.DestAddress,
+					Message:     request.Message,
+					SimSlot:     1, // Default to SIM slot 1
+					Priority:    "normal",
+				}
+				wsServer.SendSms(device.DeviceID, smsData)
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "SMS routed successfully",
+		"routing": routing,
+	})
+}
+
+// GetSmsRoutingStats returns statistics for SMS routing
+func (h *SmsRoutingHandler) GetSmsRoutingStats(c *fiber.Ctx) error {
+	var stats struct {
+		TotalRoutings       int64 `json:"total_routings"`
+		ActiveRoutings      int64 `json:"active_routings"`
+		InactiveRoutings    int64 `json:"inactive_routings"`
+		DeviceGroupRoutings int64 `json:"device_group_routings"`
+		UserRoutings        int64 `json:"user_routings"`
+	}
+
+	// Get total routings
+	h.db.Model(&models.SmsRouting{}).Count(&stats.TotalRoutings)
+
+	// Get active routings
+	h.db.Model(&models.SmsRouting{}).Where("is_active = ?", true).Count(&stats.ActiveRoutings)
+
+	// Get inactive routings
+	h.db.Model(&models.SmsRouting{}).Where("is_active = ?", false).Count(&stats.InactiveRoutings)
+
+	// Get device group routings
+	h.db.Model(&models.SmsRouting{}).Where("device_group_id IS NOT NULL").Count(&stats.DeviceGroupRoutings)
+
+	// Get user routings
+	h.db.Model(&models.SmsRouting{}).Where("user_id IS NOT NULL").Count(&stats.UserRoutings)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    stats,
 	})
 }

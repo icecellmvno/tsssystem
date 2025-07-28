@@ -34,7 +34,7 @@ export default function SimCardEdit() {
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState<UpdateSimCardData>({
         slot_index: 1,
-        subscription_id: 1,
+        subscription_id: '1',
         display_name: '',
         carrier_name: '',
         country_iso: '',

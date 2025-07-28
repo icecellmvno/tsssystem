@@ -42,6 +42,8 @@ export interface SmsLogItem {
   max_retries: number | null;
   created_at: string;
   updated_at: string;
+  pdu_count?: number;
+  is_blacklisted?: boolean;
 }
 
 export interface SmsLogsListResponse {

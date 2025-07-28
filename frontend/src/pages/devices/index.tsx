@@ -202,18 +202,7 @@ export default function DevicesIndex() {
     }
   };
 
-  const handleExitMaintenanceMode = async () => {
-    try {
-      await deviceService.exitMaintenanceMode(selectedDevices);
-      toast.success('Devices exited maintenance mode');
-      setSelectedDevices([]);
-      fetchDevices();
-      fetchStats();
-    } catch (error) {
-      console.error('Error exiting maintenance mode:', error);
-      toast.error('Failed to exit maintenance mode');
-    }
-  };
+
 
   const handleRename = async (device?: Device) => {
     if (device) {
@@ -662,7 +651,7 @@ export default function DevicesIndex() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleExitMaintenanceMode}
+                    onClick={() => handleExitMaintenance()}
                   >
                     <Activity className="h-4 w-4 mr-2" />
                     Exit Maintenance

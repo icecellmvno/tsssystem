@@ -748,18 +748,37 @@ func (h *DeviceHandler) GetDeviceStats(c *fiber.Ctx) error {
 
 // DeleteDevices deletes multiple devices by IMEI
 func (h *DeviceHandler) DeleteDevices(c *fiber.Ctx) error {
-	var request struct {
-		Imeis []string `json:"imeis"`
-	}
+	// Get IMEIs from query parameters
+	args := c.Context().QueryArgs()
+	var imeiList []string
 
-	if err := c.BodyParser(&request); err != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"success": false,
-			"message": "Invalid request body",
+	// Check if imeis parameter exists
+	if args.Has("imeis") {
+		// Multiple imeis parameters (like ?imeis=123&imeis=456)
+		args.VisitAll(func(key, value []byte) {
+			if string(key) == "imeis" {
+				imeiList = append(imeiList, string(value))
+			}
 		})
 	}
 
-	if len(request.Imeis) == 0 {
+	// If no IMEIs found in query parameters, try to parse from JSON body
+	if len(imeiList) == 0 {
+		var request struct {
+			Imeis []string `json:"imeis"`
+		}
+
+		if err := c.BodyParser(&request); err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"success": false,
+				"message": "Invalid request body or missing imeis parameter",
+			})
+		}
+
+		imeiList = request.Imeis
+	}
+
+	if len(imeiList) == 0 {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
 			"message": "No devices to delete",
@@ -767,7 +786,7 @@ func (h *DeviceHandler) DeleteDevices(c *fiber.Ctx) error {
 	}
 
 	// Delete devices
-	if err := database.GetDB().Where("imei IN ?", request.Imeis).Delete(&models.Device{}).Error; err != nil {
+	if err := database.GetDB().Where("imei IN ?", imeiList).Delete(&models.Device{}).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to delete devices",
@@ -885,7 +904,7 @@ func (h *DeviceHandler) ExitMaintenanceModeBulk(c *fiber.Ctx) error {
 	updates := map[string]interface{}{
 		"maintenance_mode":       false,
 		"maintenance_reason":     "",
-		"maintenance_started_at": nil,
+		"maintenance_started_at": "",
 		"is_active":              true,
 	}
 

@@ -45,6 +45,7 @@ func (h *DeviceHandler) GetAllDevices(c *fiber.Ctx) error {
 	status := c.Query("status")
 	online := c.Query("online")
 	maintenance := c.Query("maintenance")
+	imeis := c.Query("imeis") // Get imeis parameter
 
 	// Build query
 	query := database.GetDB()
@@ -85,6 +86,32 @@ func (h *DeviceHandler) GetAllDevices(c *fiber.Ctx) error {
 			query = query.Where("maintenance_mode = ?", true)
 		} else {
 			query = query.Where("maintenance_mode = ?", false)
+		}
+	}
+
+	// Apply IMEI filter if provided
+	if imeis != "" {
+		// Split comma-separated IMEIs or handle single IMEI
+		imeiList := []string{}
+		if imeis != "" {
+			// Handle both comma-separated and multiple imeis parameters
+			// Get all imeis parameters from query string
+			args := c.Context().QueryArgs()
+			if args.Has("imeis") {
+				// Multiple imeis parameters (like ?imeis=123&imeis=456)
+				args.VisitAll(func(key, value []byte) {
+					if string(key) == "imeis" {
+						imeiList = append(imeiList, string(value))
+					}
+				})
+			} else {
+				// Single imeis parameter with comma separation
+				imeiList = []string{imeis}
+			}
+		}
+
+		if len(imeiList) > 0 {
+			query = query.Where("imei IN ?", imeiList)
 		}
 	}
 
@@ -445,33 +472,33 @@ func (h *DeviceHandler) GetDeviceByID(c *fiber.Ctx) error {
 
 	// Create response with device and SIM card information
 	response := fiber.Map{
-		"id":                    device.ID,
-		"imei":                  device.IMEI,
-		"name":                  device.Name,
-		"device_group_id":       device.DeviceGroupID,
-		"device_group":          device.DeviceGroup,
-		"country_site_id":       device.CountrySiteID,
-		"country_site":          device.CountrySite,
-		"device_type":           device.DeviceType,
-		"manufacturer":          device.Manufacturer,
-		"model":                 device.Model,
-		"android_version":       device.AndroidVersion,
-		"battery_level":         device.BatteryLevel,
-		"battery_status":        device.BatteryStatus,
-		"signal_strength":       device.SignalStrength,
-		"signal_dbm":            device.SignalDBM,
-		"network_type":          device.NetworkType,
-		"latitude":              device.Latitude,
-		"longitude":             device.Longitude,
-		"is_active":             device.IsActive,
-		"is_online":             device.IsOnline,
-		"maintenance_mode":      device.MaintenanceMode,
-		"maintenance_reason":    device.MaintenanceReason,
+		"id":                     device.ID,
+		"imei":                   device.IMEI,
+		"name":                   device.Name,
+		"device_group_id":        device.DeviceGroupID,
+		"device_group":           device.DeviceGroup,
+		"country_site_id":        device.CountrySiteID,
+		"country_site":           device.CountrySite,
+		"device_type":            device.DeviceType,
+		"manufacturer":           device.Manufacturer,
+		"model":                  device.Model,
+		"android_version":        device.AndroidVersion,
+		"battery_level":          device.BatteryLevel,
+		"battery_status":         device.BatteryStatus,
+		"signal_strength":        device.SignalStrength,
+		"signal_dbm":             device.SignalDBM,
+		"network_type":           device.NetworkType,
+		"latitude":               device.Latitude,
+		"longitude":              device.Longitude,
+		"is_active":              device.IsActive,
+		"is_online":              device.IsOnline,
+		"maintenance_mode":       device.MaintenanceMode,
+		"maintenance_reason":     device.MaintenanceReason,
 		"maintenance_started_at": device.MaintenanceStartedAt,
-		"last_seen":             device.LastSeen,
-		"created_at":            device.CreatedAt,
-		"updated_at":            device.UpdatedAt,
-		"sim_cards":             deviceSimCards,
+		"last_seen":              device.LastSeen,
+		"created_at":             device.CreatedAt,
+		"updated_at":             device.UpdatedAt,
+		"sim_cards":              deviceSimCards,
 	}
 
 	return c.JSON(response)

@@ -96,7 +96,7 @@ export interface SmppRoutingFilters {
 }
 
 class SmppRoutingsService {
-  private baseUrl = '/api/smpp-routings';
+  private baseUrl = '/smpp-routings';
 
   async getAll(filters?: SmppRoutingFilters): Promise<SmppRoutingsListResponse> {
     const params = new URLSearchParams();

@@ -178,6 +178,13 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/sms-routing-rules/:id", "PUT")
 	Enforcer.AddPolicy("admin", "/api/sms-routing-rules/:id", "DELETE")
 
+	// Admin SMPP routing policies
+	Enforcer.AddPolicy("admin", "/api/smpp-routings", "GET")
+	Enforcer.AddPolicy("admin", "/api/smpp-routings", "POST")
+	Enforcer.AddPolicy("admin", "/api/smpp-routings/:id", "GET")
+	Enforcer.AddPolicy("admin", "/api/smpp-routings/:id", "PUT")
+	Enforcer.AddPolicy("admin", "/api/smpp-routings/:id", "DELETE")
+
 	// Admin SMS routing policies
 	Enforcer.AddPolicy("admin", "/api/sms-routing/send", "POST")
 	Enforcer.AddPolicy("admin", "/api/sms-routing/stats", "GET")
@@ -256,6 +263,10 @@ func loadDefaultPolicies() error {
 	// Manager SMS routing rules policies (read-only)
 	Enforcer.AddPolicy("manager", "/api/sms-routing-rules", "GET")
 	Enforcer.AddPolicy("manager", "/api/sms-routing-rules/:id", "GET")
+
+	// Manager SMPP routing policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/smpp-routings", "GET")
+	Enforcer.AddPolicy("manager", "/api/smpp-routings/:id", "GET")
 
 	// Manager SMS routing policies (read-only)
 	Enforcer.AddPolicy("manager", "/api/sms-routing/stats", "GET")
@@ -337,6 +348,10 @@ func loadDefaultPolicies() error {
 	// Operator SMS routing policies (read-only)
 	Enforcer.AddPolicy("operator", "/api/sms-routing/stats", "GET")
 	Enforcer.AddPolicy("operator", "/api/sms-routing/active-devices", "GET")
+
+	// Operator SMPP routing policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/smpp-routings", "GET")
+	Enforcer.AddPolicy("operator", "/api/smpp-routings/:id", "GET")
 
 	// Operator QR generation policies (read-only)
 	Enforcer.AddPolicy("operator", "/api/qr/generate", "POST")

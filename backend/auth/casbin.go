@@ -175,12 +175,7 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/bulk-sms/send", "POST")
 	Enforcer.AddPolicy("admin", "/api/bulk-sms/status", "GET")
 
-	// Admin SMS routing rules policies
-	Enforcer.AddPolicy("admin", "/api/sms-routing-rules", "GET")
-	Enforcer.AddPolicy("admin", "/api/sms-routing-rules", "POST")
-	Enforcer.AddPolicy("admin", "/api/sms-routing-rules/:id", "GET")
-	Enforcer.AddPolicy("admin", "/api/sms-routing-rules/:id", "PUT")
-	Enforcer.AddPolicy("admin", "/api/sms-routing-rules/:id", "DELETE")
+
 
 	// Admin SMPP routing policies
 	Enforcer.AddPolicy("admin", "/api/smpp-routings", "GET")

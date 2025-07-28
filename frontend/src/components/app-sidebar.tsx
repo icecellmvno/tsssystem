@@ -69,11 +69,7 @@ const mainNavItems = [
                 url: '/smpp-routings',
                 icon: Route,
             },
-            {
-                title: 'SMS Routing Rules',
-                url: '/sms-routing-rules',
-                icon: MessageSquare,
-            },
+
         ],
     },
     {

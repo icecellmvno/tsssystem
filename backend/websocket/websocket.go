@@ -25,6 +25,7 @@ type WebSocketServer struct {
 	connections   map[string]*models.DeviceConnection
 	frontendConns map[string]*websocket.Conn
 	mutex         sync.RWMutex
+	connMutexes   map[string]*sync.Mutex // Mutex for each connection
 	cfg           *config.Config
 	redisService  *redis.RedisService
 	serverID      string // Unique server instance ID
@@ -41,6 +42,7 @@ func NewWebSocketServer(cfg *config.Config) *WebSocketServer {
 	ws := &WebSocketServer{
 		connections:   make(map[string]*models.DeviceConnection),
 		frontendConns: make(map[string]*websocket.Conn),
+		connMutexes:   make(map[string]*sync.Mutex),
 		cfg:           cfg,
 		serverID:      serverID,
 	}
@@ -286,6 +288,7 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	// Cleanup on disconnect
 	ws.mutex.Lock()
 	delete(ws.connections, deviceID)
+	delete(ws.connMutexes, deviceID) // Clean up connection mutex
 	ws.mutex.Unlock()
 
 	// Remove connection metadata from Redis
@@ -390,6 +393,7 @@ func (ws *WebSocketServer) handleFrontendConnection(conn *websocket.Conn) {
 
 	ws.mutex.Lock()
 	delete(ws.frontendConns, deviceID)
+	delete(ws.connMutexes, deviceID) // Clean up connection mutex
 	ws.mutex.Unlock()
 
 	// Remove connection metadata from Redis
@@ -749,6 +753,19 @@ func (ws *WebSocketServer) sendToDevice(deviceID string, message models.WebSocke
 		}
 	}
 
+	// Get or create mutex for this connection
+	ws.mutex.Lock()
+	connMutex, exists := ws.connMutexes[deviceID]
+	if !exists {
+		connMutex = &sync.Mutex{}
+		ws.connMutexes[deviceID] = connMutex
+	}
+	ws.mutex.Unlock()
+
+	// Lock the connection mutex to prevent concurrent writes
+	connMutex.Lock()
+	defer connMutex.Unlock()
+
 	// First check if it's a frontend connection
 	ws.mutex.RLock()
 	frontendConn, frontendExists := ws.frontendConns[deviceID]
@@ -789,7 +806,11 @@ func (ws *WebSocketServer) sendToDevice(deviceID string, message models.WebSocke
 // BroadcastMessage is a public method to broadcast messages to frontend clients
 func (ws *WebSocketServer) BroadcastMessage(message models.WebSocketMessage) {
 	ws.mutex.RLock()
-	defer ws.mutex.RUnlock()
+	frontendConnsCopy := make(map[string]*websocket.Conn)
+	for k, v := range ws.frontendConns {
+		frontendConnsCopy[k] = v
+	}
+	ws.mutex.RUnlock()
 
 	messageJSON, err := json.Marshal(message)
 	if err != nil {
@@ -797,15 +818,30 @@ func (ws *WebSocketServer) BroadcastMessage(message models.WebSocketMessage) {
 		return
 	}
 
-	log.Printf("Broadcasting to %d frontend clients: %s", len(ws.frontendConns), message.Type)
+	log.Printf("Broadcasting to %d frontend clients: %s", len(frontendConnsCopy), message.Type)
 
 	// Send to frontend connections only
-	for connID, conn := range ws.frontendConns {
+	for connID, conn := range frontendConnsCopy {
+		// Get or create mutex for this connection
+		ws.mutex.Lock()
+		connMutex, exists := ws.connMutexes[connID]
+		if !exists {
+			connMutex = &sync.Mutex{}
+			ws.connMutexes[connID] = connMutex
+		}
+		ws.mutex.Unlock()
+
+		// Lock the connection mutex to prevent concurrent writes
+		connMutex.Lock()
 		if err := conn.WriteMessage(websocket.TextMessage, messageJSON); err != nil {
 			log.Printf("Error sending message to frontend %s: %v", connID, err)
 			// Remove failed connection
+			ws.mutex.Lock()
 			delete(ws.frontendConns, connID)
+			delete(ws.connMutexes, connID)
+			ws.mutex.Unlock()
 		}
+		connMutex.Unlock()
 	}
 }
 

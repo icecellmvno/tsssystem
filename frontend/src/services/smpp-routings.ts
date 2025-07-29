@@ -1,5 +1,34 @@
 import { apiClient } from './api-client';
 
+export interface DeviceGroupConfig {
+  id: number;
+  sms_routing_id: number;
+  device_group_id: number;
+  priority: number;
+  total_sms_count: number;
+  
+  // Device Selection Strategy
+  device_selection_strategy: string;
+  target_device_ids?: string; // JSON array of device IMEIs
+  max_devices_per_message: number;
+  
+  // SIM Card Configuration
+  sim_slot_preference: number;
+  sim_card_selection_strategy: string;
+  
+  created_at: string;
+  updated_at: string;
+  
+  // Relations
+  device_group?: {
+    id: number;
+    name: string;
+    queue_name?: string;
+    priority?: number;
+    total_sms?: number;
+  };
+}
+
 export interface SmppRoutingItem {
   id: number;
   name: string;
@@ -9,19 +38,19 @@ export interface SmppRoutingItem {
   system_id?: string;
   destination_address?: string;
   target_type: string;
-  device_group_ids?: string; // JSON array of device group IDs
+  device_group_ids?: string; // JSON array of device group IDs (legacy)
   user_id?: number;
   is_active: boolean;
   priority: number;
   total_sms_count?: number;
   conditions?: string;
   
-  // Device Selection Strategy
+  // Device Selection Strategy (legacy - now in DeviceGroupConfig)
   device_selection_strategy?: string;
   target_device_ids?: string; // JSON array of device IMEIs
   max_devices_per_message?: number;
   
-  // SIM Card Configuration
+  // SIM Card Configuration (legacy - now in DeviceGroupConfig)
   sim_slot_preference?: number;
   sim_card_selection_strategy?: string;
   
@@ -42,6 +71,9 @@ export interface SmppRoutingItem {
     id: number;
     username: string;
   };
+  
+  // Device Group Configurations (new structure)
+  device_group_configs?: DeviceGroupConfig[];
 }
 
 export interface SmppRoutingsListResponse {
@@ -79,21 +111,33 @@ export interface SmppRoutingCreateData {
   system_id?: string;
   destination_address?: string;
   target_type: string;
-  device_group_ids?: number[]; // Array of device group IDs
+  device_group_ids?: number[]; // Array of device group IDs (legacy)
   user_id?: number;
   priority: number;
   total_sms_count?: number;
   is_active: boolean;
   conditions?: string;
   
-  // Device Selection Strategy
+  // Device Selection Strategy (legacy - now in DeviceGroupConfig)
   device_selection_strategy?: string;
   target_device_ids?: string[]; // Array of device IMEIs
   max_devices_per_message?: number;
   
-  // SIM Card Configuration
+  // SIM Card Configuration (legacy - now in DeviceGroupConfig)
   sim_slot_preference?: number;
   sim_card_selection_strategy?: string;
+  
+  // Device Group Configurations (new structure)
+  device_group_configs?: {
+    device_group_id: number;
+    priority: number;
+    total_sms_count: number;
+    device_selection_strategy: string;
+    target_device_ids?: string[];
+    max_devices_per_message: number;
+    sim_slot_preference: number;
+    sim_card_selection_strategy: string;
+  }[];
 }
 
 export interface SmppRoutingUpdateData extends Partial<SmppRoutingCreateData> {}

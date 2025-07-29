@@ -256,7 +256,7 @@ export default function SmppRoutingCreate() {
                                     {form.target_type === 'device_group' && (
                                         <div>
                                             <Label htmlFor="device_groups">Device Groups</Label>
-                                            <div className="space-y-2">
+                                            <div className="space-y-4">
                                                 <Select 
                                                     onValueChange={(value) => {
                                                         const groupId = parseInt(value);
@@ -283,45 +283,99 @@ export default function SmppRoutingCreate() {
                                                 </Select>
                                                 
                                                 {form.device_group_ids.length > 0 && (
-                                                    <div className="space-y-2">
-                                                        {form.device_group_ids.map((groupId) => {
-                                                            const selectedGroup = filterOptions.device_groups.find((g: any) => g.id === groupId);
-                                                            return selectedGroup ? (
-                                                                <div key={groupId} className="p-2 bg-muted rounded-md">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <div className="flex-1">
-                                                                            <div className="font-medium text-sm">{selectedGroup.name}</div>
-                                                                            {selectedGroup.queue_name && (
-                                                                                <div className="text-xs text-muted-foreground">{selectedGroup.queue_name}</div>
-                                                                            )}
+                                                    <div className="border rounded-lg overflow-hidden">
+                                                        <div className="bg-muted px-4 py-2 border-b">
+                                                            <h4 className="font-medium text-sm">Device Group Configurations</h4>
+                                                        </div>
+                                                        <div className="divide-y">
+                                                            {form.device_group_ids.map((groupId) => {
+                                                                const selectedGroup = filterOptions.device_groups.find((g: any) => g.id === groupId);
+                                                                return selectedGroup ? (
+                                                                    <div key={groupId} className="p-4">
+                                                                        <div className="flex items-center justify-between mb-3">
+                                                                            <div className="flex-1">
+                                                                                <div className="font-medium text-sm">{selectedGroup.name}</div>
+                                                                                {selectedGroup.queue_name && (
+                                                                                    <div className="text-xs text-muted-foreground">{selectedGroup.queue_name}</div>
+                                                                                )}
+                                                                            </div>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                onClick={() => {
+                                                                                    setForm(prev => ({
+                                                                                        ...prev,
+                                                                                        device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
+                                                                                    }));
+                                                                                }}
+                                                                            >
+                                                                                <X className="h-3 w-3" />
+                                                                            </Button>
                                                                         </div>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            onClick={() => {
-                                                                                setForm(prev => ({
-                                                                                    ...prev,
-                                                                                    device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
-                                                                                }));
-                                                                            }}
-                                                                        >
-                                                                            <X className="h-3 w-3" />
-                                                                        </Button>
+                                                                        
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                                            {/* Priority */}
+                                                                            <div>
+                                                                                <Label htmlFor={`priority_${groupId}`} className="text-xs">Priority</Label>
+                                                                                <Input 
+                                                                                    id={`priority_${groupId}`}
+                                                                                    type="number" 
+                                                                                    min={0} 
+                                                                                    max={100} 
+                                                                                    defaultValue={selectedGroup.priority || 50}
+                                                                                    className="text-xs h-8"
+                                                                                />
+                                                                            </div>
+                                                                            
+                                                                            {/* Total SMS Count */}
+                                                                            <div>
+                                                                                <Label htmlFor={`total_sms_${groupId}`} className="text-xs">Total SMS</Label>
+                                                                                <Input 
+                                                                                    id={`total_sms_${groupId}`}
+                                                                                    type="number" 
+                                                                                    min={1} 
+                                                                                    defaultValue={selectedGroup.total_sms || 1000}
+                                                                                    className="text-xs h-8"
+                                                                                />
+                                                                            </div>
+                                                                            
+                                                                            {/* Device Selection Strategy */}
+                                                                            <div>
+                                                                                <Label htmlFor={`strategy_${groupId}`} className="text-xs">Strategy</Label>
+                                                                                <Select defaultValue="round_robin">
+                                                                                    <SelectTrigger className="text-xs h-8">
+                                                                                        <SelectValue />
+                                                                                    </SelectTrigger>
+                                                                                    <SelectContent>
+                                                                                        <SelectItem value="round_robin">Round Robin</SelectItem>
+                                                                                        <SelectItem value="least_used">Least Used</SelectItem>
+                                                                                        <SelectItem value="random">Random</SelectItem>
+                                                                                        <SelectItem value="specific">Specific</SelectItem>
+                                                                                    </SelectContent>
+                                                                                </Select>
+                                                                            </div>
+                                                                            
+                                                                            {/* SIM Configuration */}
+                                                                            <div>
+                                                                                <Label htmlFor={`sim_${groupId}`} className="text-xs">SIM Config</Label>
+                                                                                <Select defaultValue="sim1_preferred">
+                                                                                    <SelectTrigger className="text-xs h-8">
+                                                                                        <SelectValue />
+                                                                                    </SelectTrigger>
+                                                                                    <SelectContent>
+                                                                                        <SelectItem value="sim1_preferred">SIM1 Preferred</SelectItem>
+                                                                                        <SelectItem value="sim2_preferred">SIM2 Preferred</SelectItem>
+                                                                                        <SelectItem value="round_robin">Round Robin</SelectItem>
+                                                                                        <SelectItem value="least_used">Least Used</SelectItem>
+                                                                                    </SelectContent>
+                                                                                </Select>
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="grid grid-cols-2 gap-2 text-xs mt-2">
-                                                                        <div className="p-2 bg-blue-50 rounded">
-                                                                            <div className="font-medium text-blue-700">Priority</div>
-                                                                            <div className="text-blue-600">{selectedGroup.priority || 'N/A'}</div>
-                                                                        </div>
-                                                                        <div className="p-2 bg-green-50 rounded">
-                                                                            <div className="font-medium text-green-700">Total SMS</div>
-                                                                            <div className="text-green-600">{selectedGroup.total_sms || 'N/A'}</div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ) : null;
-                                                        })}
+                                                                ) : null;
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -355,20 +409,20 @@ export default function SmppRoutingCreate() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div>
                                         <Label htmlFor="device_selection_strategy">Device Selection Strategy</Label>
-                                                                                    <Select 
-                                                value={form.device_selection_strategy} 
-                                                onValueChange={(value) => handleSelect('device_selection_strategy', value)}
-                                            >
-                                                <SelectTrigger id="device_selection_strategy" className="w-full">
-                                                    <SelectValue placeholder="Select device selection strategy" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="round_robin">Round Robin - Select devices in sequence</SelectItem>
-                                                    <SelectItem value="least_used">Least Used - Select least used device</SelectItem>
-                                                    <SelectItem value="random">Random - Select random device</SelectItem>
-                                                    <SelectItem value="specific">Specific - Select specific devices</SelectItem>
-                                                </SelectContent>
-                                            </Select>
+                                        <Select 
+                                            value={form.device_selection_strategy} 
+                                            onValueChange={(value) => handleSelect('device_selection_strategy', value)}
+                                        >
+                                            <SelectTrigger id="device_selection_strategy" className="w-full">
+                                                <SelectValue placeholder="Select device selection strategy" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="round_robin">Round Robin - Select devices in sequence</SelectItem>
+                                                <SelectItem value="least_used">Least Used - Select least used device</SelectItem>
+                                                <SelectItem value="random">Random - Select random device</SelectItem>
+                                                <SelectItem value="specific">Specific - Select specific devices</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                     
                                     {form.device_selection_strategy === 'specific' && (
@@ -403,6 +457,44 @@ export default function SmppRoutingCreate() {
                                         />
                                         <div className="text-sm text-muted-foreground mt-1">
                                             How many devices to use per message (usually 1)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Priority and Total SMS Count */}
+                            <div className="border-t pt-6">
+                                <h3 className="text-lg font-semibold mb-4">Priority and Total SMS Count</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <Label htmlFor="priority">Priority</Label>
+                                        <Input 
+                                            id="priority" 
+                                            name="priority" 
+                                            type="number" 
+                                            min={0} 
+                                            max={100} 
+                                            value={form.priority} 
+                                            onChange={handleChange} 
+                                            required 
+                                        />
+                                        <div className="text-sm text-muted-foreground mt-1">
+                                            Priority level (0-100, higher = higher priority)
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="total_sms_count">Total SMS Count</Label>
+                                        <Input 
+                                            id="total_sms_count" 
+                                            name="total_sms_count" 
+                                            type="number" 
+                                            min={1} 
+                                            value={form.total_sms_count} 
+                                            onChange={handleChange} 
+                                            required 
+                                        />
+                                        <div className="text-sm text-muted-foreground mt-1">
+                                            Total SMS count for this routing rule
                                         </div>
                                     </div>
                                 </div>
@@ -447,42 +539,15 @@ export default function SmppRoutingCreate() {
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div>
-                                    <Label htmlFor="priority">Priority</Label>
-                                    <Input 
-                                        id="priority" 
-                                        name="priority" 
-                                        type="number" 
-                                        min={0} 
-                                        max={100} 
-                                        value={form.priority} 
-                                        onChange={handleChange} 
-                                        required 
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="total_sms_count">Total SMS Count</Label>
-                                    <Input 
-                                        id="total_sms_count" 
-                                        name="total_sms_count" 
-                                        type="number" 
-                                        min={1} 
-                                        value={form.total_sms_count} 
-                                        onChange={handleChange} 
-                                        required 
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2 mt-8">
-                                    <input 
-                                        type="checkbox" 
-                                        name="is_active" 
-                                        checked={form.is_active} 
-                                        onChange={handleChange} 
-                                        id="is_active" 
-                                    />
-                                    <Label htmlFor="is_active">Active</Label>
-                                </div>
+                            <div className="flex items-center gap-2 mt-6">
+                                <input 
+                                    type="checkbox" 
+                                    name="is_active" 
+                                    checked={form.is_active} 
+                                    onChange={handleChange} 
+                                    id="is_active" 
+                                />
+                                <Label htmlFor="is_active">Active</Label>
                             </div>
                             {Object.keys(errors).length > 0 && (
                                 <div className="text-destructive text-sm">

@@ -42,6 +42,9 @@ type SmsRouting struct {
 	// Virtual fields for computed values
 	DeviceGroupNames  []string `json:"device_group_names,omitempty" gorm:"-"`
 	TargetDeviceNames []string `json:"target_device_names,omitempty" gorm:"-"`
+	
+	// Device Group Configurations (for the new structure)
+	DeviceGroupConfigs []DeviceGroupConfig `json:"device_group_configs,omitempty" gorm:"foreignKey:SmsRoutingID"`
 }
 
 // TableName specifies the table name for SmsRouting

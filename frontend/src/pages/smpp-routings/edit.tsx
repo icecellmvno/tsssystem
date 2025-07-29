@@ -407,7 +407,7 @@ export default function SmppRoutingEdit() {
                                 </div>
                             </div>
                             
-                            {/* Device Selection Strategy */}
+                                                        {/* Device Selection Strategy */}
                             <div className="border-t pt-6">
                                 <h3 className="text-lg font-semibold mb-4">Device Selection Strategy</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -421,10 +421,10 @@ export default function SmppRoutingEdit() {
                                                 <SelectValue placeholder="Select device selection strategy" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                                                                    <SelectItem value="round_robin">Round Robin - Select devices in sequence</SelectItem>
-                                                    <SelectItem value="least_used">Least Used - Select least used device</SelectItem>
-                                                    <SelectItem value="random">Random - Select random device</SelectItem>
-                                                    <SelectItem value="specific">Specific - Select specific devices</SelectItem>
+                                                <SelectItem value="round_robin">Round Robin - Select devices in sequence</SelectItem>
+                                                <SelectItem value="least_used">Least Used - Select least used device</SelectItem>
+                                                <SelectItem value="random">Random - Select random device</SelectItem>
+                                                <SelectItem value="specific">Specific - Select specific devices</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -461,6 +461,44 @@ export default function SmppRoutingEdit() {
                                         />
                                         <div className="text-sm text-muted-foreground mt-1">
                                             How many devices to use per message (usually 1)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Priority and Total SMS Count */}
+                            <div className="border-t pt-6">
+                                <h3 className="text-lg font-semibold mb-4">Priority and Total SMS Count</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <Label htmlFor="priority">Priority</Label>
+                                        <Input 
+                                            id="priority" 
+                                            name="priority" 
+                                            type="number" 
+                                            min={0} 
+                                            max={100} 
+                                            value={form.priority} 
+                                            onChange={handleChange} 
+                                            required 
+                                        />
+                                        <div className="text-sm text-muted-foreground mt-1">
+                                            Priority level (0-100, higher = higher priority)
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="total_sms_count">Total SMS Count</Label>
+                                        <Input 
+                                            id="total_sms_count" 
+                                            name="total_sms_count" 
+                                            type="number" 
+                                            min={1} 
+                                            value={form.total_sms_count} 
+                                            onChange={handleChange} 
+                                            required 
+                                        />
+                                        <div className="text-sm text-muted-foreground mt-1">
+                                            Total SMS count for this routing rule
                                         </div>
                                     </div>
                                 </div>
@@ -505,42 +543,15 @@ export default function SmppRoutingEdit() {
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div>
-                                    <Label htmlFor="priority">Priority</Label>
-                                    <Input 
-                                        id="priority" 
-                                        name="priority" 
-                                        type="number" 
-                                        min={0} 
-                                        max={100} 
-                                        value={form.priority} 
-                                        onChange={handleChange} 
-                                        required 
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="total_sms_count">Total SMS Count</Label>
-                                    <Input 
-                                        id="total_sms_count" 
-                                        name="total_sms_count" 
-                                        type="number" 
-                                        min={1} 
-                                        value={form.total_sms_count} 
-                                        onChange={handleChange} 
-                                        required 
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2 mt-8">
-                                    <input 
-                                        type="checkbox" 
-                                        name="is_active" 
-                                        checked={form.is_active} 
-                                        onChange={handleChange} 
-                                        id="is_active" 
-                                    />
-                                    <Label htmlFor="is_active">Active</Label>
-                                </div>
+                            <div className="flex items-center gap-2 mt-6">
+                                <input 
+                                    type="checkbox" 
+                                    name="is_active" 
+                                    checked={form.is_active} 
+                                    onChange={handleChange} 
+                                    id="is_active" 
+                                />
+                                <Label htmlFor="is_active">Active</Label>
                             </div>
                             {Object.keys(errors).length > 0 && (
                                 <div className="text-destructive text-sm">

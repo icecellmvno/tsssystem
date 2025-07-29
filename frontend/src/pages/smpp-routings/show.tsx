@@ -154,8 +154,37 @@ export default function SmppRoutingShow() {
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="font-medium">Device Groups:</span>
-                                <span className="text-sm">{routing.target_display_name}</span>
+                                <div className="text-sm text-right">
+                                    {routing.device_group_ids ? (
+                                        (() => {
+                                            try {
+                                                const groupIds = JSON.parse(routing.device_group_ids);
+                                                return Array.isArray(groupIds) ? groupIds.length : 0;
+                                            } catch {
+                                                return 0;
+                                            }
+                                        })()
+                                    ) : 0} groups selected
+                                </div>
                             </div>
+                            {routing.device_group_ids && (
+                                <div className="mt-2">
+                                    <span className="font-medium text-xs">Selected Groups:</span>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                        {(() => {
+                                            try {
+                                                const groupIds = JSON.parse(routing.device_group_ids);
+                                                if (Array.isArray(groupIds)) {
+                                                    return groupIds.join(', ');
+                                                }
+                                                return 'N/A';
+                                            } catch {
+                                                return 'N/A';
+                                            }
+                                        })()}
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 

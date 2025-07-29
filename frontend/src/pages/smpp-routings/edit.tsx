@@ -33,7 +33,7 @@ export default function SmppRoutingEdit() {
         system_id: '',
         destination_address: '',
         target_type: 'device_group',
-        device_group_id: null as number | null,
+        device_group_ids: [] as number[],
         user_id: '',
         is_active: true,
         priority: 50,
@@ -62,13 +62,13 @@ export default function SmppRoutingEdit() {
                 setRouting(routingData);
                 setFilterOptions(options);
 
-                // Parse device_group_ids from JSON string and take the first one
-                let deviceGroupId: number | null = null;
+                // Parse device_group_ids from JSON string
+                let deviceGroupIds: number[] = [];
                 if (routingData.device_group_ids) {
                     try {
-                        const deviceGroupIds = JSON.parse(routingData.device_group_ids);
-                        if (deviceGroupIds && deviceGroupIds.length > 0) {
-                            deviceGroupId = deviceGroupIds[0]; // Take the first device group
+                        const parsedIds = JSON.parse(routingData.device_group_ids);
+                        if (parsedIds && Array.isArray(parsedIds)) {
+                            deviceGroupIds = parsedIds;
                         }
                     } catch (e) {
                         console.error('Error parsing device_group_ids:', e);
@@ -93,7 +93,7 @@ export default function SmppRoutingEdit() {
                     system_id: routingData.system_id || '',
                     destination_address: routingData.destination_address || '',
                     target_type: routingData.target_type,
-                    device_group_id: deviceGroupId,
+                    device_group_ids: deviceGroupIds,
                     user_id: routingData.user_id ? String(routingData.user_id) : '',
                     is_active: routingData.is_active,
                     priority: routingData.priority,
@@ -163,8 +163,8 @@ export default function SmppRoutingEdit() {
             }
 
             // Add target-specific fields
-            if (form.target_type === 'device_group' && form.device_group_id) {
-                submitData.device_group_ids = [form.device_group_id];
+            if (form.target_type === 'device_group' && form.device_group_ids.length > 0) {
+                submitData.device_group_ids = form.device_group_ids;
             }
 
             // Add device selection strategy fields
@@ -309,65 +309,76 @@ export default function SmppRoutingEdit() {
                                     </div>
                                     {form.target_type === 'device_group' && (
                                         <div>
-                                            <Label htmlFor="device_group">Device Group</Label>
-                                            <Select 
-                                                value={form.device_group_id ? form.device_group_id.toString() : ""} 
-                                                onValueChange={(value) => {
-                                                    const groupId = parseInt(value);
-                                                    setForm(prev => ({
-                                                        ...prev,
-                                                        device_group_id: groupId
-                                                    }));
-                                                }}
-                                            >
-                                                <SelectTrigger id="device_group" className="w-full">
-                                                    <SelectValue placeholder="Select Device Group" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {filterOptions.device_groups.map((g: any) => (
-                                                        <SelectItem key={g.id} value={g.id.toString()}>
-                                                            {g.name} {g.queue_name && `(${g.queue_name})`}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            {form.device_group_id && (
-                                                <div className="mt-2 space-y-2">
-                                                    {(() => {
-                                                        const selectedGroup = filterOptions.device_groups.find((g: any) => g.id === form.device_group_id);
-                                                        return selectedGroup ? (
-                                                            <>
-                                                                <div className="flex items-center justify-between p-2 bg-muted rounded-md">
-                                                                    <span className="text-sm font-medium">{selectedGroup.name}</span>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        onClick={() => {
-                                                                            setForm(prev => ({
-                                                                                ...prev,
-                                                                                device_group_id: null
-                                                                            }));
-                                                                        }}
-                                                                    >
-                                                                        <X className="h-3 w-3" />
-                                                                    </Button>
-                                                                </div>
-                                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                                    <div className="p-2 bg-blue-50 rounded">
-                                                                        <div className="font-medium text-blue-700">Priority</div>
-                                                                        <div className="text-blue-600">{selectedGroup.priority || 'N/A'}</div>
+                                            <Label htmlFor="device_groups">Device Groups</Label>
+                                            <div className="space-y-2">
+                                                <Select 
+                                                    onValueChange={(value) => {
+                                                        const groupId = parseInt(value);
+                                                        if (!form.device_group_ids.includes(groupId)) {
+                                                            setForm(prev => ({
+                                                                ...prev,
+                                                                device_group_ids: [...prev.device_group_ids, groupId]
+                                                            }));
+                                                        }
+                                                    }}
+                                                >
+                                                    <SelectTrigger id="device_groups" className="w-full">
+                                                        <SelectValue placeholder="Select Device Groups" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {filterOptions.device_groups
+                                                            .filter((g: any) => !form.device_group_ids.includes(g.id))
+                                                            .map((g: any) => (
+                                                                <SelectItem key={g.id} value={g.id.toString()}>
+                                                                    {g.name} {g.queue_name && `(${g.queue_name})`}
+                                                                </SelectItem>
+                                                            ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                
+                                                {form.device_group_ids.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        {form.device_group_ids.map((groupId) => {
+                                                            const selectedGroup = filterOptions.device_groups.find((g: any) => g.id === groupId);
+                                                            return selectedGroup ? (
+                                                                <div key={groupId} className="p-2 bg-muted rounded-md">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex-1">
+                                                                            <div className="font-medium text-sm">{selectedGroup.name}</div>
+                                                                            {selectedGroup.queue_name && (
+                                                                                <div className="text-xs text-muted-foreground">{selectedGroup.queue_name}</div>
+                                                                            )}
+                                                                        </div>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            onClick={() => {
+                                                                                setForm(prev => ({
+                                                                                    ...prev,
+                                                                                    device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
+                                                                                }));
+                                                                            }}
+                                                                        >
+                                                                            <X className="h-3 w-3" />
+                                                                        </Button>
                                                                     </div>
-                                                                    <div className="p-2 bg-green-50 rounded">
-                                                                        <div className="font-medium text-green-700">Total SMS</div>
-                                                                        <div className="text-green-600">{selectedGroup.total_sms || 'N/A'}</div>
+                                                                    <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+                                                                        <div className="p-2 bg-blue-50 rounded">
+                                                                            <div className="font-medium text-blue-700">Priority</div>
+                                                                            <div className="text-blue-600">{selectedGroup.priority || 'N/A'}</div>
+                                                                        </div>
+                                                                        <div className="p-2 bg-green-50 rounded">
+                                                                            <div className="font-medium text-green-700">Total SMS</div>
+                                                                            <div className="text-green-600">{selectedGroup.total_sms || 'N/A'}</div>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </>
-                                                        ) : null;
-                                                    })()}
-                                                </div>
-                                            )}
+                                                            ) : null;
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                                                             <div>

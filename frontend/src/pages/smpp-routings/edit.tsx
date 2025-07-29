@@ -332,48 +332,63 @@ export default function SmppRoutingEdit() {
                                                 </SelectContent>
                                             </Select>
                                             {form.device_group_id && (
-                                                <div className="mt-2">
-                                                    <div className="flex items-center justify-between p-2 bg-muted rounded-md">
-                                                        <span className="text-sm">
-                                                            {filterOptions.device_groups.find((g: any) => g.id === form.device_group_id)?.name}
-                                                        </span>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                setForm(prev => ({
-                                                                    ...prev,
-                                                                    device_group_id: null
-                                                                }));
-                                                            }}
-                                                        >
-                                                            <X className="h-3 w-3" />
-                                                        </Button>
-                                                    </div>
+                                                <div className="mt-2 space-y-2">
+                                                    {(() => {
+                                                        const selectedGroup = filterOptions.device_groups.find((g: any) => g.id === form.device_group_id);
+                                                        return selectedGroup ? (
+                                                            <>
+                                                                <div className="flex items-center justify-between p-2 bg-muted rounded-md">
+                                                                    <span className="text-sm font-medium">{selectedGroup.name}</span>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        onClick={() => {
+                                                                            setForm(prev => ({
+                                                                                ...prev,
+                                                                                device_group_id: null
+                                                                            }));
+                                                                        }}
+                                                                    >
+                                                                        <X className="h-3 w-3" />
+                                                                    </Button>
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                    <div className="p-2 bg-blue-50 rounded">
+                                                                        <div className="font-medium text-blue-700">Priority</div>
+                                                                        <div className="text-blue-600">{selectedGroup.priority || 'N/A'}</div>
+                                                                    </div>
+                                                                    <div className="p-2 bg-green-50 rounded">
+                                                                        <div className="font-medium text-green-700">Total SMS</div>
+                                                                        <div className="text-green-600">{selectedGroup.total_sms || 'N/A'}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </>
+                                                        ) : null;
+                                                    })()}
                                                 </div>
                                             )}
                                         </div>
                                     )}
-                                    <div>
-                                        <Label htmlFor="destination_address">Destination Address Pattern</Label>
-                                        <Input 
-                                            id="destination_address" 
-                                            name="destination_address" 
-                                            placeholder="* (tüm adresler), +90* (90 ile başlayan), *123 (123 ile biten)" 
-                                            value={form.destination_address} 
-                                            onChange={handleChange} 
-                                            required 
-                                        />
-                                        <div className="text-sm text-muted-foreground mt-1">
-                                            <strong>Örnekler:</strong><br/>
-                                            • <code>*</code> - Tüm telefon numaraları<br/>
-                                            • <code>+90*</code> - 90 ile başlayan numaralar<br/>
-                                            • <code>*123</code> - 123 ile biten numaralar<br/>
-                                            • <code>+905551234567</code> - Belirli numara
+                                                                            <div>
+                                            <Label htmlFor="destination_address">Destination Address Pattern</Label>
+                                            <Input 
+                                                id="destination_address" 
+                                                name="destination_address" 
+                                                placeholder="* (all addresses), +90* (starting with 90), *123 (ending with 123)" 
+                                                value={form.destination_address} 
+                                                onChange={handleChange} 
+                                                required 
+                                            />
+                                            <div className="text-sm text-muted-foreground mt-1">
+                                                <strong>Examples:</strong><br/>
+                                                • <code>*</code> - All phone numbers<br/>
+                                                • <code>+90*</code> - Numbers starting with 90<br/>
+                                                • <code>*123</code> - Numbers ending with 123<br/>
+                                                • <code>+905551234567</code> - Specific number
+                                            </div>
+                                            {errors.destination_address && <p className="text-sm text-destructive mt-1">{errors.destination_address}</p>}
                                         </div>
-                                        {errors.destination_address && <p className="text-sm text-destructive mt-1">{errors.destination_address}</p>}
-                                    </div>
                                 </div>
                             </div>
                             
@@ -391,10 +406,10 @@ export default function SmppRoutingEdit() {
                                                 <SelectValue placeholder="Select device selection strategy" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="round_robin">Round Robin - Sırayla cihaz seç</SelectItem>
-                                                <SelectItem value="least_used">Least Used - En az kullanılan cihazı seç</SelectItem>
-                                                <SelectItem value="random">Random - Rastgele cihaz seç</SelectItem>
-                                                <SelectItem value="specific">Specific - Belirli cihazları seç</SelectItem>
+                                                                                                    <SelectItem value="round_robin">Round Robin - Select devices in sequence</SelectItem>
+                                                    <SelectItem value="least_used">Least Used - Select least used device</SelectItem>
+                                                    <SelectItem value="random">Random - Select random device</SelectItem>
+                                                    <SelectItem value="specific">Specific - Select specific devices</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -413,7 +428,7 @@ export default function SmppRoutingEdit() {
                                                 }}
                                             />
                                             <div className="text-sm text-muted-foreground mt-1">
-                                                Belirli cihazların IMEI'lerini virgülle ayırarak girin
+                                                Enter specific device IMEIs separated by commas
                                             </div>
                                         </div>
                                     )}
@@ -430,7 +445,7 @@ export default function SmppRoutingEdit() {
                                             onChange={(e) => setForm(prev => ({ ...prev, max_devices_per_message: parseInt(e.target.value) || 1 }))}
                                         />
                                         <div className="text-sm text-muted-foreground mt-1">
-                                            Bir mesaj için kaç cihaz kullanılacak (genellikle 1)
+                                            How many devices to use per message (usually 1)
                                         </div>
                                     </div>
                                 </div>
@@ -450,8 +465,8 @@ export default function SmppRoutingEdit() {
                                                 <SelectValue placeholder="Select SIM slot preference" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="1">SIM 1 - Birinci SIM kartı tercih et</SelectItem>
-                                                <SelectItem value="2">SIM 2 - İkinci SIM kartı tercih et</SelectItem>
+                                                                                            <SelectItem value="1">SIM 1 - Prefer first SIM card</SelectItem>
+                                            <SelectItem value="2">SIM 2 - Prefer second SIM card</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -466,9 +481,9 @@ export default function SmppRoutingEdit() {
                                                 <SelectValue placeholder="Select SIM card selection strategy" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="preferred">Preferred - Tercih edilen SIM slot'u kullan</SelectItem>
-                                                <SelectItem value="round_robin">Round Robin - SIM slot'ları sırayla kullan</SelectItem>
-                                                <SelectItem value="least_used">Least Used - En az kullanılan SIM slot'u kullan</SelectItem>
+                                                                                                    <SelectItem value="preferred">Preferred - Use preferred SIM slot</SelectItem>
+                                                    <SelectItem value="round_robin">Round Robin - Use SIM slots in sequence</SelectItem>
+                                                    <SelectItem value="least_used">Least Used - Use least used SIM slot</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>

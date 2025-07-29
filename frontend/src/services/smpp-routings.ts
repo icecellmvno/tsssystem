@@ -58,6 +58,8 @@ export interface SmppRoutingFilterOptions {
     id: number;
     name: string;
     queue_name: string;
+    priority?: number;
+    total_sms?: number;
   }>;
   smpp_users: string[];
   users: Array<{

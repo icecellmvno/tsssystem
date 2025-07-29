@@ -15,14 +15,18 @@ type Config struct {
 	SMPP     SMPPConfig     `mapstructure:"smpp"`
 }
 
+// ServerConfig holds server configuration
 type ServerConfig struct {
-	Host                string        `mapstructure:"host"`
-	Port                int           `mapstructure:"port"`
-	ReadTimeout         time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout        time.Duration `mapstructure:"write_timeout"`
-	MaxSessions         int           `mapstructure:"max_sessions"`
-	SessionTimeout      time.Duration `mapstructure:"session_timeout"`
-	EnquireLinkInterval time.Duration `mapstructure:"enquire_link_interval"`
+	Host                 string        `mapstructure:"host"`
+	Port                 int           `mapstructure:"port"`
+	ReadTimeout          time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout         time.Duration `mapstructure:"write_timeout"`
+	MaxSessions          int           `mapstructure:"max_sessions"`
+	SessionTimeout       time.Duration `mapstructure:"session_timeout"`
+	EnquireLinkInterval  time.Duration `mapstructure:"enquire_link_interval"`
+	TCPKeepalive         bool          `mapstructure:"tcp_keepalive"`
+	TCPKeepalivePeriod   time.Duration `mapstructure:"tcp_keepalive_period"`
+	TCPLinger            time.Duration `mapstructure:"tcp_linger"`
 }
 
 type SMPServerConfig struct {

@@ -98,6 +98,21 @@ func (s *SMPServer) Start() error {
 }
 
 func (s *SMPServer) handleConnection(conn net.Conn) {
+	// Enable TCP Keepalive from config
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		if s.config.Server.TCPKeepalive {
+			if err := tcpConn.SetKeepAlive(true); err != nil {
+				log.Printf("Failed to set TCP keepalive: %v", err)
+			}
+			if err := tcpConn.SetKeepAlivePeriod(s.config.Server.TCPKeepalivePeriod); err != nil {
+				log.Printf("Failed to set TCP keepalive period: %v", err)
+			}
+			if err := tcpConn.SetLinger(int(s.config.Server.TCPLinger.Seconds())); err != nil {
+				log.Printf("Failed to set TCP linger: %v", err)
+			}
+		}
+	}
+
 	sess := session.NewSession(conn, s.sessionManager.Config)
 
 	// Add session to manager

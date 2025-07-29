@@ -6,6 +6,9 @@ server:
   max_sessions: 1000
   session_timeout: 60s
   enquire_link_interval: 30s
+  tcp_keepalive: true
+  tcp_keepalive_period: 30s
+  tcp_linger: 0s
 
 database:
   host: "localhost"

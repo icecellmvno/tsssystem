@@ -80,6 +80,8 @@ export interface SmsLogsFilters {
   source_username?: string;
   start_date?: string;
   end_date?: string;
+  start_time?: string;
+  end_time?: string;
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
   page?: number;
@@ -105,6 +107,8 @@ export const smsLogsService = {
     if (params?.source_username && params.source_username !== 'all') searchParams.append('source_username', params.source_username);
     if (params?.start_date) searchParams.append('start_date', params.start_date);
     if (params?.end_date) searchParams.append('end_date', params.end_date);
+    if (params?.start_time) searchParams.append('start_time', params.start_time);
+    if (params?.end_time) searchParams.append('end_time', params.end_time);
     if (params?.sort_by) searchParams.append('sort_by', params.sort_by);
     if (params?.sort_order) searchParams.append('sort_order', params.sort_order);
     if (params?.page) searchParams.append('page', params.page.toString());

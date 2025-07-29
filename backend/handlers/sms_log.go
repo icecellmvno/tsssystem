@@ -36,6 +36,8 @@ func GetSmsLogs(c *fiber.Ctx) error {
 	sourceUsername := c.Query("source_username", "")
 	startDate := c.Query("start_date", "")
 	endDate := c.Query("end_date", "")
+	startTime := c.Query("start_time", "")
+	endTime := c.Query("end_time", "")
 	sortBy := c.Query("sort_by", "created_at")
 	sortOrder := c.Query("sort_order", "desc")
 
@@ -121,6 +123,15 @@ func GetSmsLogs(c *fiber.Ctx) error {
 			endDatePlusOne := parsedDate.AddDate(0, 0, 1)
 			query = query.Where("DATE(created_at) < ?", endDatePlusOne.Format("2006-01-02"))
 		}
+	}
+
+	// Apply time filters
+	if startTime != "" {
+		query = query.Where("TIME(created_at) >= ?", startTime)
+	}
+
+	if endTime != "" {
+		query = query.Where("TIME(created_at) <= ?", endTime)
 	}
 
 	// Apply sorting

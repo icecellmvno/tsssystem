@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { type BreadcrumbItem } from '@/types';
-import { ArrowLeft, MessageSquare, Phone, Building2, Calendar, Clock, CheckCircle, XCircle, Clock4, DollarSign, Hash, Settings, ArrowUp, ArrowDown, User, Globe } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Phone, Building2, Calendar, Clock, CheckCircle, XCircle, Clock4, DollarSign, Hash, Settings, ArrowUp, ArrowDown, User, Globe, Filter, X } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import { smsLogsService, type SmsLogItem } from '@/services/sms-logs';
@@ -17,6 +19,15 @@ export default function SmsLogShow() {
     const [smsLog, setSmsLog] = useState<SmsLogItem | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Filters for related SMS logs
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
+    const [sourceAddress, setSourceAddress] = useState('');
+    const [destinationAddress, setDestinationAddress] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -46,6 +57,19 @@ export default function SmsLogShow() {
     useEffect(() => {
         fetchSmsLog();
     }, [id, isAuthenticated, token]);
+
+    // Clear all filters
+    const clearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setStartTime('');
+        setEndTime('');
+        setSourceAddress('');
+        setDestinationAddress('');
+    };
+
+    // Check if any filters are active
+    const hasActiveFilters = startDate || endDate || startTime || endTime || sourceAddress || destinationAddress;
 
     // SMS count calculation
     const getSmsCount = (message: string) => {
@@ -164,6 +188,173 @@ export default function SmsLogShow() {
                         </div>
                     </div>
                 </div>
+
+                {/* Filters for Related SMS Logs */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle>Related SMS Logs Filters</CardTitle>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowFilters(!showFilters)}
+                                >
+                                    <Filter className="mr-2 h-4 w-4" />
+                                    {showFilters ? 'Hide' : 'Show'} Filters
+                                </Button>
+                                {hasActiveFilters && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={clearFilters}
+                                    >
+                                        <X className="mr-2 h-4 w-4" />
+                                        Clear All
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </CardHeader>
+                    {showFilters && (
+                        <CardContent>
+                            <div className="space-y-4">
+                                {/* Date and Time Range */}
+                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="start-date">Start Date</Label>
+                                        <Input
+                                            id="start-date"
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="end-date">End Date</Label>
+                                        <Input
+                                            id="end-date"
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="start-time">Start Time</Label>
+                                        <Input
+                                            id="start-time"
+                                            type="time"
+                                            value={startTime}
+                                            onChange={(e) => setStartTime(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="end-time">End Time</Label>
+                                        <Input
+                                            id="end-time"
+                                            type="time"
+                                            value={endTime}
+                                            onChange={(e) => setEndTime(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Address Filters */}
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="source-address">Source Address</Label>
+                                        <Input
+                                            id="source-address"
+                                            placeholder="Enter source address..."
+                                            value={sourceAddress}
+                                            onChange={(e) => setSourceAddress(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="destination-address">Destination Address</Label>
+                                        <Input
+                                            id="destination-address"
+                                            placeholder="Enter destination address..."
+                                            value={destinationAddress}
+                                            onChange={(e) => setDestinationAddress(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Active Filters Display */}
+                                {hasActiveFilters && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {startDate && (
+                                            <Badge variant="secondary" className="flex items-center gap-1">
+                                                From: {startDate}
+                                                <X
+                                                    className="h-3 w-3 cursor-pointer"
+                                                    onClick={() => setStartDate('')}
+                                                />
+                                            </Badge>
+                                        )}
+                                        {endDate && (
+                                            <Badge variant="secondary" className="flex items-center gap-1">
+                                                To: {endDate}
+                                                <X
+                                                    className="h-3 w-3 cursor-pointer"
+                                                    onClick={() => setEndDate('')}
+                                                />
+                                            </Badge>
+                                        )}
+                                        {startTime && (
+                                            <Badge variant="secondary" className="flex items-center gap-1">
+                                                From Time: {startTime}
+                                                <X
+                                                    className="h-3 w-3 cursor-pointer"
+                                                    onClick={() => setStartTime('')}
+                                                />
+                                            </Badge>
+                                        )}
+                                        {endTime && (
+                                            <Badge variant="secondary" className="flex items-center gap-1">
+                                                To Time: {endTime}
+                                                <X
+                                                    className="h-3 w-3 cursor-pointer"
+                                                    onClick={() => setEndTime('')}
+                                                />
+                                            </Badge>
+                                        )}
+                                        {sourceAddress && (
+                                            <Badge variant="secondary" className="flex items-center gap-1">
+                                                Source: {sourceAddress}
+                                                <X
+                                                    className="h-3 w-3 cursor-pointer"
+                                                    onClick={() => setSourceAddress('')}
+                                                />
+                                            </Badge>
+                                        )}
+                                        {destinationAddress && (
+                                            <Badge variant="secondary" className="flex items-center gap-1">
+                                                Destination: {destinationAddress}
+                                                <X
+                                                    className="h-3 w-3 cursor-pointer"
+                                                    onClick={() => setDestinationAddress('')}
+                                                />
+                                            </Badge>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Filter Actions */}
+                                <div className="flex items-center gap-2">
+                                    <Link 
+                                        to={`/sms-logs?start_date=${startDate}&end_date=${endDate}&start_time=${startTime}&end_time=${endTime}&source_addr=${sourceAddress}&destination_addr=${destinationAddress}`}
+                                    >
+                                        <Button size="sm">
+                                            View Related SMS Logs
+                                        </Button>
+                                    </Link>
+                                </div>
+                            </div>
+                        </CardContent>
+                    )}
+                </Card>
 
                 <div className="grid gap-6 md:grid-cols-2">
                     {/* Message Details */}

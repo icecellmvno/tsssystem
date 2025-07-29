@@ -379,9 +379,9 @@ func (h *SmsRoutingHandler) DeleteSmsRouting(c *fiber.Ctx) error {
 
 // GetSmsRoutingFilterOptions returns filter options for SMS routings
 func (h *SmsRoutingHandler) GetSmsRoutingFilterOptions(c *fiber.Ctx) error {
-	// Get device groups with priority and total_sms
+	// Get device groups
 	var deviceGroups []models.DeviceGroup
-	h.db.Select("id, device_group as name, queue_name, priority, total_sms").Find(&deviceGroups)
+	h.db.Select("id, device_group as name, queue_name").Find(&deviceGroups)
 
 	// Get SMPP users (system IDs)
 	var smppUsers []models.SmppUser

@@ -191,9 +191,9 @@ func (h *SmsRoutingHandler) GetSmsRoutingByID(c *fiber.Ctx) error {
 
 // CreateSmsRouting creates a new SMS routing
 func (h *SmsRoutingHandler) CreateSmsRouting(c *fiber.Ctx) error {
-	var routing models.SmsRouting
+	var requestData map[string]interface{}
 
-	if err := c.BodyParser(&routing); err != nil {
+	if err := c.BodyParser(&requestData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Invalid request body",
 			"message": err.Error(),
@@ -201,28 +201,28 @@ func (h *SmsRoutingHandler) CreateSmsRouting(c *fiber.Ctx) error {
 	}
 
 	// Validate required fields
-	if routing.Name == "" {
+	if requestData["name"] == nil || requestData["name"] == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Validation failed",
 			"message": "Name is required",
 		})
 	}
 
-	if routing.SourceType == "" {
+	if requestData["source_type"] == nil || requestData["source_type"] == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Validation failed",
 			"message": "Source type is required",
 		})
 	}
 
-	if routing.Direction == "" {
+	if requestData["direction"] == nil || requestData["direction"] == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Validation failed",
 			"message": "Direction is required",
 		})
 	}
 
-	if routing.TargetType == "" {
+	if requestData["target_type"] == nil || requestData["target_type"] == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Validation failed",
 			"message": "Target type is required",
@@ -230,10 +230,45 @@ func (h *SmsRoutingHandler) CreateSmsRouting(c *fiber.Ctx) error {
 	}
 
 	// Validate target-specific fields
-	if routing.TargetType == "device_group" && (routing.DeviceGroupIDs == nil || *routing.DeviceGroupIDs == "[]") {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error":   "Validation failed",
-			"message": "Device group IDs are required for device group target type",
+	if requestData["target_type"] == "device_group" {
+		deviceGroupIDs, ok := requestData["device_group_ids"].([]interface{})
+		if !ok || len(deviceGroupIDs) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error":   "Validation failed",
+				"message": "Device group IDs are required for device group target type",
+			})
+		}
+	}
+
+	// Convert request data to JSON for device_group_ids
+	if deviceGroupIDs, ok := requestData["device_group_ids"].([]interface{}); ok {
+		deviceGroupIDsJSON, err := json.Marshal(deviceGroupIDs)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":   "JSON marshaling error",
+				"message": err.Error(),
+			})
+		}
+		deviceGroupIDsStr := string(deviceGroupIDsJSON)
+		requestData["device_group_ids"] = &deviceGroupIDsStr
+	}
+
+	// Create SMS routing model
+	var routing models.SmsRouting
+
+	// Convert map to struct
+	routingJSON, err := json.Marshal(requestData)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "JSON marshaling error",
+			"message": err.Error(),
+		})
+	}
+
+	if err := json.Unmarshal(routingJSON, &routing); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "JSON unmarshaling error",
+			"message": err.Error(),
 		})
 	}
 
@@ -244,6 +279,9 @@ func (h *SmsRoutingHandler) CreateSmsRouting(c *fiber.Ctx) error {
 			"message": err.Error(),
 		})
 	}
+
+	// Load the created routing with relations
+	h.db.Preload("User").First(&routing, routing.ID)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "SMS routing created successfully",
@@ -278,6 +316,19 @@ func (h *SmsRoutingHandler) UpdateSmsRouting(c *fiber.Ctx) error {
 		})
 	}
 
+	// Convert device_group_ids array to JSON string if present
+	if deviceGroupIDs, ok := updateData["device_group_ids"].([]interface{}); ok {
+		deviceGroupIDsJSON, err := json.Marshal(deviceGroupIDs)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":   "JSON marshaling error",
+				"message": err.Error(),
+			})
+		}
+		deviceGroupIDsStr := string(deviceGroupIDsJSON)
+		updateData["device_group_ids"] = &deviceGroupIDsStr
+	}
+
 	// Update the SMS routing
 	if err := h.db.Model(&routing).Updates(updateData).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -287,7 +338,7 @@ func (h *SmsRoutingHandler) UpdateSmsRouting(c *fiber.Ctx) error {
 	}
 
 	// Get updated routing
-	h.db.Preload("DeviceGroup").Preload("User").First(&routing, id)
+	h.db.Preload("User").First(&routing, id)
 
 	return c.JSON(fiber.Map{
 		"message": "SMS routing updated successfully",
@@ -328,9 +379,9 @@ func (h *SmsRoutingHandler) DeleteSmsRouting(c *fiber.Ctx) error {
 
 // GetSmsRoutingFilterOptions returns filter options for SMS routings
 func (h *SmsRoutingHandler) GetSmsRoutingFilterOptions(c *fiber.Ctx) error {
-	// Get device groups
+	// Get device groups with priority and total_sms
 	var deviceGroups []models.DeviceGroup
-	h.db.Select("id, device_group as name, queue_name").Find(&deviceGroups)
+	h.db.Select("id, device_group as name, queue_name, priority, total_sms").Find(&deviceGroups)
 
 	// Get SMPP users (system IDs)
 	var smppUsers []models.SmppUser

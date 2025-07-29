@@ -94,7 +94,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	targetDeviceGroups, err := sr.findTargetDeviceGroups(smppMsg.SystemID)
 	if err != nil {
 		log.Printf("Error finding target device groups for system_id %s: %v", smppMsg.SystemID, err)
-		return err
+		return sr.sendUndeliveredReport(smppMsg, "Error finding target device groups")
 	}
 
 	if len(targetDeviceGroups) == 0 {
@@ -106,7 +106,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	activeDevices, err := sr.findActiveAndroidDevicesInGroups(targetDeviceGroups)
 	if err != nil {
 		log.Printf("Error finding active devices in target groups: %v", err)
-		return err
+		return sr.sendUndeliveredReport(smppMsg, "Error finding active devices in target groups")
 	}
 
 	if len(activeDevices) == 0 {
@@ -618,6 +618,26 @@ func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubm
 		Metadata:                sr.createMetadata(smppMsg),
 	}
 
+	// Add routing information to metadata
+	metadata := smsLog.Metadata
+	if metadata != nil {
+		var metadataMap map[string]interface{}
+		if err := json.Unmarshal([]byte(*metadata), &metadataMap); err == nil {
+			metadataMap["routing_id"] = routing.ID
+			metadataMap["routing_name"] = routing.Name
+			metadataMap["routing_description"] = routing.Description
+			metadataMap["routing_destination_pattern"] = routing.DestinationAddress
+			metadataMap["device_selection_strategy"] = routing.DeviceSelectionStrategy
+			metadataMap["sim_slot_preference"] = routing.SimSlotPreference
+			metadataMap["sim_card_selection_strategy"] = routing.SimCardSelectionStrategy
+
+			// Update metadata
+			metadataJSON, _ := json.Marshal(metadataMap)
+			metadataStr := string(metadataJSON)
+			smsLog.Metadata = &metadataStr
+		}
+	}
+
 	if err := database.GetDB().Create(&smsLog).Error; err != nil {
 		log.Printf("Error creating SMS log: %v", err)
 		return err
@@ -678,6 +698,21 @@ func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubm
 
 // createSmsLogForSmpp creates an SMS log entry for SMPP messages when no devices are available
 func (sr *SmsRouter) createSmsLogForSmpp(smppMsg SmppSubmitSMMessage, status, errorMsg string) error {
+	// Get routing configuration to get additional details
+	routing, _ := sr.getRoutingConfiguration(smppMsg.SystemID)
+
+	// Get device group information if available
+	var deviceGroupName *string
+	if routing.DeviceGroupIDs != nil && *routing.DeviceGroupIDs != "" {
+		var deviceGroupIDs []uint
+		if err := json.Unmarshal([]byte(*routing.DeviceGroupIDs), &deviceGroupIDs); err == nil && len(deviceGroupIDs) > 0 {
+			var deviceGroup models.DeviceGroup
+			if err := database.GetDB().First(&deviceGroup, deviceGroupIDs[0]).Error; err == nil {
+				deviceGroupName = &deviceGroup.DeviceGroup
+			}
+		}
+	}
+
 	smsLog := models.SmsLog{
 		MessageID:               smppMsg.MessageID,
 		SourceAddr:              &smppMsg.SourceAddr,
@@ -692,10 +727,30 @@ func (sr *SmsRouter) createSmsLogForSmpp(smppMsg SmppSubmitSMMessage, status, er
 		DeliveryReportRequested: smppMsg.RegisteredDelivery == 1,
 		QueuedAt:                func() *time.Time { now := time.Now(); return &now }(),
 		Metadata:                sr.createMetadata(smppMsg),
+		DeviceGroup:             deviceGroupName,
 	}
 
 	if errorMsg != "" {
 		smsLog.ErrorMessage = &errorMsg
+	}
+
+	// Add routing information to metadata
+	if routing.ID > 0 {
+		metadata := smsLog.Metadata
+		if metadata != nil {
+			var metadataMap map[string]interface{}
+			if err := json.Unmarshal([]byte(*metadata), &metadataMap); err == nil {
+				metadataMap["routing_id"] = routing.ID
+				metadataMap["routing_name"] = routing.Name
+				metadataMap["routing_description"] = routing.Description
+				metadataMap["routing_destination_pattern"] = routing.DestinationAddress
+
+				// Update metadata
+				metadataJSON, _ := json.Marshal(metadataMap)
+				metadataStr := string(metadataJSON)
+				smsLog.Metadata = &metadataStr
+			}
+		}
 	}
 
 	return database.GetDB().Create(&smsLog).Error

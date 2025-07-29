@@ -37,8 +37,6 @@ export default function SmppRoutingEdit() {
         is_active: true,
     });
 
-
-
     // Fetch routing data and filter options
     useEffect(() => {
         const fetchData = async () => {
@@ -72,8 +70,6 @@ export default function SmppRoutingEdit() {
                     user_id: routingData.user_id ? String(routingData.user_id) : '',
                     is_active: routingData.is_active,
                 });
-
-
             } catch (error) {
                 console.error('Error fetching data:', error);
                 toast.error('Failed to fetch routing data');

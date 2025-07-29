@@ -19,7 +19,15 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function SmppRoutingsIndex() {
     const navigate = useNavigate();
-    const [routings, setRoutings] = useState<SmppRoutingsListResponse | null>(null);
+    const [routings, setRoutings] = useState<SmppRoutingsListResponse>({
+        data: [],
+        meta: {
+            current_page: 1,
+            last_page: 1,
+            per_page: 15,
+            total: 0
+        }
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
@@ -132,7 +140,7 @@ export default function SmppRoutingsIndex() {
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">SMPP Routings</h1>
                         <p className="text-muted-foreground">
-                            Total records: {routings?.meta.total || 0}
+                            Total records: {routings?.meta?.total || 0}
                         </p>
                     </div>
                     <Button onClick={() => navigate('/smpp-routings/create')}>
@@ -233,7 +241,7 @@ export default function SmppRoutingsIndex() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {routings?.data && routings.data.length > 0 ? (
+                                    {routings?.data && Array.isArray(routings.data) && routings.data.length > 0 ? (
                                         routings.data.map((item) => (
                                             <TableRow key={item.id}>
                                                 <TableCell>
@@ -345,7 +353,7 @@ export default function SmppRoutingsIndex() {
                         </div>
 
                         {/* Pagination */}
-                        {routings && routings.meta.last_page > 1 && (
+                        {routings?.meta && routings.meta.last_page > 1 && (
                             <div className="flex items-center justify-between p-4 border-t bg-muted/30">
                                 <div className="text-sm text-muted-foreground">
                                     Showing {((routings.meta.current_page - 1) * routings.meta.per_page) + 1} to{' '}

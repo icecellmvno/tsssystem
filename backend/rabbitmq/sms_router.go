@@ -335,7 +335,16 @@ func (sr *SmsRouter) selectSpecificDevicesWithConfig(activeDevices []models.Devi
 	}
 
 	selectedDevices := []models.Device{}
-	for _, targetID := range targetDeviceIDs {
+	maxDevices := config.MaxDevicesPerMessage
+	if maxDevices == 0 {
+		maxDevices = 1
+	}
+
+	for i, targetID := range targetDeviceIDs {
+		// maxDevices kontrolü ekle
+		if i >= maxDevices {
+			break
+		}
 		if device, exists := activeDeviceMap[targetID]; exists {
 			selectedDevices = append(selectedDevices, device)
 		}

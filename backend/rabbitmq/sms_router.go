@@ -153,6 +153,43 @@ func (sr *SmsRouter) selectDevicesByStrategy(activeDevices []models.Device, rout
 		return nil, fmt.Errorf("no active devices available")
 	}
 
+	// Get device group configurations for this routing rule
+	deviceGroupConfigs, err := sr.getDeviceGroupConfigs(routing.ID)
+	if err != nil {
+		log.Printf("Error getting device group configs: %v", err)
+		// Fallback to default strategy
+		return sr.selectDevicesByDefaultStrategy(activeDevices, routing)
+	}
+
+	// If no device group configs, use default strategy
+	if len(deviceGroupConfigs) == 0 {
+		return sr.selectDevicesByDefaultStrategy(activeDevices, routing)
+	}
+
+	// Use the highest priority device group config
+	config := deviceGroupConfigs[0]
+
+	maxDevices := config.MaxDevicesPerMessage
+	if maxDevices == 0 {
+		maxDevices = 1
+	}
+
+	switch config.DeviceSelectionStrategy {
+	case "round_robin":
+		return sr.selectRoundRobinDevices(activeDevices, maxDevices)
+	case "least_used":
+		return sr.selectLeastUsedDevices(activeDevices, maxDevices)
+	case "random":
+		return sr.selectRandomDevices(activeDevices, maxDevices)
+	case "specific":
+		return sr.selectSpecificDevicesWithConfig(activeDevices, config)
+	default:
+		return sr.selectRoundRobinDevices(activeDevices, maxDevices)
+	}
+}
+
+// selectDevicesByDefaultStrategy selects devices using default routing strategy
+func (sr *SmsRouter) selectDevicesByDefaultStrategy(activeDevices []models.Device, routing models.SmsRouting) ([]models.Device, error) {
 	maxDevices := 1
 	if routing.MaxDevicesPerMessage != nil {
 		maxDevices = *routing.MaxDevicesPerMessage
@@ -280,8 +317,44 @@ func (sr *SmsRouter) selectSpecificDevices(activeDevices []models.Device, routin
 	return selectedDevices, nil
 }
 
+// selectSpecificDevicesWithConfig selects specific devices by IMEI using device group config
+func (sr *SmsRouter) selectSpecificDevicesWithConfig(activeDevices []models.Device, config models.DeviceGroupConfig) ([]models.Device, error) {
+	if config.TargetDeviceIDs == nil || *config.TargetDeviceIDs == "" {
+		return nil, fmt.Errorf("no target device IDs specified in config")
+	}
+
+	targetDeviceIDs := config.GetTargetDeviceIDsArray()
+	if len(targetDeviceIDs) == 0 {
+		return nil, fmt.Errorf("no target device IDs specified in config")
+	}
+
+	// Create map for faster lookup
+	activeDeviceMap := make(map[string]models.Device)
+	for _, device := range activeDevices {
+		activeDeviceMap[device.IMEI] = device
+	}
+
+	selectedDevices := []models.Device{}
+	for _, targetID := range targetDeviceIDs {
+		if device, exists := activeDeviceMap[targetID]; exists {
+			selectedDevices = append(selectedDevices, device)
+		}
+	}
+
+	return selectedDevices, nil
+}
+
 // getSimSlotPreference gets the preferred SIM slot for a device
 func (sr *SmsRouter) getSimSlotPreference(device models.Device, routing models.SmsRouting) int {
+	// Get device group configurations for this routing rule
+	deviceGroupConfigs, err := sr.getDeviceGroupConfigs(routing.ID)
+	if err == nil && len(deviceGroupConfigs) > 0 {
+		// Use the highest priority device group config
+		config := deviceGroupConfigs[0]
+		return config.SimSlotPreference
+	}
+
+	// Fallback to routing configuration
 	if routing.SimSlotPreference != nil {
 		return *routing.SimSlotPreference
 	}
@@ -444,6 +517,18 @@ func (sr *SmsRouter) findTargetDeviceGroups(systemID string) ([]string, error) {
 	return deviceGroupNames, nil
 }
 
+// getDeviceGroupConfigs returns device group configurations for a routing rule
+func (sr *SmsRouter) getDeviceGroupConfigs(routingID uint) ([]models.DeviceGroupConfig, error) {
+	var configs []models.DeviceGroupConfig
+
+	err := database.GetDB().Where("sms_routing_id = ?", routingID).
+		Preload("DeviceGroup").
+		Order("priority DESC").
+		Find(&configs).Error
+
+	return configs, err
+}
+
 // findActiveAndroidDevicesInGroups finds all active Android devices in specific device groups
 func (sr *SmsRouter) findActiveAndroidDevicesInGroups(deviceGroups []string) ([]models.Device, error) {
 	var devices []models.Device
@@ -554,7 +639,7 @@ func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubm
 				SystemID:        smppMsg.SystemID,
 				SourceAddr:      smppMsg.DestinationAddr, // Hedef numara (mesajın gideceği yer)
 				DestinationAddr: smppMsg.SourceAddr,      // SMPP client adresi (mesajın geldiği yer)
-				MessageState:    4, // UNDELIVERABLE
+				MessageState:    4,                       // UNDELIVERABLE
 				ErrorCode:       0,
 				FinalDate:       time.Now().Format("20060102150405"),
 				SubmitDate:      time.Now().Format("20060102150405"),

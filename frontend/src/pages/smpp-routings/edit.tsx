@@ -7,21 +7,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { type BreadcrumbItem } from '@/types';
-import { smppRoutingsService, type SmppRoutingItem, type SmppRoutingFilterOptions } from '@/services/smpp-routings';
+import { smppRoutingsService, type SmppRoutingFilterOptions } from '@/services/smpp-routings';
 import { toast } from 'sonner';
 import { X } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'SMPP Routings', href: '/smpp-routings' },
-    { title: 'Edit', href: '#' },
+    { title: 'Edit', href: '/smpp-routings/edit' },
 ];
 
 export default function SmppRoutingEdit() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const [loading, setLoading] = useState(false);
-    const [routing, setRouting] = useState<SmppRoutingItem | null>(null);
     const [filterOptions, setFilterOptions] = useState<SmppRoutingFilterOptions | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -36,53 +35,26 @@ export default function SmppRoutingEdit() {
         device_group_ids: [] as number[],
         user_id: '',
         is_active: true,
-        priority: 50,
-        total_sms_count: 1000,
-        
-        // Device Selection Strategy
-        device_selection_strategy: 'round_robin',
-        target_device_ids: [] as string[],
-        max_devices_per_message: 1,
-        
-        // SIM Card Configuration
-        sim_slot_preference: 1,
-        sim_card_selection_strategy: 'preferred',
     });
 
     // Fetch routing data and filter options
     useEffect(() => {
         const fetchData = async () => {
-            if (!id) return;
-
             try {
                 const [routingData, options] = await Promise.all([
-                    smppRoutingsService.getById(parseInt(id)),
+                    smppRoutingsService.getById(parseInt(id!)),
                     smppRoutingsService.getFilterOptions()
                 ]);
 
-                setRouting(routingData);
                 setFilterOptions(options);
 
-                // Parse device_group_ids from JSON string
+                // Parse device group IDs from JSON string
                 let deviceGroupIds: number[] = [];
                 if (routingData.device_group_ids) {
                     try {
-                        const parsedIds = JSON.parse(routingData.device_group_ids);
-                        if (parsedIds && Array.isArray(parsedIds)) {
-                            deviceGroupIds = parsedIds;
-                        }
+                        deviceGroupIds = JSON.parse(routingData.device_group_ids);
                     } catch (e) {
                         console.error('Error parsing device_group_ids:', e);
-                    }
-                }
-
-                // Parse target device IDs
-                let targetDeviceIds: string[] = [];
-                if (routingData.target_device_ids) {
-                    try {
-                        targetDeviceIds = JSON.parse(routingData.target_device_ids);
-                    } catch (e) {
-                        console.error('Error parsing target_device_ids:', e);
                     }
                 }
 
@@ -97,17 +69,6 @@ export default function SmppRoutingEdit() {
                     device_group_ids: deviceGroupIds,
                     user_id: routingData.user_id ? String(routingData.user_id) : '',
                     is_active: routingData.is_active,
-                    priority: routingData.priority,
-                    total_sms_count: routingData.total_sms_count || 1000,
-                    
-                    // Device Selection Strategy
-                    device_selection_strategy: routingData.device_selection_strategy || 'round_robin',
-                    target_device_ids: targetDeviceIds,
-                    max_devices_per_message: routingData.max_devices_per_message || 1,
-                    
-                    // SIM Card Configuration
-                    sim_slot_preference: routingData.sim_slot_preference || 1,
-                    sim_card_selection_strategy: routingData.sim_card_selection_strategy || 'preferred',
                 });
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -115,7 +76,9 @@ export default function SmppRoutingEdit() {
             }
         };
 
-        fetchData();
+        if (id) {
+            fetchData();
+        }
     }, [id]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,7 +87,7 @@ export default function SmppRoutingEdit() {
     };
 
     const handleSelect = (name: string, value: string) => {
-        setForm((prev: any) => {
+        setForm((prev) => {
             if (name === 'source_type') {
                 return {
                     ...prev,
@@ -138,8 +101,6 @@ export default function SmppRoutingEdit() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!id) return;
-
         setLoading(true);
         setErrors({});
 
@@ -153,7 +114,6 @@ export default function SmppRoutingEdit() {
                 destination_address: form.destination_address,
                 target_type: form.target_type,
                 is_active: form.is_active,
-                priority: form.priority,
             };
 
             // Add source-specific fields
@@ -167,23 +127,9 @@ export default function SmppRoutingEdit() {
             // Add target-specific fields
             if (form.target_type === 'device_group' && form.device_group_ids.length > 0) {
                 submitData.device_group_ids = form.device_group_ids;
-                submitData.priority = form.priority;
-                submitData.total_sms_count = form.total_sms_count;
             }
 
-            // Add device selection strategy fields
-            submitData.device_selection_strategy = form.device_selection_strategy;
-            submitData.max_devices_per_message = form.max_devices_per_message;
-            
-            if (form.device_selection_strategy === 'specific' && form.target_device_ids.length > 0) {
-                submitData.target_device_ids = form.target_device_ids;
-            }
-
-            // Add SIM card configuration fields
-            submitData.sim_slot_preference = form.sim_slot_preference;
-            submitData.sim_card_selection_strategy = form.sim_card_selection_strategy;
-
-            await smppRoutingsService.update(parseInt(id), submitData);
+            await smppRoutingsService.update(parseInt(id!), submitData);
             toast.success('SMPP routing updated successfully');
             navigate('/smpp-routings');
         } catch (error: any) {
@@ -198,7 +144,7 @@ export default function SmppRoutingEdit() {
         }
     };
 
-    if (!routing || !filterOptions) {
+    if (!filterOptions) {
         return (
             <AppLayout breadcrumbs={breadcrumbs}>
                 <div className="flex items-center justify-center h-64">
@@ -314,7 +260,7 @@ export default function SmppRoutingEdit() {
                                     {form.target_type === 'device_group' && (
                                         <div>
                                             <Label htmlFor="device_groups">Device Groups</Label>
-                                            <div className="space-y-2">
+                                            <div className="space-y-4">
                                                 <Select 
                                                     onValueChange={(value) => {
                                                         const groupId = parseInt(value);
@@ -345,38 +291,26 @@ export default function SmppRoutingEdit() {
                                                         {form.device_group_ids.map((groupId) => {
                                                             const selectedGroup = filterOptions.device_groups.find((g: any) => g.id === groupId);
                                                             return selectedGroup ? (
-                                                                <div key={groupId} className="p-2 bg-muted rounded-md">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <div className="flex-1">
-                                                                            <div className="font-medium text-sm">{selectedGroup.name}</div>
-                                                                            {selectedGroup.queue_name && (
-                                                                                <div className="text-xs text-muted-foreground">{selectedGroup.queue_name}</div>
-                                                                            )}
-                                                                        </div>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            onClick={() => {
-                                                                                setForm(prev => ({
-                                                                                    ...prev,
-                                                                                    device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
-                                                                                }));
-                                                                            }}
-                                                                        >
-                                                                            <X className="h-3 w-3" />
-                                                                        </Button>
+                                                                <div key={groupId} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                                                                    <div className="flex-1">
+                                                                        <div className="font-medium text-sm">{selectedGroup.name}</div>
+                                                                        {selectedGroup.queue_name && (
+                                                                            <div className="text-xs text-muted-foreground">{selectedGroup.queue_name}</div>
+                                                                        )}
                                                                     </div>
-                                                                    <div className="grid grid-cols-2 gap-2 text-xs mt-2">
-                                                                        <div className="p-2 bg-blue-50 rounded">
-                                                                            <div className="font-medium text-blue-700">Priority</div>
-                                                                            <div className="text-blue-600">{selectedGroup.priority || 'N/A'}</div>
-                                                                        </div>
-                                                                        <div className="p-2 bg-green-50 rounded">
-                                                                            <div className="font-medium text-green-700">Total SMS</div>
-                                                                            <div className="text-green-600">{selectedGroup.total_sms || 'N/A'}</div>
-                                                                        </div>
-                                                                    </div>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        onClick={() => {
+                                                                            setForm(prev => ({
+                                                                                ...prev,
+                                                                                device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
+                                                                            }));
+                                                                        }}
+                                                                    >
+                                                                        <X className="h-3 w-3" />
+                                                                    </Button>
                                                                 </div>
                                                             ) : null;
                                                         })}
@@ -385,163 +319,142 @@ export default function SmppRoutingEdit() {
                                             </div>
                                         </div>
                                     )}
-                                                                            <div>
-                                            <Label htmlFor="destination_address">Destination Address Pattern</Label>
-                                            <Input 
-                                                id="destination_address" 
-                                                name="destination_address" 
-                                                placeholder="* (all addresses), +90* (starting with 90), *123 (ending with 123)" 
-                                                value={form.destination_address} 
-                                                onChange={handleChange} 
-                                                required 
-                                            />
-                                            <div className="text-sm text-muted-foreground mt-1">
-                                                <strong>Examples:</strong><br/>
-                                                • <code>*</code> - All phone numbers<br/>
-                                                • <code>+90*</code> - Numbers starting with 90<br/>
-                                                • <code>*123</code> - Numbers ending with 123<br/>
-                                                • <code>+905551234567</code> - Specific number
-                                            </div>
-                                            {errors.destination_address && <p className="text-sm text-destructive mt-1">{errors.destination_address}</p>}
-                                        </div>
-                                </div>
-                            </div>
-                            
-                                                        {/* Device Selection Strategy */}
-                            <div className="border-t pt-6">
-                                <h3 className="text-lg font-semibold mb-4">Device Selection Strategy</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div>
-                                        <Label htmlFor="device_selection_strategy">Device Selection Strategy</Label>
-                                        <Select 
-                                            value={form.device_selection_strategy} 
-                                            onValueChange={(value) => handleSelect('device_selection_strategy', value)}
-                                        >
-                                            <SelectTrigger id="device_selection_strategy" className="w-full">
-                                                <SelectValue placeholder="Select device selection strategy" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="round_robin">Round Robin - Select devices in sequence</SelectItem>
-                                                <SelectItem value="least_used">Least Used - Select least used device</SelectItem>
-                                                <SelectItem value="random">Random - Select random device</SelectItem>
-                                                <SelectItem value="specific">Specific - Select specific devices</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    
-                                    {form.device_selection_strategy === 'specific' && (
-                                        <div>
-                                            <Label htmlFor="target_device_ids">Target Devices (IMEI)</Label>
-                                            <Input 
-                                                id="target_device_ids" 
-                                                name="target_device_ids" 
-                                                placeholder="IMEI1,IMEI2,IMEI3 (virgülle ayırın)" 
-                                                value={form.target_device_ids.join(',')} 
-                                                onChange={(e) => {
-                                                    const deviceIds = e.target.value.split(',').map(id => id.trim()).filter(id => id);
-                                                    setForm(prev => ({ ...prev, target_device_ids: deviceIds }));
-                                                }}
-                                            />
-                                            <div className="text-sm text-muted-foreground mt-1">
-                                                Enter specific device IMEIs separated by commas
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    <div>
-                                        <Label htmlFor="max_devices_per_message">Max Devices Per Message</Label>
+                                        <Label htmlFor="destination_address">Destination Address Pattern</Label>
                                         <Input 
-                                            id="max_devices_per_message" 
-                                            name="max_devices_per_message" 
-                                            type="number" 
-                                            min={1} 
-                                            max={10} 
-                                            value={form.max_devices_per_message} 
-                                            onChange={(e) => setForm(prev => ({ ...prev, max_devices_per_message: parseInt(e.target.value) || 1 }))}
-                                        />
-                                        <div className="text-sm text-muted-foreground mt-1">
-                                            How many devices to use per message (usually 1)
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* Priority and Total SMS Count */}
-                            <div className="border-t pt-6">
-                                <h3 className="text-lg font-semibold mb-4">Priority and Total SMS Count</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <Label htmlFor="priority">Priority</Label>
-                                        <Input 
-                                            id="priority" 
-                                            name="priority" 
-                                            type="number" 
-                                            min={0} 
-                                            max={100} 
-                                            value={form.priority} 
+                                            id="destination_address" 
+                                            name="destination_address" 
+                                            placeholder="* (all addresses), +90* (starting with 90), *123 (ending with 123)" 
+                                            value={form.destination_address} 
                                             onChange={handleChange} 
                                             required 
                                         />
                                         <div className="text-sm text-muted-foreground mt-1">
-                                            Priority level (0-100, higher = higher priority)
+                                            <strong>Examples:</strong><br/>
+                                            • <code>*</code> - All phone numbers<br/>
+                                            • <code>+90*</code> - Numbers starting with 90<br/>
+                                            • <code>*123</code> - Numbers ending with 123<br/>
+                                            • <code>+905551234567</code> - Specific number
                                         </div>
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="total_sms_count">Total SMS Count</Label>
-                                        <Input 
-                                            id="total_sms_count" 
-                                            name="total_sms_count" 
-                                            type="number" 
-                                            min={1} 
-                                            value={form.total_sms_count} 
-                                            onChange={handleChange} 
-                                            required 
-                                        />
-                                        <div className="text-sm text-muted-foreground mt-1">
-                                            Total SMS count for this routing rule
-                                        </div>
+                                        {errors.destination_address && <p className="text-sm text-destructive mt-1">{errors.destination_address}</p>}
                                     </div>
                                 </div>
                             </div>
                             
-                            {/* SIM Card Configuration */}
-                            <div className="border-t pt-6">
-                                <h3 className="text-lg font-semibold mb-4">SIM Card Configuration</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <Label htmlFor="sim_slot_preference">SIM Slot Preference</Label>
-                                        <Select 
-                                            value={form.sim_slot_preference.toString()} 
-                                            onValueChange={(value) => setForm(prev => ({ ...prev, sim_slot_preference: parseInt(value) }))}
-                                        >
-                                            <SelectTrigger id="sim_slot_preference" className="w-full">
-                                                <SelectValue placeholder="Select SIM slot preference" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                                                            <SelectItem value="1">SIM 1 - Prefer first SIM card</SelectItem>
-                                            <SelectItem value="2">SIM 2 - Prefer second SIM card</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    
-                                    <div>
-                                        <Label htmlFor="sim_card_selection_strategy">SIM Card Selection Strategy</Label>
-                                        <Select 
-                                            value={form.sim_card_selection_strategy} 
-                                            onValueChange={(value) => handleSelect('sim_card_selection_strategy', value)}
-                                        >
-                                            <SelectTrigger id="sim_card_selection_strategy" className="w-full">
-                                                <SelectValue placeholder="Select SIM card selection strategy" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                                                                    <SelectItem value="preferred">Preferred - Use preferred SIM slot</SelectItem>
-                                                    <SelectItem value="round_robin">Round Robin - Use SIM slots in sequence</SelectItem>
-                                                    <SelectItem value="least_used">Least Used - Use least used SIM slot</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                            {/* Device Group Configurations - Moved here */}
+                            {form.target_type === 'device_group' && form.device_group_ids.length > 0 && (
+                                <div className="border-t pt-6">
+                                    <div className="border rounded-lg overflow-hidden">
+                                        <div className="bg-muted px-6 py-3 border-b">
+                                            <h4 className="font-medium">Device Group Configurations</h4>
+                                            <p className="text-sm text-muted-foreground mt-1">
+                                                Configure individual settings for each selected device group
+                                            </p>
+                                        </div>
+                                        <div className="divide-y">
+                                            {form.device_group_ids.map((groupId) => {
+                                                const selectedGroup = filterOptions!.device_groups.find((g: any) => g.id === groupId);
+                                                return selectedGroup ? (
+                                                    <div key={groupId} className="p-6">
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <div className="flex-1">
+                                                                <div className="font-medium text-base">{selectedGroup.name}</div>
+                                                                {selectedGroup.queue_name && (
+                                                                    <div className="text-sm text-muted-foreground">{selectedGroup.queue_name}</div>
+                                                                )}
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setForm(prev => ({
+                                                                        ...prev,
+                                                                        device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
+                                                                    }));
+                                                                }}
+                                                            >
+                                                                <X className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                        
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                                            {/* Priority */}
+                                                            <div>
+                                                                <Label htmlFor={`priority_${groupId}`} className="text-sm font-medium">Priority</Label>
+                                                                <Input 
+                                                                    id={`priority_${groupId}`}
+                                                                    type="number" 
+                                                                    min={0} 
+                                                                    max={100} 
+                                                                    defaultValue={selectedGroup.priority || 50}
+                                                                    className="mt-1"
+                                                                />
+                                                                <div className="text-xs text-muted-foreground mt-1">
+                                                                    Priority level (0-100)
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {/* Total SMS Count */}
+                                                            <div>
+                                                                <Label htmlFor={`total_sms_${groupId}`} className="text-sm font-medium">Total SMS</Label>
+                                                                <Input 
+                                                                    id={`total_sms_${groupId}`}
+                                                                    type="number" 
+                                                                    min={1} 
+                                                                    defaultValue={selectedGroup.total_sms || 1000}
+                                                                    className="mt-1"
+                                                                />
+                                                                <div className="text-xs text-muted-foreground mt-1">
+                                                                    Total SMS count
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {/* Device Selection Strategy */}
+                                                            <div>
+                                                                <Label htmlFor={`strategy_${groupId}`} className="text-sm font-medium">Strategy</Label>
+                                                                <Select defaultValue="round_robin">
+                                                                    <SelectTrigger className="mt-1">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="round_robin">Round Robin</SelectItem>
+                                                                        <SelectItem value="least_used">Least Used</SelectItem>
+                                                                        <SelectItem value="random">Random</SelectItem>
+                                                                        <SelectItem value="specific">Specific</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <div className="text-xs text-muted-foreground mt-1">
+                                                                    Device selection method
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {/* SIM Configuration */}
+                                                            <div>
+                                                                <Label htmlFor={`sim_${groupId}`} className="text-sm font-medium">SIM Config</Label>
+                                                                <Select defaultValue="sim1_preferred">
+                                                                    <SelectTrigger className="mt-1">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="sim1_preferred">SIM1 Preferred</SelectItem>
+                                                                        <SelectItem value="sim2_preferred">SIM2 Preferred</SelectItem>
+                                                                        <SelectItem value="round_robin">Round Robin</SelectItem>
+                                                                        <SelectItem value="least_used">Least Used</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <div className="text-xs text-muted-foreground mt-1">
+                                                                    SIM card selection
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : null;
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                             
                             <div className="flex items-center gap-2 mt-6">
                                 <input 

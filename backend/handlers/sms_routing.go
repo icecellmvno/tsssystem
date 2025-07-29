@@ -160,6 +160,13 @@ func (h *SmsRoutingHandler) GetSmsRoutingByID(c *fiber.Ctx) error {
 		log.Printf("Error loading device group configs: %v", err)
 	}
 
+	// Debug log
+	log.Printf("Found %d device group configs for routing %d", len(deviceGroupConfigs), routing.ID)
+	for i, config := range deviceGroupConfigs {
+		log.Printf("Config %d: DeviceGroupID=%d, Priority=%d, Strategy=%s",
+			i+1, config.DeviceGroupID, config.Priority, config.DeviceSelectionStrategy)
+	}
+
 	// Prepare response with computed fields
 	response := map[string]interface{}{
 		"id":                        routing.ID,

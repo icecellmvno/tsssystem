@@ -2,13 +2,18 @@ package rabbitmq
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"tsimsocketserver/database"
 	"tsimsocketserver/models"
+	"tsimsocketserver/types"
 	"tsimsocketserver/utils"
 	"tsimsocketserver/websocket"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // SmppSubmitSMMessage represents the SMPP submit_sm message structure from RabbitMQ
@@ -72,6 +77,19 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	log.Printf("Processing SMPP message: %s from %s to %s", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestinationAddr)
 
+	// Get routing configuration for this system_id
+	routing, err := sr.getRoutingConfiguration(smppMsg.SystemID)
+	if err != nil {
+		log.Printf("Error getting routing configuration for system_id %s: %v", smppMsg.SystemID, err)
+		return sr.sendUndeliveredReport(smppMsg, "No routing configuration found")
+	}
+
+	// Check if destination address matches routing pattern
+	if !sr.matchesDestinationPattern(smppMsg.DestinationAddr, routing) {
+		log.Printf("Destination address %s does not match routing pattern for system_id %s", smppMsg.DestinationAddr, smppMsg.SystemID)
+		return sr.sendUndeliveredReport(smppMsg, "Destination address does not match routing pattern")
+	}
+
 	// Find target device groups based on SMPP system_id
 	targetDeviceGroups, err := sr.findTargetDeviceGroups(smppMsg.SystemID)
 	if err != nil {
@@ -81,7 +99,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	if len(targetDeviceGroups) == 0 {
 		log.Printf("No target device groups found for system_id: %s", smppMsg.SystemID)
-		return sr.createSmsLogForSmpp(smppMsg, "failed", "No target device groups found")
+		return sr.sendUndeliveredReport(smppMsg, "No target device groups found")
 	}
 
 	// Find active Android devices in target device groups
@@ -93,20 +111,306 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	if len(activeDevices) == 0 {
 		log.Printf("No active Android devices found in target device groups")
-		return sr.createSmsLogForSmpp(smppMsg, "failed", "No active devices in target groups")
+		return sr.sendUndeliveredReport(smppMsg, "No active devices in target groups")
 	}
 
-	// Route message to devices in target groups
+	// Get routing configuration for this system_id (already retrieved above)
+	if routing.ID == 0 {
+		log.Printf("No routing configuration found for system_id %s", smppMsg.SystemID)
+		return sr.sendUndeliveredReport(smppMsg, "No routing configuration found")
+	}
+
+	// Select devices based on strategy
+	selectedDevices, err := sr.selectDevicesByStrategy(activeDevices, routing)
+	if err != nil {
+		log.Printf("Error selecting devices: %v", err)
+		return sr.sendUndeliveredReport(smppMsg, "Failed to select devices")
+	}
+
+	if len(selectedDevices) == 0 {
+		log.Printf("No devices selected for system_id: %s", smppMsg.SystemID)
+		return sr.sendUndeliveredReport(smppMsg, "No devices selected")
+	}
+
+	// Route message to selected devices
 	successCount := 0
-	for _, device := range activeDevices {
-		if err := sr.routeMessageToDevice(device, smppMsg); err != nil {
+	for _, device := range selectedDevices {
+		if err := sr.routeMessageToDevice(device, smppMsg, routing); err != nil {
 			log.Printf("Error routing message to device %s: %v", device.IMEI, err)
 		} else {
 			successCount++
 		}
 	}
 
-	log.Printf("Successfully routed SMPP message to %d/%d active devices in target groups", successCount, len(activeDevices))
+	log.Printf("Successfully routed SMPP message to %d/%d selected devices using strategy: %s",
+		successCount, len(selectedDevices), routing.DeviceSelectionStrategy)
+	return nil
+}
+
+// selectDevicesByStrategy selects devices based on the routing strategy
+func (sr *SmsRouter) selectDevicesByStrategy(activeDevices []models.Device, routing models.SmsRouting) ([]models.Device, error) {
+	if len(activeDevices) == 0 {
+		return nil, fmt.Errorf("no active devices available")
+	}
+
+	maxDevices := 1
+	if routing.MaxDevicesPerMessage != nil {
+		maxDevices = *routing.MaxDevicesPerMessage
+	}
+
+	switch routing.DeviceSelectionStrategy {
+	case "round_robin":
+		return sr.selectRoundRobinDevices(activeDevices, maxDevices)
+	case "least_used":
+		return sr.selectLeastUsedDevices(activeDevices, maxDevices)
+	case "random":
+		return sr.selectRandomDevices(activeDevices, maxDevices)
+	case "specific":
+		return sr.selectSpecificDevices(activeDevices, routing)
+	default:
+		return sr.selectRoundRobinDevices(activeDevices, maxDevices)
+	}
+}
+
+// selectRoundRobinDevices selects devices in round-robin fashion
+func (sr *SmsRouter) selectRoundRobinDevices(devices []models.Device, maxDevices int) ([]models.Device, error) {
+	// Get last used device index from Redis or database
+	lastIndex := sr.getLastDeviceIndex()
+	nextIndex := (lastIndex + 1) % len(devices)
+	sr.setLastDeviceIndex(nextIndex)
+
+	selectedDevices := []models.Device{}
+	for i := 0; i < maxDevices && i < len(devices); i++ {
+		index := (nextIndex + i) % len(devices)
+		selectedDevices = append(selectedDevices, devices[index])
+	}
+
+	return selectedDevices, nil
+}
+
+// selectLeastUsedDevices selects devices with least SMS usage
+func (sr *SmsRouter) selectLeastUsedDevices(devices []models.Device, maxDevices int) ([]models.Device, error) {
+	// Get SMS usage count for each device from the last 24 hours
+	deviceUsage := make(map[string]int)
+
+	for _, device := range devices {
+		var count int64
+		database.GetDB().Model(&models.SmsLog{}).
+			Where("device_imei = ? AND created_at >= ?", device.IMEI, time.Now().Add(-24*time.Hour)).
+			Count(&count)
+		deviceUsage[device.IMEI] = int(count)
+	}
+
+	// Sort devices by usage count (ascending)
+	type deviceWithUsage struct {
+		device models.Device
+		usage  int
+	}
+
+	var devicesWithUsage []deviceWithUsage
+	for _, device := range devices {
+		devicesWithUsage = append(devicesWithUsage, deviceWithUsage{
+			device: device,
+			usage:  deviceUsage[device.IMEI],
+		})
+	}
+
+	// Sort by usage (least used first)
+	for i := 0; i < len(devicesWithUsage)-1; i++ {
+		for j := i + 1; j < len(devicesWithUsage); j++ {
+			if devicesWithUsage[i].usage > devicesWithUsage[j].usage {
+				devicesWithUsage[i], devicesWithUsage[j] = devicesWithUsage[j], devicesWithUsage[i]
+			}
+		}
+	}
+
+	// Return top devices
+	selectedDevices := []models.Device{}
+	for i := 0; i < maxDevices && i < len(devicesWithUsage); i++ {
+		selectedDevices = append(selectedDevices, devicesWithUsage[i].device)
+	}
+
+	return selectedDevices, nil
+}
+
+// selectRandomDevices selects devices randomly
+func (sr *SmsRouter) selectRandomDevices(devices []models.Device, maxDevices int) ([]models.Device, error) {
+	rand.Seed(time.Now().UnixNano())
+
+	// Shuffle devices
+	shuffled := make([]models.Device, len(devices))
+	copy(shuffled, devices)
+	rand.Shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
+
+	// Return first maxDevices
+	selectedDevices := []models.Device{}
+	for i := 0; i < maxDevices && i < len(shuffled); i++ {
+		selectedDevices = append(selectedDevices, shuffled[i])
+	}
+
+	return selectedDevices, nil
+}
+
+// selectSpecificDevices selects specific devices based on target_device_ids
+func (sr *SmsRouter) selectSpecificDevices(activeDevices []models.Device, routing models.SmsRouting) ([]models.Device, error) {
+	if routing.TargetDeviceIDs == nil || *routing.TargetDeviceIDs == "" {
+		return nil, fmt.Errorf("no target device IDs specified for specific strategy")
+	}
+
+	var targetDeviceIDs []string
+	if err := json.Unmarshal([]byte(*routing.TargetDeviceIDs), &targetDeviceIDs); err != nil {
+		return nil, fmt.Errorf("invalid target device IDs format: %v", err)
+	}
+
+	// Create map for faster lookup
+	activeDeviceMap := make(map[string]models.Device)
+	for _, device := range activeDevices {
+		activeDeviceMap[device.IMEI] = device
+	}
+
+	selectedDevices := []models.Device{}
+	for _, targetID := range targetDeviceIDs {
+		if device, exists := activeDeviceMap[targetID]; exists {
+			selectedDevices = append(selectedDevices, device)
+		}
+	}
+
+	return selectedDevices, nil
+}
+
+// getSimSlotPreference gets the preferred SIM slot for a device
+func (sr *SmsRouter) getSimSlotPreference(device models.Device, routing models.SmsRouting) int {
+	if routing.SimSlotPreference != nil {
+		return *routing.SimSlotPreference
+	}
+	return 1 // Default to SIM 1
+}
+
+// getLastDeviceIndex gets the last used device index (simplified implementation)
+func (sr *SmsRouter) getLastDeviceIndex() int {
+	// TODO: Implement Redis or database storage for last device index
+	// For now, return 0
+	return 0
+}
+
+// setLastDeviceIndex sets the last used device index (simplified implementation)
+func (sr *SmsRouter) setLastDeviceIndex(index int) {
+	// TODO: Implement Redis or database storage for last device index
+	// For now, do nothing
+}
+
+// getRoutingConfiguration gets the routing configuration for a system_id
+func (sr *SmsRouter) getRoutingConfiguration(systemID string) (models.SmsRouting, error) {
+	var routing models.SmsRouting
+
+	err := database.GetDB().Where("is_active = ? AND source_type = ? AND system_id = ?",
+		true, "smpp", systemID).First(&routing).Error
+
+	if err != nil {
+		return models.SmsRouting{}, err
+	}
+
+	return routing, nil
+}
+
+// matchesDestinationPattern checks if destination address matches routing pattern
+func (sr *SmsRouter) matchesDestinationPattern(destinationAddr string, routing models.SmsRouting) bool {
+	if routing.DestinationAddress == nil || *routing.DestinationAddress == "" {
+		return true // No pattern specified, accept all
+	}
+
+	pattern := *routing.DestinationAddress
+
+	// Simple pattern matching - can be enhanced with regex
+	if pattern == "*" {
+		return true // Accept all addresses
+	}
+
+	if pattern == destinationAddr {
+		return true // Exact match
+	}
+
+	// Check if pattern is a prefix (e.g., "+90" matches "+905551234567")
+	if len(pattern) > 0 && pattern[len(pattern)-1] != '*' {
+		if len(destinationAddr) >= len(pattern) && destinationAddr[:len(pattern)] == pattern {
+			return true
+		}
+	}
+
+	// Check if pattern is a suffix (e.g., "*123" matches "905551234567")
+	if len(pattern) > 0 && pattern[0] == '*' {
+		suffix := pattern[1:]
+		if len(destinationAddr) >= len(suffix) && destinationAddr[len(destinationAddr)-len(suffix):] == suffix {
+			return true
+		}
+	}
+
+	return false
+}
+
+// sendUndeliveredReport sends an undelivered delivery report to SMPP server
+func (sr *SmsRouter) sendUndeliveredReport(smppMsg SmppSubmitSMMessage, reason string) error {
+	// Create SMS log entry for failed delivery
+	if err := sr.createSmsLogForSmpp(smppMsg, "failed", reason); err != nil {
+		log.Printf("Error creating SMS log for undelivered message: %v", err)
+	}
+
+	// Only send delivery report if it was requested
+	if smppMsg.RegisteredDelivery == 1 {
+		deliveryReport := &types.DeliveryReportMessage{
+			MessageID:       smppMsg.MessageID,
+			SystemID:        smppMsg.SystemID,
+			SourceAddr:      smppMsg.SourceAddr,
+			DestinationAddr: smppMsg.DestinationAddr,
+			MessageState:    4, // UNDELIVERABLE
+			ErrorCode:       0,
+			FinalDate:       time.Now().Format("20060102150405"),
+			SubmitDate:      time.Now().Format("20060102150405"),
+			DoneDate:        time.Now().Format("20060102150405"),
+			Delivered:       false,
+			Failed:          true,
+			FailureReason:   reason,
+		}
+
+		// Publish delivery report to RabbitMQ
+		if err := sr.publishDeliveryReport(deliveryReport); err != nil {
+			log.Printf("Error publishing undelivered delivery report: %v", err)
+			return err
+		}
+
+		log.Printf("Sent undelivered delivery report for message %s: %s", smppMsg.MessageID, reason)
+	}
+
+	return nil
+}
+
+// publishDeliveryReport publishes delivery report to RabbitMQ
+func (sr *SmsRouter) publishDeliveryReport(report *types.DeliveryReportMessage) error {
+	// Convert message to JSON
+	body, err := json.Marshal(report)
+	if err != nil {
+		return err
+	}
+
+	// Publish to delivery report queue
+	err = sr.rabbitMQ.channel.Publish(
+		"tsimcloudrouter", // exchange
+		"delivery_report", // routing key
+		false,             // mandatory
+		false,             // immediate
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+	if err != nil {
+		log.Printf("Failed to publish delivery report: %v", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -170,18 +474,21 @@ func (sr *SmsRouter) findActiveAndroidDevices() ([]models.Device, error) {
 }
 
 // routeMessageToDevice routes an SMPP message to a specific device
-func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubmitSMMessage) error {
+func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubmitSMMessage, routing models.SmsRouting) error {
 	// Generate unique message ID for this device if not provided
 	deviceMessageID := smppMsg.MessageID
 	if deviceMessageID == "" {
 		deviceMessageID = utils.GenerateMessageID()
 	}
 
-	// Get device SIM card information (use first SIM card as per user preference)
+	// Get preferred SIM slot from routing configuration
+	simSlot := sr.getSimSlotPreference(device, routing)
+
+	// Get device SIM card information for the preferred slot
 	var deviceSimCard models.DeviceSimCard
 	var simcardName, simcardNumber, simcardICCID, deviceIMSI *string
 
-	if err := database.GetDB().Where("device_imei = ? AND slot_index = ?", device.IMEI, 1).First(&deviceSimCard).Error; err == nil {
+	if err := database.GetDB().Where("device_imei = ? AND slot_index = ?", device.IMEI, simSlot).First(&deviceSimCard).Error; err == nil {
 		simcardName = &deviceSimCard.CarrierName
 		simcardNumber = &deviceSimCard.PhoneNumber
 		simcardICCID = &deviceSimCard.ICCID
@@ -196,7 +503,7 @@ func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubm
 		DeviceIMEI:              &device.IMEI,
 		DeviceIMSI:              deviceIMSI,
 		SimcardName:             simcardName,
-		SimSlot:                 func() *int { slot := 1; return &slot }(),
+		SimSlot:                 &simSlot,
 		SimcardNumber:           simcardNumber,
 		SimcardICCID:            simcardICCID,
 		SourceAddr:              &smppMsg.SourceAddr,
@@ -226,7 +533,7 @@ func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubm
 	wsData := models.SendSmsData{
 		PhoneNumber: smppMsg.DestinationAddr,
 		Message:     smppMsg.ShortMessage,
-		SimSlot:     1, // Use first SIM slot
+		SimSlot:     simSlot, // Use preferred SIM slot
 		Priority:    sr.convertPriority(smppMsg.PriorityFlag),
 		MessageID:   deviceMessageID,
 	}
@@ -239,6 +546,28 @@ func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubm
 			"status":        "failed",
 			"error_message": "Failed to send via WebSocket",
 		})
+
+		// Send undelivered report if delivery report was requested
+		if smppMsg.RegisteredDelivery == 1 {
+			deliveryReport := &types.DeliveryReportMessage{
+				MessageID:       deviceMessageID,
+				SystemID:        smppMsg.SystemID,
+				SourceAddr:      smppMsg.SourceAddr,
+				DestinationAddr: smppMsg.DestinationAddr,
+				MessageState:    4, // UNDELIVERABLE
+				ErrorCode:       0,
+				FinalDate:       time.Now().Format("20060102150405"),
+				SubmitDate:      time.Now().Format("20060102150405"),
+				DoneDate:        time.Now().Format("20060102150405"),
+				Delivered:       false,
+				Failed:          true,
+				FailureReason:   "Failed to send via WebSocket",
+			}
+
+			if err := sr.publishDeliveryReport(deliveryReport); err != nil {
+				log.Printf("Error publishing delivery report for WebSocket failure: %v", err)
+			}
+		}
 
 		return err
 	}

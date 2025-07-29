@@ -8,19 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
-import { Search, Plus, ArrowUpDown, Settings, Route, Edit, Trash2, Eye } from 'lucide-react';
+import { Search, Plus, ArrowUpDown, Route, Edit, Trash2, Eye } from 'lucide-react';
 import { smppRoutingsService, type SmppRoutingItem, type SmppRoutingsListResponse } from '@/services/smpp-routings';
 import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: '/dashboard',
-    },
-    {
-        title: 'SMPP Routings',
-        href: '/smpp-routings',
-    },
+    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'SMPP Routings', href: '/smpp-routings' },
 ];
 
 export default function SmppRoutingsIndex() {
@@ -231,6 +225,7 @@ export default function SmppRoutingsIndex() {
                                         <TableHead>Direction</TableHead>
                                         <TableHead>Destination</TableHead>
                                         <TableHead>Target</TableHead>
+                                        <TableHead>Strategy</TableHead>
                                         <TableHead>Priority</TableHead>
                                         <TableHead>Status</TableHead>
                                         <TableHead className="hidden lg:table-cell">Summary</TableHead>
@@ -241,92 +236,104 @@ export default function SmppRoutingsIndex() {
                                     {routings?.data && routings.data.length > 0 ? (
                                         routings.data.map((item) => (
                                             <TableRow key={item.id}>
-                                            <TableCell>
-                                                <div className="space-y-1">
-                                                    <div className="text-sm font-medium">{item.name}</div>
-                                                    <div className="text-xs text-muted-foreground">{item.description}</div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="space-y-1">
-                                                    <Badge variant={item.source_type_badge_variant} className="text-xs">
-                                                        {item.source_type.toUpperCase()}
-                                                    </Badge>
-                                                    {item.system_id && (
-                                                        <div className="text-xs text-muted-foreground">
-                                                            {item.system_id}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant={item.direction_badge_variant} className="text-xs">
-                                                    {item.direction}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="text-xs">
-                                                    {item.destination_address || <span className="text-muted-foreground">N/A</span>}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="space-y-1">
-                                                    <Badge variant={item.target_type_badge_variant} className="text-xs">
-                                                        {item.target_type.replace('_', ' ')}
-                                                    </Badge>
-                                                    <div className="text-xs text-muted-foreground">
-                                                        {item.target_display_name}
+                                                <TableCell>
+                                                    <div className="space-y-1">
+                                                        <div className="text-sm font-medium">{item.name}</div>
+                                                        <div className="text-xs text-muted-foreground">{item.description}</div>
                                                     </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline" className="text-xs">
-                                                    {item.priority}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant={item.status_badge_variant} className="text-xs">
-                                                    {item.is_active ? 'Active' : 'Inactive'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="hidden lg:table-cell">
-                                                <div className="text-xs text-muted-foreground max-w-48 truncate">
-                                                    {item.routing_summary}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex gap-1">
-                                                    <Button 
-                                                        variant="outline" 
-                                                        size="sm" 
-                                                        className="h-7 px-2 text-xs"
-                                                        onClick={() => navigate(`/smpp-routings/${item.id}`)}
-                                                    >
-                                                        <Eye className="h-3 w-3" />
-                                                    </Button>
-                                                    <Button 
-                                                        variant="outline" 
-                                                        size="sm" 
-                                                        className="h-7 px-2 text-xs"
-                                                        onClick={() => navigate(`/smpp-routings/${item.id}/edit`)}
-                                                    >
-                                                        <Edit className="h-3 w-3" />
-                                                    </Button>
-                                                    <Button 
-                                                        variant="outline" 
-                                                        size="sm" 
-                                                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                                                        onClick={() => handleDelete(item)}
-                                                    >
-                                                        <Trash2 className="h-3 w-3" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-1">
+                                                        <Badge variant={item.source_type_badge_variant} className="text-xs">
+                                                            {item.source_type.toUpperCase()}
+                                                        </Badge>
+                                                        {item.system_id && (
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {item.system_id}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant={item.direction_badge_variant} className="text-xs">
+                                                        {item.direction}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="text-xs">
+                                                        {item.destination_address || <span className="text-muted-foreground">N/A</span>}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-1">
+                                                        <Badge variant={item.target_type_badge_variant} className="text-xs">
+                                                            {item.target_type.replace('_', ' ')}
+                                                        </Badge>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            {item.target_display_name}
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="space-y-1">
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {item.device_selection_strategy || 'round_robin'}
+                                                        </Badge>
+                                                        {item.sim_slot_preference && (
+                                                            <div className="text-xs text-muted-foreground">
+                                                                SIM {item.sim_slot_preference}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {item.priority}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant={item.status_badge_variant} className="text-xs">
+                                                        {item.is_active ? 'Active' : 'Inactive'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="hidden lg:table-cell">
+                                                    <div className="text-xs text-muted-foreground max-w-48 truncate">
+                                                        {item.routing_summary}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex gap-1">
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="h-7 px-2 text-xs"
+                                                            onClick={() => navigate(`/smpp-routings/${item.id}`)}
+                                                        >
+                                                            <Eye className="h-3 w-3" />
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="h-7 px-2 text-xs"
+                                                            onClick={() => navigate(`/smpp-routings/${item.id}/edit`)}
+                                                        >
+                                                            <Edit className="h-3 w-3" />
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                                                            onClick={() => handleDelete(item)}
+                                                        >
+                                                            <Trash2 className="h-3 w-3" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={9} className="text-center py-8">
+                                            <TableCell colSpan={10} className="text-center py-8">
                                                 <div className="text-muted-foreground">
                                                     {loading ? 'Loading...' : 'No SMPP routings found'}
                                                 </div>

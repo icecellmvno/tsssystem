@@ -9,28 +9,39 @@ import (
 
 // SmsRouting represents the SMS routing configuration
 type SmsRouting struct {
-	ID                 uint           `json:"id" gorm:"primaryKey"`
-	Name               string         `json:"name" gorm:"size:255;not null"`
-	Description        string         `json:"description" gorm:"size:500"`
-	SourceType         string         `json:"source_type" gorm:"size:50;not null"` // smpp, http
-	Direction          string         `json:"direction" gorm:"size:50;not null"`   // inbound, outbound
-	SystemID           *string        `json:"system_id" gorm:"size:255"`           // SMPP system ID
-	DestinationAddress *string        `json:"destination_address" gorm:"size:255"` // Destination address pattern
-	TargetType         string         `json:"target_type" gorm:"size:50;not null"` // device_group
-	DeviceGroupIDs     *string        `json:"device_group_ids" gorm:"type:text"`   // JSON array of device group IDs
-	UserID             *uint          `json:"user_id"`                             // User ID for HTTP source
-	IsActive           bool           `json:"is_active" gorm:"default:true"`
-	Priority           int            `json:"priority" gorm:"default:0"`
-	Conditions         *string        `json:"conditions" gorm:"type:text"` // JSON conditions
-	CreatedAt          time.Time      `json:"created_at"`
-	UpdatedAt          time.Time      `json:"updated_at"`
-	DeletedAt          gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
+	ID                 uint    `json:"id" gorm:"primaryKey"`
+	Name               string  `json:"name" gorm:"size:255;not null"`
+	Description        string  `json:"description" gorm:"size:500"`
+	SourceType         string  `json:"source_type" gorm:"size:50;not null"` // smpp, http
+	Direction          string  `json:"direction" gorm:"size:50;not null"`   // inbound, outbound
+	SystemID           *string `json:"system_id" gorm:"size:255"`           // SMPP system ID
+	DestinationAddress *string `json:"destination_address" gorm:"size:255"` // Destination address pattern
+	TargetType         string  `json:"target_type" gorm:"size:50;not null"` // device_group
+	DeviceGroupIDs     *string `json:"device_group_ids" gorm:"type:text"`   // JSON array of device group IDs
+	UserID             *uint   `json:"user_id"`                             // User ID for HTTP source
+	IsActive           bool    `json:"is_active" gorm:"default:true"`
+	Priority           int     `json:"priority" gorm:"default:0"`
+	Conditions         *string `json:"conditions" gorm:"type:text"` // JSON conditions
+
+	// Device Selection Strategy
+	DeviceSelectionStrategy string  `json:"device_selection_strategy" gorm:"size:50;default:'round_robin'"` // round_robin, least_used, random, specific
+	TargetDeviceIDs         *string `json:"target_device_ids" gorm:"type:text"`                             // JSON array of specific device IMEIs (for specific strategy)
+	MaxDevicesPerMessage    *int    `json:"max_devices_per_message" gorm:"default:1"`                       // How many devices to use per message
+
+	// SIM Card Configuration
+	SimSlotPreference        *int   `json:"sim_slot_preference" gorm:"default:1"`                           // 1 or 2, which SIM slot to prefer
+	SimCardSelectionStrategy string `json:"sim_card_selection_strategy" gorm:"size:50;default:'preferred'"` // preferred, round_robin, least_used
+
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
 
 	// Relations
 	User *User `json:"user,omitempty" gorm:"foreignKey:UserID"`
-	
+
 	// Virtual fields for computed values
-	DeviceGroupNames []string `json:"device_group_names,omitempty" gorm:"-"`
+	DeviceGroupNames  []string `json:"device_group_names,omitempty" gorm:"-"`
+	TargetDeviceNames []string `json:"target_device_names,omitempty" gorm:"-"`
 }
 
 // TableName specifies the table name for SmsRouting

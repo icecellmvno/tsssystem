@@ -14,6 +14,16 @@ export interface SmppRoutingItem {
   is_active: boolean;
   priority: number;
   conditions?: string;
+  
+  // Device Selection Strategy
+  device_selection_strategy?: string;
+  target_device_ids?: string; // JSON array of device IMEIs
+  max_devices_per_message?: number;
+  
+  // SIM Card Configuration
+  sim_slot_preference?: number;
+  sim_card_selection_strategy?: string;
+  
   created_at: string;
   updated_at: string;
   
@@ -71,6 +81,15 @@ export interface SmppRoutingCreateData {
   priority: number;
   is_active: boolean;
   conditions?: string;
+  
+  // Device Selection Strategy
+  device_selection_strategy?: string;
+  target_device_ids?: string[]; // Array of device IMEIs
+  max_devices_per_message?: number;
+  
+  // SIM Card Configuration
+  sim_slot_preference?: number;
+  sim_card_selection_strategy?: string;
 }
 
 export interface SmppRoutingUpdateData extends Partial<SmppRoutingCreateData> {}

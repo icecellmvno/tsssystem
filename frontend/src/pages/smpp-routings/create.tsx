@@ -35,6 +35,15 @@ export default function SmppRoutingCreate() {
         user_id: '',
         is_active: true,
         priority: 50,
+        
+        // Device Selection Strategy
+        device_selection_strategy: 'round_robin',
+        target_device_ids: [] as string[],
+        max_devices_per_message: 1,
+        
+        // SIM Card Configuration
+        sim_slot_preference: 1,
+        sim_card_selection_strategy: 'preferred',
     });
 
     // Fetch filter options
@@ -59,7 +68,6 @@ export default function SmppRoutingCreate() {
 
     const handleSelect = (name: string, value: string) => {
         setForm((prev) => {
-            // source_type değişirse ilgili alanları sıfırla
             if (name === 'source_type') {
                 return {
                     ...prev,
@@ -101,6 +109,18 @@ export default function SmppRoutingCreate() {
             if (form.target_type === 'device_group' && form.device_group_id) {
                 submitData.device_group_ids = [form.device_group_id];
             }
+
+            // Add device selection strategy fields
+            submitData.device_selection_strategy = form.device_selection_strategy;
+            submitData.max_devices_per_message = form.max_devices_per_message;
+            
+            if (form.device_selection_strategy === 'specific' && form.target_device_ids.length > 0) {
+                submitData.target_device_ids = form.target_device_ids;
+            }
+
+            // Add SIM card configuration fields
+            submitData.sim_slot_preference = form.sim_slot_preference;
+            submitData.sim_card_selection_strategy = form.sim_card_selection_strategy;
 
             await smppRoutingsService.create(submitData);
             toast.success('SMPP routing created successfully');
@@ -279,19 +299,125 @@ export default function SmppRoutingCreate() {
                                         </div>
                                     )}
                                     <div>
-                                        <Label htmlFor="destination_address">Destination Address</Label>
+                                        <Label htmlFor="destination_address">Destination Address Pattern</Label>
                                         <Input 
                                             id="destination_address" 
                                             name="destination_address" 
-                                            placeholder="Destination address pattern (required)" 
+                                            placeholder="* (tüm adresler), +90* (90 ile başlayan), *123 (123 ile biten)" 
                                             value={form.destination_address} 
                                             onChange={handleChange} 
                                             required 
                                         />
+                                        <div className="text-sm text-muted-foreground mt-1">
+                                            <strong>Örnekler:</strong><br/>
+                                            • <code>*</code> - Tüm telefon numaraları<br/>
+                                            • <code>+90*</code> - 90 ile başlayan numaralar<br/>
+                                            • <code>*123</code> - 123 ile biten numaralar<br/>
+                                            • <code>+905551234567</code> - Belirli numara
+                                        </div>
                                         {errors.destination_address && <p className="text-sm text-destructive mt-1">{errors.destination_address}</p>}
                                     </div>
                                 </div>
                             </div>
+                            
+                            {/* Device Selection Strategy */}
+                            <div className="border-t pt-6">
+                                <h3 className="text-lg font-semibold mb-4">Device Selection Strategy</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div>
+                                        <Label htmlFor="device_selection_strategy">Device Selection Strategy</Label>
+                                        <Select 
+                                            value={form.device_selection_strategy} 
+                                            onValueChange={(value) => handleSelect('device_selection_strategy', value)}
+                                        >
+                                            <SelectTrigger id="device_selection_strategy" className="w-full">
+                                                <SelectValue placeholder="Select device selection strategy" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="round_robin">Round Robin - Sırayla cihaz seç</SelectItem>
+                                                <SelectItem value="least_used">Least Used - En az kullanılan cihazı seç</SelectItem>
+                                                <SelectItem value="random">Random - Rastgele cihaz seç</SelectItem>
+                                                <SelectItem value="specific">Specific - Belirli cihazları seç</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    {form.device_selection_strategy === 'specific' && (
+                                        <div>
+                                            <Label htmlFor="target_device_ids">Target Devices (IMEI)</Label>
+                                            <Input 
+                                                id="target_device_ids" 
+                                                name="target_device_ids" 
+                                                placeholder="IMEI1,IMEI2,IMEI3 (virgülle ayırın)" 
+                                                value={form.target_device_ids.join(',')} 
+                                                onChange={(e) => {
+                                                    const deviceIds = e.target.value.split(',').map(id => id.trim()).filter(id => id);
+                                                    setForm(prev => ({ ...prev, target_device_ids: deviceIds }));
+                                                }}
+                                            />
+                                            <div className="text-sm text-muted-foreground mt-1">
+                                                Belirli cihazların IMEI'lerini virgülle ayırarak girin
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div>
+                                        <Label htmlFor="max_devices_per_message">Max Devices Per Message</Label>
+                                        <Input 
+                                            id="max_devices_per_message" 
+                                            name="max_devices_per_message" 
+                                            type="number" 
+                                            min={1} 
+                                            max={10} 
+                                            value={form.max_devices_per_message} 
+                                            onChange={(e) => setForm(prev => ({ ...prev, max_devices_per_message: parseInt(e.target.value) || 1 }))}
+                                        />
+                                        <div className="text-sm text-muted-foreground mt-1">
+                                            Bir mesaj için kaç cihaz kullanılacak (genellikle 1)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* SIM Card Configuration */}
+                            <div className="border-t pt-6">
+                                <h3 className="text-lg font-semibold mb-4">SIM Card Configuration</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <Label htmlFor="sim_slot_preference">SIM Slot Preference</Label>
+                                        <Select 
+                                            value={form.sim_slot_preference.toString()} 
+                                            onValueChange={(value) => setForm(prev => ({ ...prev, sim_slot_preference: parseInt(value) }))}
+                                        >
+                                            <SelectTrigger id="sim_slot_preference" className="w-full">
+                                                <SelectValue placeholder="Select SIM slot preference" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">SIM 1 - Birinci SIM kartı tercih et</SelectItem>
+                                                <SelectItem value="2">SIM 2 - İkinci SIM kartı tercih et</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    <div>
+                                        <Label htmlFor="sim_card_selection_strategy">SIM Card Selection Strategy</Label>
+                                        <Select 
+                                            value={form.sim_card_selection_strategy} 
+                                            onValueChange={(value) => handleSelect('sim_card_selection_strategy', value)}
+                                        >
+                                            <SelectTrigger id="sim_card_selection_strategy" className="w-full">
+                                                <SelectValue placeholder="Select SIM card selection strategy" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="preferred">Preferred - Tercih edilen SIM slot'u kullan</SelectItem>
+                                                <SelectItem value="round_robin">Round Robin - SIM slot'ları sırayla kullan</SelectItem>
+                                                <SelectItem value="least_used">Least Used - En az kullanılan SIM slot'u kullan</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <Label htmlFor="priority">Priority</Label>

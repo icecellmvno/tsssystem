@@ -151,6 +151,15 @@ func (h *SmsRoutingHandler) GetSmsRoutingByID(c *fiber.Ctx) error {
 		})
 	}
 
+	// Get device group configurations for this routing
+	var deviceGroupConfigs []models.DeviceGroupConfig
+	if err := h.db.Where("sms_routing_id = ?", routing.ID).
+		Preload("DeviceGroup").
+		Order("priority DESC").
+		Find(&deviceGroupConfigs).Error; err != nil {
+		log.Printf("Error loading device group configs: %v", err)
+	}
+
 	// Prepare response with computed fields
 	response := map[string]interface{}{
 		"id":                        routing.ID,
@@ -175,6 +184,7 @@ func (h *SmsRoutingHandler) GetSmsRoutingByID(c *fiber.Ctx) error {
 		"source_display_name":       routing.GetSourceDisplayName(),
 		"target_display_name":       routing.GetDisplayName(),
 		"routing_summary":           routing.GetRoutingSummary(),
+		"device_group_configs":      deviceGroupConfigs,
 	}
 
 	if routing.User != nil {
@@ -280,6 +290,25 @@ func (h *SmsRoutingHandler) CreateSmsRouting(c *fiber.Ctx) error {
 		})
 	}
 
+	// Handle device group configurations
+	if deviceGroupConfigs, ok := requestData["device_group_configs"].([]interface{}); ok {
+		for _, configData := range deviceGroupConfigs {
+			if configMap, ok := configData.(map[string]interface{}); ok {
+				var config models.DeviceGroupConfig
+				configJSON, _ := json.Marshal(configMap)
+				json.Unmarshal(configJSON, &config)
+				config.SmsRoutingID = routing.ID
+
+				if err := h.db.Create(&config).Error; err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"error":   "Database error",
+						"message": "Failed to create device group config: " + err.Error(),
+					})
+				}
+			}
+		}
+	}
+
 	// Load the created routing with relations
 	h.db.Preload("User").First(&routing, routing.ID)
 
@@ -328,6 +357,37 @@ func (h *SmsRoutingHandler) UpdateSmsRouting(c *fiber.Ctx) error {
 		deviceGroupIDsStr := string(deviceGroupIDsJSON)
 		updateData["device_group_ids"] = &deviceGroupIDsStr
 	}
+
+	// Handle device group configurations
+	if deviceGroupConfigs, ok := updateData["device_group_configs"].([]interface{}); ok {
+		// Delete existing device group configs for this routing
+		if err := h.db.Where("sms_routing_id = ?", routing.ID).Delete(&models.DeviceGroupConfig{}).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":   "Database error",
+				"message": "Failed to delete existing device group configs: " + err.Error(),
+			})
+		}
+
+		// Create new device group configs
+		for _, configData := range deviceGroupConfigs {
+			if configMap, ok := configData.(map[string]interface{}); ok {
+				var config models.DeviceGroupConfig
+				configJSON, _ := json.Marshal(configMap)
+				json.Unmarshal(configJSON, &config)
+				config.SmsRoutingID = routing.ID
+
+				if err := h.db.Create(&config).Error; err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+						"error":   "Database error",
+						"message": "Failed to create device group config: " + err.Error(),
+					})
+				}
+			}
+		}
+	}
+
+	// Remove device_group_configs from updateData as it's handled separately
+	delete(updateData, "device_group_configs")
 
 	// Update the SMS routing
 	if err := h.db.Model(&routing).Updates(updateData).Error; err != nil {

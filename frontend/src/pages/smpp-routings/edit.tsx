@@ -81,17 +81,35 @@ export default function SmppRoutingEdit() {
                     is_active: routingData.is_active,
                 });
 
-                // Initialize device group configs with default values
+                // Initialize device group configs with existing data or default values
                 const configs: Record<number, any> = {};
+                
+                // If we have existing device group configs from backend, use them
+                if (routingData.device_group_configs && Array.isArray(routingData.device_group_configs)) {
+                    routingData.device_group_configs.forEach((config: any) => {
+                        configs[config.device_group_id] = {
+                            priority: config.priority || 50,
+                            total_sms_count: config.total_sms_count || 1000,
+                            device_selection_strategy: config.device_selection_strategy || 'round_robin',
+                            sim_card_selection_strategy: config.sim_card_selection_strategy || 'preferred',
+                            sim_slot_preference: config.sim_slot_preference || 1,
+                            max_devices_per_message: config.max_devices_per_message || 1,
+                        };
+                    });
+                }
+                
+                // For any device groups that don't have configs, use default values
                 deviceGroupIds.forEach(groupId => {
-                    configs[groupId] = {
-                        priority: 50,
-                        total_sms_count: 1000,
-                        device_selection_strategy: 'round_robin',
-                        sim_card_selection_strategy: 'preferred',
-                        sim_slot_preference: 1,
-                        max_devices_per_message: 1,
-                    };
+                    if (!configs[groupId]) {
+                        configs[groupId] = {
+                            priority: 50,
+                            total_sms_count: 1000,
+                            device_selection_strategy: 'round_robin',
+                            sim_card_selection_strategy: 'preferred',
+                            sim_slot_preference: 1,
+                            max_devices_per_message: 1,
+                        };
+                    }
                 });
                 setDeviceGroupConfigs(configs);
             } catch (error) {

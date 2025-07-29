@@ -232,10 +232,14 @@ export default function SmppUsersIndex() {
         const isOnline = row.getValue('is_online') as boolean;
         const isActive = row.getValue('is_active') as boolean;
         
-        if (!isActive) {
-          return <Badge variant="destructive">INACTIVE</Badge>;
-        }
+        console.log('Status Debug:', {
+          system_id: row.getValue('system_id'),
+          is_online: isOnline,
+          is_active: isActive,
+          row_data: row.original
+        });
         
+        // Sadece is_online durumuna göre status göster
         return (
           <Badge variant={isOnline ? 'default' : 'secondary'}>
             {isOnline ? 'ONLINE' : 'OFFLINE'}

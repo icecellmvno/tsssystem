@@ -37,15 +37,7 @@ export default function SmppRoutingEdit() {
         is_active: true,
     });
 
-    // Device group configurations state
-    const [deviceGroupConfigs, setDeviceGroupConfigs] = useState<Record<number, {
-        priority: number;
-        total_sms_count: number;
-        device_selection_strategy: string;
-        sim_card_selection_strategy: string;
-        sim_slot_preference: number;
-        max_devices_per_message: number;
-    }>>({});
+
 
     // Fetch routing data and filter options
     useEffect(() => {
@@ -81,37 +73,7 @@ export default function SmppRoutingEdit() {
                     is_active: routingData.is_active,
                 });
 
-                // Initialize device group configs with existing data or default values
-                const configs: Record<number, any> = {};
-                
-                // If we have existing device group configs from backend, use them
-                if (routingData.device_group_configs && Array.isArray(routingData.device_group_configs)) {
-                    routingData.device_group_configs.forEach((config: any) => {
-                        configs[config.device_group_id] = {
-                            priority: config.priority || 50,
-                            total_sms_count: config.total_sms_count || 1000,
-                            device_selection_strategy: config.device_selection_strategy || 'round_robin',
-                            sim_card_selection_strategy: config.sim_card_selection_strategy || 'preferred',
-                            sim_slot_preference: config.sim_slot_preference || 1,
-                            max_devices_per_message: config.max_devices_per_message || 1,
-                        };
-                    });
-                }
-                
-                // For any device groups that don't have configs, use default values
-                deviceGroupIds.forEach(groupId => {
-                    if (!configs[groupId]) {
-                        configs[groupId] = {
-                            priority: 50,
-                            total_sms_count: 1000,
-                            device_selection_strategy: 'round_robin',
-                            sim_card_selection_strategy: 'preferred',
-                            sim_slot_preference: 1,
-                            max_devices_per_message: 1,
-                        };
-                    }
-                });
-                setDeviceGroupConfigs(configs);
+
             } catch (error) {
                 console.error('Error fetching data:', error);
                 toast.error('Failed to fetch routing data');
@@ -169,12 +131,6 @@ export default function SmppRoutingEdit() {
             // Add target-specific fields
             if (form.target_type === 'device_group' && form.device_group_ids.length > 0) {
                 submitData.device_group_ids = form.device_group_ids;
-                
-                // Add device group configurations
-                submitData.device_group_configs = form.device_group_ids.map(groupId => ({
-                    device_group_id: groupId,
-                    ...deviceGroupConfigs[groupId]
-                }));
             }
 
             await smppRoutingsService.update(parseInt(id!), submitData);
@@ -317,19 +273,6 @@ export default function SmppRoutingEdit() {
                                                                 ...prev,
                                                                 device_group_ids: [...prev.device_group_ids, groupId]
                                                             }));
-                                                            
-                                                            // Initialize device group config for new group
-                                                            setDeviceGroupConfigs(prev => ({
-                                                                ...prev,
-                                                                [groupId]: {
-                                                                    priority: 50,
-                                                                    total_sms_count: 1000,
-                                                                    device_selection_strategy: 'round_robin',
-                                                                    sim_card_selection_strategy: 'preferred',
-                                                                    sim_slot_preference: 1,
-                                                                    max_devices_per_message: 1,
-                                                                }
-                                                            }));
                                                         }
                                                     }}
                                                 >
@@ -368,13 +311,6 @@ export default function SmppRoutingEdit() {
                                                                                 ...prev,
                                                                                 device_group_ids: prev.device_group_ids.filter(id => id !== groupId)
                                                                             }));
-                                                                            
-                                                                            // Remove device group config
-                                                                            setDeviceGroupConfigs(prev => {
-                                                                                const newConfigs = { ...prev };
-                                                                                delete newConfigs[groupId];
-                                                                                return newConfigs;
-                                                                            });
                                                                         }}
                                                                     >
                                                                         <X className="h-3 w-3" />
@@ -455,16 +391,7 @@ export default function SmppRoutingEdit() {
                                                                     type="number" 
                                                                     min={0} 
                                                                     max={100} 
-                                                                    value={deviceGroupConfigs[groupId]?.priority || 50}
-                                                                    onChange={(e) => {
-                                                                        setDeviceGroupConfigs(prev => ({
-                                                                            ...prev,
-                                                                            [groupId]: {
-                                                                                ...prev[groupId],
-                                                                                priority: parseInt(e.target.value) || 50
-                                                                            }
-                                                                        }));
-                                                                    }}
+                                                                    defaultValue={selectedGroup.priority || 50}
                                                                     className="mt-1"
                                                                 />
                                                                 <div className="text-xs text-muted-foreground mt-1">
@@ -479,16 +406,7 @@ export default function SmppRoutingEdit() {
                                                                     id={`total_sms_${groupId}`}
                                                                     type="number" 
                                                                     min={1} 
-                                                                    value={deviceGroupConfigs[groupId]?.total_sms_count || 1000}
-                                                                    onChange={(e) => {
-                                                                        setDeviceGroupConfigs(prev => ({
-                                                                            ...prev,
-                                                                            [groupId]: {
-                                                                                ...prev[groupId],
-                                                                                total_sms_count: parseInt(e.target.value) || 1000
-                                                                            }
-                                                                        }));
-                                                                    }}
+                                                                    defaultValue={selectedGroup.total_sms || 1000}
                                                                     className="mt-1"
                                                                 />
                                                                 <div className="text-xs text-muted-foreground mt-1">
@@ -499,18 +417,7 @@ export default function SmppRoutingEdit() {
                                                             {/* Device Selection Strategy */}
                                                             <div>
                                                                 <Label htmlFor={`strategy_${groupId}`} className="text-sm font-medium">Strategy</Label>
-                                                                <Select 
-                                                                    value={deviceGroupConfigs[groupId]?.device_selection_strategy || 'round_robin'}
-                                                                    onValueChange={(value) => {
-                                                                        setDeviceGroupConfigs(prev => ({
-                                                                            ...prev,
-                                                                            [groupId]: {
-                                                                                ...prev[groupId],
-                                                                                device_selection_strategy: value
-                                                                            }
-                                                                        }));
-                                                                    }}
-                                                                >
+                                                                <Select defaultValue="round_robin">
                                                                     <SelectTrigger className="mt-1">
                                                                         <SelectValue />
                                                                     </SelectTrigger>
@@ -529,24 +436,13 @@ export default function SmppRoutingEdit() {
                                                             {/* SIM Configuration */}
                                                             <div>
                                                                 <Label htmlFor={`sim_${groupId}`} className="text-sm font-medium">SIM Config</Label>
-                                                                <Select 
-                                                                    value={deviceGroupConfigs[groupId]?.sim_card_selection_strategy || 'preferred'}
-                                                                    onValueChange={(value) => {
-                                                                        setDeviceGroupConfigs(prev => ({
-                                                                            ...prev,
-                                                                            [groupId]: {
-                                                                                ...prev[groupId],
-                                                                                sim_card_selection_strategy: value,
-                                                                                sim_slot_preference: value === 'sim1_preferred' ? 1 : value === 'sim2_preferred' ? 2 : 1
-                                                                            }
-                                                                        }));
-                                                                    }}
-                                                                >
+                                                                <Select defaultValue="sim1_preferred">
                                                                     <SelectTrigger className="mt-1">
                                                                         <SelectValue />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
-                                                                        <SelectItem value="preferred">Preferred</SelectItem>
+                                                                        <SelectItem value="sim1_preferred">SIM1 Preferred</SelectItem>
+                                                                        <SelectItem value="sim2_preferred">SIM2 Preferred</SelectItem>
                                                                         <SelectItem value="round_robin">Round Robin</SelectItem>
                                                                         <SelectItem value="least_used">Least Used</SelectItem>
                                                                     </SelectContent>

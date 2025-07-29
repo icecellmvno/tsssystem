@@ -52,6 +52,7 @@ func runMigrations() error {
 		// SMS routing models
 		&models.SmsRouting{},
 		&models.SmsRoutingDeviceGroup{},
+		&models.DeviceGroupConfig{},
 		// Anti-detection models
 		&models.SmppUserAntiDetectionConfig{},
 		&models.SmppUserSimPoolConfig{},

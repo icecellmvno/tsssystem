@@ -745,13 +745,16 @@ func (ws *WebSocketServer) sendToDevice(deviceID string, message models.WebSocke
 	log.Printf("Sending at: %s", time.Now().Format("2006-01-02 15:04:05.000"))
 
 	// Check if device exists in Redis first (if Redis is available)
-	if ws.redisService != nil {
-		if _, err := ws.redisService.GetWebSocketConnection(deviceID); err != nil {
-			log.Printf("ERROR: Device %s not found in Redis connections", deviceID)
-			log.Printf("=== MESSAGE SEND FAILED ===")
-			return
+	// Temporarily disabled for fallback mechanism testing
+	/*
+		if ws.redisService != nil {
+			if _, err := ws.redisService.GetWebSocketConnection(deviceID); err != nil {
+				log.Printf("ERROR: Device %s not found in Redis connections", deviceID)
+				log.Printf("=== MESSAGE SEND FAILED ===")
+				return
+			}
 		}
-	}
+	*/
 
 	// Get or create mutex for this connection
 	ws.mutex.Lock()

@@ -142,11 +142,37 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 		return sr.sendUndeliveredReport(smppMsg, "No devices selected")
 	}
 
-	// Route message to selected devices
+	// Route message to selected devices with fallback mechanism
 	successCount := 0
+	deviceGroups := []string{}
+
+	// Get device groups for fallback
+	if routing.DeviceGroupIDs != nil && *routing.DeviceGroupIDs != "" {
+		if err := json.Unmarshal([]byte(*routing.DeviceGroupIDs), &deviceGroups); err != nil {
+			log.Printf("Error parsing device group IDs: %v", err)
+		}
+	}
+
 	for _, device := range selectedDevices {
 		if err := sr.routeMessageToDevice(device, smppMsg, routing); err != nil {
 			log.Printf("Error routing message to device %s: %v", device.IMEI, err)
+
+			// Try to find another online device in the same device group
+			if len(deviceGroups) > 0 {
+				log.Printf("Attempting to find alternative device in device groups: %v", deviceGroups)
+				alternativeDevice, err := sr.findAlternativeDevice(device.IMEI, deviceGroups, smppMsg, routing)
+				if err != nil {
+					log.Printf("Failed to find alternative device: %v", err)
+				} else if alternativeDevice != nil {
+					log.Printf("Found alternative device %s, attempting to route message", alternativeDevice.IMEI)
+					if err := sr.routeMessageToDevice(*alternativeDevice, smppMsg, routing); err != nil {
+						log.Printf("Error routing message to alternative device %s: %v", alternativeDevice.IMEI, err)
+					} else {
+						successCount++
+						log.Printf("Successfully routed message to alternative device %s", alternativeDevice.IMEI)
+					}
+				}
+			}
 		} else {
 			successCount++
 		}
@@ -467,6 +493,36 @@ func (sr *SmsRouter) matchesDestinationPattern(destinationAddr string, routing m
 
 	log.Printf("Pattern matching: No match found for destination='%s' with pattern='%s'", destinationAddr, pattern)
 	return false
+}
+
+// findAlternativeDevice finds an alternative online device in the same device groups
+func (sr *SmsRouter) findAlternativeDevice(excludedDeviceIMEI string, deviceGroups []string, smppMsg SmppSubmitSMMessage, routing models.SmsRouting) (*models.Device, error) {
+	// Find all active devices in the device groups
+	activeDevices, err := sr.findActiveAndroidDevicesInGroups(deviceGroups)
+	if err != nil {
+		return nil, fmt.Errorf("error finding active devices: %v", err)
+	}
+
+	// Filter out the excluded device and find online devices
+	var alternativeDevices []models.Device
+	for _, device := range activeDevices {
+		if device.IMEI != excludedDeviceIMEI {
+			// Use database is_online status for now
+			// In a more sophisticated implementation, we could add a method to WebSocket server
+			alternativeDevices = append(alternativeDevices, device)
+		}
+	}
+
+	if len(alternativeDevices) == 0 {
+		return nil, fmt.Errorf("no alternative online devices found in device groups")
+	}
+
+	// Select the first available alternative device
+	// You can implement more sophisticated selection logic here (round-robin, least used, etc.)
+	selectedDevice := alternativeDevices[0]
+
+	log.Printf("Found %d alternative devices, selected: %s", len(alternativeDevices), selectedDevice.IMEI)
+	return &selectedDevice, nil
 }
 
 // sendUndeliveredReport sends an undelivered delivery report to SMPP server

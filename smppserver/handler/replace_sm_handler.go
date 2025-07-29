@@ -40,3 +40,10 @@ func (h *ReplaceSMHandler) HandleReplaceSM(session *session.Session, pdu *protoc
 
 	return session.SendResponse(protocol.REPLACE_SM_RESP, protocol.ESME_ROK, responseBody, pdu.SequenceNumber)
 }
+
+// HandleReplaceSMResp handles replace_sm_resp responses
+func (h *ReplaceSMHandler) HandleReplaceSMResp(session *session.Session, pdu *protocol.PDU) error {
+	log.Printf("Session %s: Received replace_sm_resp", session.ID)
+	// For replace_sm_resp, we just log it as it's a response to our replace_sm
+	return nil
+}

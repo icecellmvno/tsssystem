@@ -67,22 +67,34 @@ func (h *SMPPHandler) HandlePDU(session *session.Session, pdu *protocol.PDU) err
 	// SMS operations
 	case protocol.SUBMIT_SM:
 		return h.smsHandler.HandleSubmitSM(session, pdu)
+	case protocol.SUBMIT_SM_RESP:
+		return h.smsHandler.HandleSubmitSMResp(session, pdu)
 	case protocol.DELIVER_SM:
 		return h.smsHandler.HandleDeliverSM(session, pdu)
+	case protocol.DELIVER_SM_RESP:
+		return h.smsHandler.HandleDeliverSMResp(session, pdu)
 	case protocol.DATA_SM:
 		return h.dataSMHandler.HandleDataSM(session, pdu)
+	case protocol.DATA_SM_RESP:
+		return h.dataSMHandler.HandleDataSMResp(session, pdu)
 
 	// Query operations
 	case protocol.QUERY_SM:
 		return h.querySMHandler.HandleQuerySM(session, pdu)
+	case protocol.QUERY_SM_RESP:
+		return h.querySMHandler.HandleQuerySMResp(session, pdu)
 
 	// Cancel operations
 	case protocol.CANCEL_SM:
 		return h.cancelSMHandler.HandleCancelSM(session, pdu)
+	case protocol.CANCEL_SM_RESP:
+		return h.cancelSMHandler.HandleCancelSMResp(session, pdu)
 
 	// Replace operations
 	case protocol.REPLACE_SM:
 		return h.replaceSMHandler.HandleReplaceSM(session, pdu)
+	case protocol.REPLACE_SM_RESP:
+		return h.replaceSMHandler.HandleReplaceSMResp(session, pdu)
 
 	// Alert notification
 	case protocol.ALERT_NOTIFICATION:

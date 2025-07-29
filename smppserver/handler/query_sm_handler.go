@@ -45,3 +45,10 @@ func (h *QuerySMHandler) HandleQuerySM(session *session.Session, pdu *protocol.P
 
 	return session.SendResponse(protocol.QUERY_SM_RESP, protocol.ESME_ROK, responseBody, pdu.SequenceNumber)
 }
+
+// HandleQuerySMResp handles query_sm_resp responses
+func (h *QuerySMHandler) HandleQuerySMResp(session *session.Session, pdu *protocol.PDU) error {
+	log.Printf("Session %s: Received query_sm_resp", session.ID)
+	// For query_sm_resp, we just log it as it's a response to our query_sm
+	return nil
+}

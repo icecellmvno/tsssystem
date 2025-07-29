@@ -155,6 +155,20 @@ func (h *SMSHandler) SendDeliverSM(session *session.Session, deliver *protocol.D
 	return session.SendPDU(pdu)
 }
 
+// HandleSubmitSMResp handles submit_sm_resp responses
+func (h *SMSHandler) HandleSubmitSMResp(session *session.Session, pdu *protocol.PDU) error {
+	log.Printf("Session %s: Received submit_sm_resp", session.ID)
+	// For submit_sm_resp, we just log it as it's a response to our submit_sm
+	return nil
+}
+
+// HandleDeliverSMResp handles deliver_sm_resp responses
+func (h *SMSHandler) HandleDeliverSMResp(session *session.Session, pdu *protocol.PDU) error {
+	log.Printf("Session %s: Received deliver_sm_resp", session.ID)
+	// For deliver_sm_resp, we just log it as it's a response to our deliver_sm
+	return nil
+}
+
 // GenerateMessageID generates a unique message ID
 func (h *SMSHandler) GenerateMessageID() string {
 	return "MSG" + time.Now().Format("20060102150405")

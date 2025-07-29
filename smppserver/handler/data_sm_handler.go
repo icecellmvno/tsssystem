@@ -43,3 +43,10 @@ func (h *DataSMHandler) HandleDataSM(session *session.Session, pdu *protocol.PDU
 
 	return session.SendResponse(protocol.DATA_SM_RESP, protocol.ESME_ROK, responseBody, pdu.SequenceNumber)
 }
+
+// HandleDataSMResp handles data_sm_resp responses
+func (h *DataSMHandler) HandleDataSMResp(session *session.Session, pdu *protocol.PDU) error {
+	log.Printf("Session %s: Received data_sm_resp", session.ID)
+	// For data_sm_resp, we just log it as it's a response to our data_sm
+	return nil
+}

@@ -40,3 +40,10 @@ func (h *CancelSMHandler) HandleCancelSM(session *session.Session, pdu *protocol
 
 	return session.SendResponse(protocol.CANCEL_SM_RESP, protocol.ESME_ROK, responseBody, pdu.SequenceNumber)
 }
+
+// HandleCancelSMResp handles cancel_sm_resp responses
+func (h *CancelSMHandler) HandleCancelSMResp(session *session.Session, pdu *protocol.PDU) error {
+	log.Printf("Session %s: Received cancel_sm_resp", session.ID)
+	// For cancel_sm_resp, we just log it as it's a response to our cancel_sm
+	return nil
+}

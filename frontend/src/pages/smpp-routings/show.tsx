@@ -112,6 +112,10 @@ export default function SmppRoutingShow() {
                                 <Badge variant="outline">{routing.priority}</Badge>
                             </div>
                             <div className="flex justify-between items-center">
+                                <span className="font-medium">Total SMS Count:</span>
+                                <Badge variant="outline">{routing.total_sms_count || 'N/A'}</Badge>
+                            </div>
+                            <div className="flex justify-between items-center">
                                 <span className="font-medium">Source Type:</span>
                                 <Badge variant={routing.source_type_badge_variant}>
                                     {routing.source_type.toUpperCase()}

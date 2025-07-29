@@ -35,6 +35,7 @@ export default function SmppRoutingCreate() {
         user_id: '',
         is_active: true,
         priority: 50,
+        total_sms_count: 1000,
         
         // Device Selection Strategy
         device_selection_strategy: 'round_robin',
@@ -108,6 +109,8 @@ export default function SmppRoutingCreate() {
             // Add target-specific fields
             if (form.target_type === 'device_group' && form.device_group_ids.length > 0) {
                 submitData.device_group_ids = form.device_group_ids;
+                submitData.priority = form.priority;
+                submitData.total_sms_count = form.total_sms_count;
             }
 
             // Add device selection strategy fields
@@ -444,7 +447,7 @@ export default function SmppRoutingCreate() {
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div>
                                     <Label htmlFor="priority">Priority</Label>
                                     <Input 
@@ -454,6 +457,18 @@ export default function SmppRoutingCreate() {
                                         min={0} 
                                         max={100} 
                                         value={form.priority} 
+                                        onChange={handleChange} 
+                                        required 
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="total_sms_count">Total SMS Count</Label>
+                                    <Input 
+                                        id="total_sms_count" 
+                                        name="total_sms_count" 
+                                        type="number" 
+                                        min={1} 
+                                        value={form.total_sms_count} 
                                         onChange={handleChange} 
                                         required 
                                     />

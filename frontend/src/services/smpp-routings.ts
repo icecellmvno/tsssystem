@@ -13,6 +13,7 @@ export interface SmppRoutingItem {
   user_id?: number;
   is_active: boolean;
   priority: number;
+  total_sms_count?: number;
   conditions?: string;
   
   // Device Selection Strategy
@@ -81,6 +82,7 @@ export interface SmppRoutingCreateData {
   device_group_ids?: number[]; // Array of device group IDs
   user_id?: number;
   priority: number;
+  total_sms_count?: number;
   is_active: boolean;
   conditions?: string;
   

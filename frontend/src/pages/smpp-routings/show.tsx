@@ -118,13 +118,13 @@ export default function SmppRoutingShow() {
                             <div className="flex justify-between items-center">
                                 <span className="font-medium">Source Type:</span>
                                 <Badge variant={routing.source_type_badge_variant}>
-                                    {routing.source_type.toUpperCase()}
+                                    {routing.source_type?.toUpperCase() || 'N/A'}
                                 </Badge>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="font-medium">Direction:</span>
                                 <Badge variant={routing.direction_badge_variant}>
-                                    {routing.direction}
+                                    {routing.direction || 'N/A'}
                                 </Badge>
                             </div>
                             {routing.system_id && (
@@ -153,7 +153,7 @@ export default function SmppRoutingShow() {
                             <div className="flex justify-between items-center">
                                 <span className="font-medium">Target Type:</span>
                                 <Badge variant={routing.target_type_badge_variant}>
-                                    {routing.target_type.replace('_', ' ')}
+                                    {routing.target_type?.replace('_', ' ') || 'N/A'}
                                 </Badge>
                             </div>
                             <div className="flex justify-between items-center">
@@ -189,6 +189,24 @@ export default function SmppRoutingShow() {
                                     </div>
                                 </div>
                             )}
+                            
+                            {/* Device Group Configurations */}
+                            {routing.device_group_configs && Array.isArray(routing.device_group_configs) && routing.device_group_configs.length > 0 && (
+                                <div className="mt-4">
+                                    <span className="font-medium text-xs">Device Group Configurations:</span>
+                                    <div className="mt-2 space-y-2">
+                                        {routing.device_group_configs.map((config: any, index: number) => (
+                                            <div key={index} className="text-xs bg-muted p-2 rounded">
+                                                <div className="font-medium">Group ID: {config.device_group_id}</div>
+                                                <div>Priority: {config.priority || 'N/A'}</div>
+                                                <div>Total SMS: {config.total_sms_count || 'N/A'}</div>
+                                                <div>Strategy: {config.device_selection_strategy || 'N/A'}</div>
+                                                <div>SIM Config: {config.sim_card_selection_strategy || 'N/A'}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -201,7 +219,7 @@ export default function SmppRoutingShow() {
                             <div className="flex justify-between items-center">
                                 <span className="font-medium">Strategy:</span>
                                 <Badge variant="outline">
-                                    {routing.device_selection_strategy || 'round_robin'}
+                                    {routing.device_selection_strategy || 'N/A'}
                                 </Badge>
                             </div>
                             <div className="flex justify-between items-center">
@@ -238,7 +256,7 @@ export default function SmppRoutingShow() {
                             <div className="flex justify-between items-center">
                                 <span className="font-medium">SIM Selection Strategy:</span>
                                 <Badge variant="outline">
-                                    {routing.sim_card_selection_strategy || 'preferred'}
+                                    {routing.sim_card_selection_strategy || 'N/A'}
                                 </Badge>
                             </div>
                         </CardContent>

@@ -195,6 +195,15 @@ export interface UssdCancelledData {
   timestamp: number;
 }
 
+export interface SmppUserStatusUpdate {
+  system_id: string;
+  session_id: string;
+  remote_addr: string;
+  bind_type: string;
+  is_online: boolean;
+  timestamp: string;
+}
+
 export interface DeviceSettings {
   battery_low_threshold: number;
   error_count_threshold: number;
@@ -252,6 +261,7 @@ export interface WebSocketState {
   devices: Map<string, Device>;
   alarmLogs: any[];
   smsLogs: any[];
+  smppUsers: Map<string, SmppUserStatusUpdate>;
 }
 
 export interface Notification {

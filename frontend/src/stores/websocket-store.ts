@@ -93,6 +93,11 @@ interface WebSocketActions {
   removeSmsLog: (smsLogId: number) => void;
   getAllSmsLogs: () => any[];
   
+  // SMPP users management
+  updateSmppUser: (systemId: string, data: Partial<SmppUserStatusUpdate>) => void;
+  getSmppUser: (systemId: string) => SmppUserStatusUpdate | undefined;
+  getAllSmppUsers: () => SmppUserStatusUpdate[];
+  
   // Message handling
   handleMessage: (message: WebSocketMessage) => void;
   
@@ -412,6 +417,13 @@ export const useWebSocketStore = create<WebSocketStore>()(
     const handleSmppUserStatusUpdate = (data: SmppUserStatusUpdate) => {
       console.log('SMPP User Status Update:', data);
       
+      // Update SMPP user in store
+      set(state => {
+        const newSmppUsers = new Map(state.smppUsers);
+        newSmppUsers.set(data.system_id, data);
+        return { smppUsers: newSmppUsers };
+      });
+      
       // Show notification for status change
       const statusText = data.is_online ? 'connected' : 'disconnected';
       const icon = data.is_online ? '🟢' : '🔴';
@@ -469,6 +481,7 @@ export const useWebSocketStore = create<WebSocketStore>()(
       devices: new Map(),
       alarmLogs: [],
       smsLogs: [],
+      smppUsers: new Map(),
 
       // Connection management
       connect: async (apiKey: string, isHandicapDevice = false) => {
@@ -734,6 +747,22 @@ export const useWebSocketStore = create<WebSocketStore>()(
 
       getAllSmsLogs: () => {
         return get().smsLogs;
+      },
+
+      // SMPP users management
+      updateSmppUser: (systemId: string, data: Partial<SmppUserStatusUpdate>) => {
+        set(state => {
+          const newSmppUsers = new Map(state.smppUsers);
+          const existingUser = newSmppUsers.get(systemId);
+          newSmppUsers.set(systemId, { ...existingUser, ...data });
+          return { smppUsers: newSmppUsers };
+        });
+      },
+      getSmppUser: (systemId: string) => {
+        return get().smppUsers.get(systemId);
+      },
+      getAllSmppUsers: () => {
+        return Array.from(get().smppUsers.values());
       },
 
       // Device commands

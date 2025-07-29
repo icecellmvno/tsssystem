@@ -4,6 +4,7 @@ import { AppLayout } from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
+import { useWebSocket } from '@/contexts/websocket-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +29,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function SmppUsersIndex() {
   const { token } = useAuthStore();
+  const { isConnected, smppUsers: realtimeSmppUsers } = useWebSocket();
   const [smppUsers, setSmppUsers] = useState<SmppUserWithBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,9 +70,82 @@ export default function SmppUsersIndex() {
     fetchSmppUsers();
   }, [fetchSmppUsers]);
 
+  // Listen for SMPP user status updates from WebSocket
+  useEffect(() => {
+    const handleSmppUserStatusUpdate = (event: CustomEvent) => {
+      const data = event.detail;
+      console.log('SMPP User Status Update received:', data);
+      
+      // Update the specific SMPP user's status
+      setSmppUsers(prevUsers => {
+        return prevUsers.map(user => {
+          if (user.system_id === data.system_id) {
+            return {
+              ...user,
+              status: data.is_online ? 'active' : 'inactive',
+              last_seen_at: data.timestamp,
+              session_id: data.session_id,
+              remote_addr: data.remote_addr,
+              bind_type: data.bind_type
+            };
+          }
+          return user;
+        });
+      });
+    };
+
+    // Add event listener
+    window.addEventListener('smpp-user-status-update', handleSmppUserStatusUpdate as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('smpp-user-status-update', handleSmppUserStatusUpdate as EventListener);
+    };
+  }, []);
+
+  // Combine API data with real-time data
+  const combinedSmppUsers = useMemo(() => {
+    const apiUsers = smppUsers || [];
+    const realtimeUsers = realtimeSmppUsers || [];
+    
+    const merged = [...apiUsers];
+    
+    realtimeUsers.forEach(realtimeUser => {
+      const existingIndex = merged.findIndex(user => user.system_id === realtimeUser.system_id);
+      
+      if (existingIndex === -1) {
+        // Add new real-time user
+        merged.push({
+          id: 0, // Temporary ID for real-time data
+          system_id: realtimeUser.system_id,
+          username: realtimeUser.system_id,
+          password: '', // Not available in real-time data
+          system_type: realtimeUser.bind_type,
+          interface_version: '', // Not available in real-time data
+          addr_ton: 0, // Not available in real-time data
+          addr_npi: 0, // Not available in real-time data
+          address_range: '', // Not available in real-time data
+          status: realtimeUser.is_online ? 'active' : 'inactive',
+          max_connections: 0, // Not available in real-time data
+          created_at: realtimeUser.timestamp,
+          updated_at: realtimeUser.timestamp,
+        } as SmppUserWithBase);
+      } else {
+        // Update existing user with real-time data
+        merged[existingIndex] = { 
+          ...merged[existingIndex], 
+          status: realtimeUser.is_online ? 'active' : 'inactive',
+          updated_at: realtimeUser.timestamp,
+        };
+      }
+    });
+    
+    return merged;
+  }, [smppUsers, realtimeSmppUsers]);
+
   // Filtered SMPP users
   const filteredSmppUsers = useMemo(() => {
-    return smppUsers.filter(smppUser => {
+    return combinedSmppUsers.filter(smppUser => {
       const matchesSearch = searchTerm === '' || 
         (smppUser.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (smppUser.system_id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -80,19 +155,19 @@ export default function SmppUsersIndex() {
       
       return matchesSearch && matchesStatus;
     });
-  }, [smppUsers, searchTerm, statusFilter]);
+  }, [combinedSmppUsers, searchTerm, statusFilter]);
 
   // Get unique values for filters
   const uniqueStatuses = useMemo(() => {
-    const statuses = smppUsers.map(s => s.status).filter(status => status && status !== '');
+    const statuses = combinedSmppUsers.map(s => s.status).filter(status => status && status !== '');
     return [...new Set(statuses)];
-  }, [smppUsers]);
+  }, [combinedSmppUsers]);
 
   // SMPP users statistics
   const smppUserStats = useMemo(() => {
-    const total = smppUsers.length;
-    const active = smppUsers.filter(s => s.status === 'active').length;
-    const inactive = smppUsers.filter(s => s.status === 'inactive').length;
+    const total = combinedSmppUsers.length;
+    const active = combinedSmppUsers.filter(s => s.status === 'active').length;
+    const inactive = combinedSmppUsers.filter(s => s.status === 'inactive').length;
     
     return {
       total,

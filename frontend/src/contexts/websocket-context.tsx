@@ -11,6 +11,7 @@ interface WebSocketContextType {
   devices: any[];
   alarmLogs: any[];
   smsLogs: any[];
+  smppUsers: any[];
   connect: (apiKey: string, isHandicapDevice?: boolean) => Promise<void>;
   disconnect: () => void;
   reconnect: () => Promise<void>;
@@ -20,6 +21,7 @@ interface WebSocketContextType {
   getDevicesBySitename: (sitename: string) => any[];
   getAllAlarmLogs: () => any[];
   getAllSmsLogs: () => any[];
+  getAllSmppUsers: () => any[];
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -44,6 +46,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     devices,
     alarmLogs,
     smsLogs,
+    smppUsers,
     connect,
     disconnect,
     reconnect,
@@ -53,6 +56,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     getDevicesBySitename,
     getAllAlarmLogs,
     getAllSmsLogs,
+    getAllSmppUsers,
   } = useWebSocketStore();
 
   const { token, isAuthenticated, user, checkTokenExpiration } = useAuthStore();
@@ -116,6 +120,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     devices: Array.from(devices.values()),
     alarmLogs,
     smsLogs,
+    smppUsers: Array.from(smppUsers.values()),
     connect,
     disconnect,
     reconnect,
@@ -125,6 +130,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     getDevicesBySitename,
     getAllAlarmLogs,
     getAllSmsLogs,
+    getAllSmppUsers,
   };
 
   // Debug log for devices

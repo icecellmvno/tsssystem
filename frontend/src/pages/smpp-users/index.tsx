@@ -176,13 +176,6 @@ export default function SmppUsersIndex() {
     });
   }, [combinedSmppUsers, searchTerm, statusFilter]);
 
-  // Get unique statuses for filter
-  const uniqueStatuses = useMemo(() => {
-    const onlineCount = combinedSmppUsers.filter(s => s.is_online).length;
-    const offlineCount = combinedSmppUsers.filter(s => !s.is_online).length;
-    return [...new Set([...combinedSmppUsers.map(s => s.is_online ? 'ONLINE' : 'OFFLINE'), 'ALL'])];
-  }, [combinedSmppUsers]);
-
   // Stats
   const stats = useMemo(() => {
     const total = combinedSmppUsers.length;
@@ -440,11 +433,8 @@ export default function SmppUsersIndex() {
                 className="h-8 min-w-[120px] px-3 py-1 border border-input bg-background rounded-md text-sm"
               >
                 <option value="all">All Status</option>
-                {uniqueStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status.toUpperCase()}
-                  </option>
-                ))}
+                <option value="online">Online</option>
+                <option value="offline">Offline</option>
               </select>
 
               <Button

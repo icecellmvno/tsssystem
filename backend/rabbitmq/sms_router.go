@@ -362,9 +362,9 @@ func (sr *SmsRouter) sendUndeliveredReport(smppMsg SmppSubmitSMMessage, reason s
 		deliveryReport := &types.DeliveryReportMessage{
 			MessageID:       smppMsg.MessageID,
 			SystemID:        smppMsg.SystemID,
-			SourceAddr:      smppMsg.SourceAddr,
-			DestinationAddr: smppMsg.DestinationAddr,
-			MessageState:    4, // UNDELIVERABLE
+			SourceAddr:      smppMsg.DestinationAddr, // Hedef numara (mesajın gideceği yer)
+			DestinationAddr: smppMsg.SourceAddr,      // SMPP client adresi (mesajın geldiği yer)
+			MessageState:    4,                       // UNDELIVERABLE
 			ErrorCode:       0,
 			FinalDate:       time.Now().Format("20060102150405"),
 			SubmitDate:      time.Now().Format("20060102150405"),
@@ -552,8 +552,8 @@ func (sr *SmsRouter) routeMessageToDevice(device models.Device, smppMsg SmppSubm
 			deliveryReport := &types.DeliveryReportMessage{
 				MessageID:       deviceMessageID,
 				SystemID:        smppMsg.SystemID,
-				SourceAddr:      smppMsg.SourceAddr,
-				DestinationAddr: smppMsg.DestinationAddr,
+				SourceAddr:      smppMsg.DestinationAddr, // Hedef numara (mesajın gideceği yer)
+				DestinationAddr: smppMsg.SourceAddr,      // SMPP client adresi (mesajın geldiği yer)
 				MessageState:    4, // UNDELIVERABLE
 				ErrorCode:       0,
 				FinalDate:       time.Now().Format("20060102150405"),

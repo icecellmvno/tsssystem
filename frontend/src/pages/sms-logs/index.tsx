@@ -520,9 +520,15 @@ export default function SmsLogsIndex() {
                 return (
                     <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                            {new Date(date).toLocaleDateString()}
-                        </span>
+                        <div className="text-sm">
+                            {new Date(date).toLocaleString([], { 
+                                year: 'numeric', 
+                                month: '2-digit', 
+                                day: '2-digit',
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                            })}
+                        </div>
                     </div>
                 );
             },
@@ -535,9 +541,19 @@ export default function SmsLogsIndex() {
                 return (
                     <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                            {date ? new Date(date).toLocaleDateString() : '-'}
-                        </span>
+                        <div className="text-sm">
+                            {date ? (
+                                new Date(date).toLocaleString([], { 
+                                    year: 'numeric', 
+                                    month: '2-digit', 
+                                    day: '2-digit',
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                })
+                            ) : (
+                                <span>-</span>
+                            )}
+                        </div>
                     </div>
                 );
             },

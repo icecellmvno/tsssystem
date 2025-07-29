@@ -9,12 +9,12 @@ import (
 
 // AlertNotificationHandler handles alert_notification operations
 type AlertNotificationHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 }
 
 // NewAlertNotificationHandler creates a new alert notification handler
-func NewAlertNotificationHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager) *AlertNotificationHandler {
+func NewAlertNotificationHandler(authManager auth.AuthManager, sessionManager *session.SessionManager) *AlertNotificationHandler {
 	return &AlertNotificationHandler{
 		authManager:    authManager,
 		sessionManager: sessionManager,

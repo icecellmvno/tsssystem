@@ -11,7 +11,7 @@ import (
 
 // SMPPHandler handles SMPP protocol operations
 type SMPPHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 
 	// Separate handlers
@@ -26,7 +26,7 @@ type SMPPHandler struct {
 }
 
 // NewSMPPHandler creates a new SMPP handler
-func NewSMPPHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager, rabbitMQClient *rabbitmq.RabbitMQClient) *SMPPHandler {
+func NewSMPPHandler(authManager auth.AuthManager, sessionManager *session.SessionManager, rabbitMQClient *rabbitmq.RabbitMQClient) *SMPPHandler {
 	return &SMPPHandler{
 		authManager:              authManager,
 		sessionManager:           sessionManager,

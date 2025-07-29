@@ -9,12 +9,12 @@ import (
 
 // ReplaceSMHandler handles replace_sm operations
 type ReplaceSMHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 }
 
 // NewReplaceSMHandler creates a new replace SM handler
-func NewReplaceSMHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager) *ReplaceSMHandler {
+func NewReplaceSMHandler(authManager auth.AuthManager, sessionManager *session.SessionManager) *ReplaceSMHandler {
 	return &ReplaceSMHandler{
 		authManager:    authManager,
 		sessionManager: sessionManager,

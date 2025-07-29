@@ -11,13 +11,13 @@ import (
 
 // SMSHandler handles SMS-related operations
 type SMSHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 	rabbitMQClient *rabbitmq.RabbitMQClient
 }
 
 // NewSMSHandler creates a new SMS handler
-func NewSMSHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager, rabbitMQClient *rabbitmq.RabbitMQClient) *SMSHandler {
+func NewSMSHandler(authManager auth.AuthManager, sessionManager *session.SessionManager, rabbitMQClient *rabbitmq.RabbitMQClient) *SMSHandler {
 	return &SMSHandler{
 		authManager:    authManager,
 		sessionManager: sessionManager,
@@ -47,6 +47,15 @@ func (h *SMSHandler) HandleSubmitSM(session *session.Session, pdu *protocol.PDU)
 	if submit.DestinationAddr == "" {
 		log.Printf("Session %s: Empty destination address", session.ID)
 		return session.SendResponse(protocol.SUBMIT_SM_RESP, protocol.ESME_RINVDSTADR, nil, pdu.SequenceNumber)
+	}
+
+	// Check rate limit
+	if allowed, err := h.authManager.CheckRateLimit(session.SystemID); err != nil {
+		log.Printf("Session %s: Rate limit check failed: %v", session.ID, err)
+		return session.SendResponse(protocol.SUBMIT_SM_RESP, protocol.ESME_RSYSERR, nil, pdu.SequenceNumber)
+	} else if !allowed {
+		log.Printf("Session %s: Rate limit exceeded for user %s", session.ID, session.SystemID)
+		return session.SendResponse(protocol.SUBMIT_SM_RESP, protocol.ESME_RTHROTTLED, nil, pdu.SequenceNumber)
 	}
 
 	// Generate message ID

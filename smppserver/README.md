@@ -94,7 +94,7 @@ CLI tool ile SMPP kullanıcılarını yönetebilirsiniz:
 
 ## Veritabanı Yapısı
 
-SMPP server, backend'in mevcut `smpp_users` tablosunu kullanır:
+SMPP server, backend'in mevcut `smpp_users` tablosunu kullanır ve MySQL tabanlı kimlik doğrulama sistemi kullanır (Redis kaldırıldı):
 
 ```sql
 CREATE TABLE smpp_users (
@@ -129,6 +129,18 @@ CREATE TABLE smpp_sessions (
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 ```
+
+## Kimlik Doğrulama Sistemi
+
+SMPP server artık MySQL tabanlı kimlik doğrulama sistemi kullanır:
+
+- **MySQL Auth Manager**: Kullanıcı bilgileri ve session'lar MySQL veritabanında saklanır
+- **Otomatik Tablo Migrasyonu**: Gerekli tablolar otomatik olarak oluşturulur
+- **Session Takibi**: Aktif session'lar veritabanında takip edilir
+- **Mesaj Sayaçları**: Gönderilen ve alınan mesaj sayıları veritabanında güncellenir
+- **Bağlantı Durumu**: Kullanıcıların online/offline durumları takip edilir
+- **TPS Rate Limiting**: Kullanıcı bazında TPS (Transactions Per Second) sınırlaması
+- **MT Ayarları**: Tüm Mobile Terminated ayarları desteklenir (throughput, filter'lar, vb.)
 
 ## Protokol Desteği
 

@@ -9,12 +9,12 @@ import (
 
 // CancelSMHandler handles cancel_sm operations
 type CancelSMHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 }
 
 // NewCancelSMHandler creates a new cancel SM handler
-func NewCancelSMHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager) *CancelSMHandler {
+func NewCancelSMHandler(authManager auth.AuthManager, sessionManager *session.SessionManager) *CancelSMHandler {
 	return &CancelSMHandler{
 		authManager:    authManager,
 		sessionManager: sessionManager,

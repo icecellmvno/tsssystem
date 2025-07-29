@@ -10,12 +10,11 @@ server:
 database:
   host: "localhost"
   port: 3306
-  user: "tsim_user"
-  password: "tsim_password"
+  user: "root"
+  password: "password"
   name: "tsim_socket_server"
 
-redis:
-  url: "redis://localhost:6379"
+# Redis removed - using MySQL for authentication
 
 rabbitmq:
   url: "amqp://guest:guest@localhost:5672/"

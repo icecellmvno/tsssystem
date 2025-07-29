@@ -9,12 +9,12 @@ import (
 
 // DataSMHandler handles data_sm operations
 type DataSMHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 }
 
 // NewDataSMHandler creates a new data SM handler
-func NewDataSMHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager) *DataSMHandler {
+func NewDataSMHandler(authManager auth.AuthManager, sessionManager *session.SessionManager) *DataSMHandler {
 	return &DataSMHandler{
 		authManager:    authManager,
 		sessionManager: sessionManager,

@@ -13,7 +13,7 @@ import (
 
 type SMPServer struct {
 	config         *config.Config
-	authManager    *auth.RedisAuthManager
+	authManager    *auth.MySQLAuthManager
 	handler        *handler.SMPPHandler
 	sessionManager *session.SessionManager
 	rabbitMQClient *rabbitmq.RabbitMQClient
@@ -31,10 +31,10 @@ func NewSMPServer(config *config.Config) (*SMPServer, error) {
 	}
 	sessionManager := session.NewSessionManager(sessionConfig)
 
-	// Initialize Redis-based auth manager
-	authManager, err := auth.NewRedisAuthManager(config.Redis.URL, sessionManager)
+	// Initialize MySQL-based auth manager
+	authManager, err := auth.NewMySQLAuthManager(config.GetDatabaseDSN(), sessionManager)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Redis auth manager: %v", err)
+		return nil, fmt.Errorf("failed to create MySQL auth manager: %v", err)
 	}
 
 	// Initialize RabbitMQ client

@@ -10,7 +10,6 @@ import (
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
 	RabbitMQ RabbitMQConfig `mapstructure:"rabbitmq"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
 	SMPP     SMPPConfig     `mapstructure:"smpp"`
@@ -41,9 +40,7 @@ type DatabaseConfig struct {
 	Name     string `mapstructure:"name"`
 }
 
-type RedisConfig struct {
-	URL string `mapstructure:"url"`
-}
+// RedisConfig removed - using MySQL for authentication
 
 type RabbitMQConfig struct {
 	URL                 string `mapstructure:"url"`

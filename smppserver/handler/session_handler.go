@@ -9,12 +9,12 @@ import (
 
 // SessionHandler handles session-related operations
 type SessionHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 }
 
 // NewSessionHandler creates a new session handler
-func NewSessionHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager) *SessionHandler {
+func NewSessionHandler(authManager auth.AuthManager, sessionManager *session.SessionManager) *SessionHandler {
 	return &SessionHandler{
 		authManager:    authManager,
 		sessionManager: sessionManager,

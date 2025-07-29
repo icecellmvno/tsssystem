@@ -9,12 +9,12 @@ import (
 
 // BindHandler handles bind-related operations
 type BindHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 }
 
 // NewBindHandler creates a new bind handler
-func NewBindHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager) *BindHandler {
+func NewBindHandler(authManager auth.AuthManager, sessionManager *session.SessionManager) *BindHandler {
 	return &BindHandler{
 		authManager:    authManager,
 		sessionManager: sessionManager,
@@ -51,7 +51,7 @@ func (h *BindHandler) HandleBindReceiver(session *session.Session, pdu *protocol
 
 	// Authenticate user
 	log.Printf("Session %s: Authenticating user %s", session.ID, bind.SystemID)
-	user, err := h.authManager.AuthenticateUser(bind.SystemID, bind.Password)
+	smppUser, err := h.authManager.AuthenticateUser(bind.SystemID, bind.Password)
 	if err != nil {
 		log.Printf("Session %s: Authentication failed for %s: %v", session.ID, bind.SystemID, err)
 		return session.SendResponse(protocol.BIND_RECEIVER_RESP, protocol.ESME_RINVPASWD, nil, pdu.SequenceNumber)
@@ -66,9 +66,9 @@ func (h *BindHandler) HandleBindReceiver(session *session.Session, pdu *protocol
 		return session.SendResponse(protocol.BIND_RECEIVER_RESP, protocol.ESME_RSYSERR, nil, pdu.SequenceNumber)
 	}
 
-	log.Printf("Session %s: Active sessions count: %d, Max allowed: %d", session.ID, activeCount, user.MaxConnectionSpeed)
+	log.Printf("Session %s: Active sessions count: %d, Max allowed: %d", session.ID, activeCount, smppUser.MaxConnectionSpeed)
 
-	if activeCount >= user.MaxConnectionSpeed {
+	if activeCount >= smppUser.MaxConnectionSpeed {
 		log.Printf("Session %s: Too many connections for user %s", session.ID, bind.SystemID)
 		return session.SendResponse(protocol.BIND_RECEIVER_RESP, protocol.ESME_RALYBND, nil, pdu.SequenceNumber)
 	}
@@ -90,13 +90,13 @@ func (h *BindHandler) HandleBindReceiver(session *session.Session, pdu *protocol
 
 	log.Printf("Session %s: Generated bind response body, length: %d", session.ID, len(responseBody))
 
-	// Add session to Redis
+	// Add session to auth manager
 	remoteAddr := session.Conn.RemoteAddr().String()
-	if err := h.authManager.AddSession(bind.SystemID, session.ID, remoteAddr); err != nil {
-		log.Printf("Session %s: Failed to add session to Redis: %v", session.ID, err)
-		// Don't fail the bind if Redis fails, just log it
+	if err := h.authManager.AddSession(bind.SystemID, session.ID, remoteAddr, "receiver"); err != nil {
+		log.Printf("Session %s: Failed to add session to auth manager: %v", session.ID, err)
+		// Don't fail the bind if auth manager fails, just log it
 	} else {
-		log.Printf("Session %s: Successfully added to Redis", session.ID)
+		log.Printf("Session %s: Successfully added to auth manager", session.ID)
 	}
 
 	log.Printf("Session %s: Sending bind_receiver response for %s", session.ID, bind.SystemID)
@@ -140,7 +140,7 @@ func (h *BindHandler) HandleBindTransmitter(session *session.Session, pdu *proto
 
 	// Authenticate user
 	log.Printf("Session %s: Authenticating user %s", session.ID, bind.SystemID)
-	user, err := h.authManager.AuthenticateUser(bind.SystemID, bind.Password)
+	smppUser, err := h.authManager.AuthenticateUser(bind.SystemID, bind.Password)
 	if err != nil {
 		log.Printf("Session %s: Authentication failed for %s: %v", session.ID, bind.SystemID, err)
 		return session.SendResponse(protocol.BIND_TRANSMITTER_RESP, protocol.ESME_RINVPASWD, nil, pdu.SequenceNumber)
@@ -155,9 +155,9 @@ func (h *BindHandler) HandleBindTransmitter(session *session.Session, pdu *proto
 		return session.SendResponse(protocol.BIND_TRANSMITTER_RESP, protocol.ESME_RSYSERR, nil, pdu.SequenceNumber)
 	}
 
-	log.Printf("Session %s: Active sessions count: %d, Max allowed: %d", session.ID, activeCount, user.MaxConnectionSpeed)
+	log.Printf("Session %s: Active sessions count: %d, Max allowed: %d", session.ID, activeCount, smppUser.MaxConnectionSpeed)
 
-	if activeCount >= user.MaxConnectionSpeed {
+	if activeCount >= smppUser.MaxConnectionSpeed {
 		log.Printf("Session %s: Too many connections for user %s", session.ID, bind.SystemID)
 		return session.SendResponse(protocol.BIND_TRANSMITTER_RESP, protocol.ESME_RALYBND, nil, pdu.SequenceNumber)
 	}
@@ -179,13 +179,13 @@ func (h *BindHandler) HandleBindTransmitter(session *session.Session, pdu *proto
 
 	log.Printf("Session %s: Generated bind response body, length: %d", session.ID, len(responseBody))
 
-	// Add session to Redis
+	// Add session to auth manager
 	remoteAddr := session.Conn.RemoteAddr().String()
-	if err := h.authManager.AddSession(bind.SystemID, session.ID, remoteAddr); err != nil {
-		log.Printf("Session %s: Failed to add session to Redis: %v", session.ID, err)
-		// Don't fail the bind if Redis fails, just log it
+	if err := h.authManager.AddSession(bind.SystemID, session.ID, remoteAddr, "transmitter"); err != nil {
+		log.Printf("Session %s: Failed to add session to auth manager: %v", session.ID, err)
+		// Don't fail the bind if auth manager fails, just log it
 	} else {
-		log.Printf("Session %s: Successfully added to Redis", session.ID)
+		log.Printf("Session %s: Successfully added to auth manager", session.ID)
 	}
 
 	log.Printf("Session %s: Sending bind_transmitter response for %s", session.ID, bind.SystemID)
@@ -229,7 +229,7 @@ func (h *BindHandler) HandleBindTransceiver(session *session.Session, pdu *proto
 
 	// Authenticate user
 	log.Printf("Session %s: Authenticating user %s", session.ID, bind.SystemID)
-	user, err := h.authManager.AuthenticateUser(bind.SystemID, bind.Password)
+	smppUser, err := h.authManager.AuthenticateUser(bind.SystemID, bind.Password)
 	if err != nil {
 		log.Printf("Session %s: Authentication failed for %s: %v", session.ID, bind.SystemID, err)
 		return session.SendResponse(protocol.BIND_TRANSCEIVER_RESP, protocol.ESME_RINVPASWD, nil, pdu.SequenceNumber)
@@ -244,9 +244,9 @@ func (h *BindHandler) HandleBindTransceiver(session *session.Session, pdu *proto
 		return session.SendResponse(protocol.BIND_TRANSCEIVER_RESP, protocol.ESME_RSYSERR, nil, pdu.SequenceNumber)
 	}
 
-	log.Printf("Session %s: Active sessions count: %d, Max allowed: %d", session.ID, activeCount, user.MaxConnectionSpeed)
+	log.Printf("Session %s: Active sessions count: %d, Max allowed: %d", session.ID, activeCount, smppUser.MaxConnectionSpeed)
 
-	if activeCount >= user.MaxConnectionSpeed {
+	if activeCount >= smppUser.MaxConnectionSpeed {
 		log.Printf("Session %s: Too many connections for user %s", session.ID, bind.SystemID)
 		return session.SendResponse(protocol.BIND_TRANSCEIVER_RESP, protocol.ESME_RALYBND, nil, pdu.SequenceNumber)
 	}
@@ -268,13 +268,13 @@ func (h *BindHandler) HandleBindTransceiver(session *session.Session, pdu *proto
 
 	log.Printf("Session %s: Generated bind response body, length: %d", session.ID, len(responseBody))
 
-	// Add session to Redis
+	// Add session to auth manager
 	remoteAddr := session.Conn.RemoteAddr().String()
-	if err := h.authManager.AddSession(bind.SystemID, session.ID, remoteAddr); err != nil {
-		log.Printf("Session %s: Failed to add session to Redis: %v", session.ID, err)
-		// Don't fail the bind if Redis fails, just log it
+	if err := h.authManager.AddSession(bind.SystemID, session.ID, remoteAddr, "transceiver"); err != nil {
+		log.Printf("Session %s: Failed to add session to auth manager: %v", session.ID, err)
+		// Don't fail the bind if auth manager fails, just log it
 	} else {
-		log.Printf("Session %s: Successfully added to Redis", session.ID)
+		log.Printf("Session %s: Successfully added to auth manager", session.ID)
 	}
 
 	log.Printf("Session %s: Sending bind_transceiver response for %s", session.ID, bind.SystemID)

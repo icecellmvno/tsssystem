@@ -9,12 +9,12 @@ import (
 
 // QuerySMHandler handles query_sm operations
 type QuerySMHandler struct {
-	authManager    *auth.RedisAuthManager
+	authManager    auth.AuthManager
 	sessionManager *session.SessionManager
 }
 
 // NewQuerySMHandler creates a new query SM handler
-func NewQuerySMHandler(authManager *auth.RedisAuthManager, sessionManager *session.SessionManager) *QuerySMHandler {
+func NewQuerySMHandler(authManager auth.AuthManager, sessionManager *session.SessionManager) *QuerySMHandler {
 	return &QuerySMHandler{
 		authManager:    authManager,
 		sessionManager: sessionManager,

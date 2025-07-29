@@ -81,7 +81,7 @@ func LoadConfig() (*Config, error) {
 }
 
 func (c *Config) GetDatabaseDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		c.Database.User,
 		c.Database.Password,
 		c.Database.Host,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"time"
 
 	"tsimsocketserver/database"
@@ -444,6 +445,24 @@ func (sr *SmsRouter) matchesDestinationPattern(destinationAddr string, routing m
 			return true
 		}
 		log.Printf("Pattern matching: Suffix match failed (pattern='%s' does not match end of '%s')", pattern, destinationAddr)
+	}
+
+	// Check if pattern has wildcard in the middle (e.g., "880*" matches "8801731276853")
+	if len(pattern) > 0 && strings.Contains(pattern, "*") {
+		parts := strings.Split(pattern, "*")
+		if len(parts) == 2 {
+			prefix := parts[0]
+			suffix := parts[1]
+
+			// Check if destination starts with prefix and ends with suffix
+			if len(destinationAddr) >= len(prefix)+len(suffix) &&
+				destinationAddr[:len(prefix)] == prefix &&
+				destinationAddr[len(destinationAddr)-len(suffix):] == suffix {
+				log.Printf("Pattern matching: Middle wildcard match found (pattern='%s' matches '%s')", pattern, destinationAddr)
+				return true
+			}
+			log.Printf("Pattern matching: Middle wildcard match failed (pattern='%s' does not match '%s')", pattern, destinationAddr)
+		}
 	}
 
 	log.Printf("Pattern matching: No match found for destination='%s' with pattern='%s'", destinationAddr, pattern)

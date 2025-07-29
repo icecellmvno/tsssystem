@@ -85,10 +85,19 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	}
 
 	// Check if destination address matches routing pattern
+	log.Printf("Checking destination pattern: address='%s', pattern='%s', system_id='%s'",
+		smppMsg.DestinationAddr,
+		*routing.DestinationAddress,
+		smppMsg.SystemID)
+
 	if !sr.matchesDestinationPattern(smppMsg.DestinationAddr, routing) {
-		log.Printf("Destination address %s does not match routing pattern for system_id %s", smppMsg.DestinationAddr, smppMsg.SystemID)
+		log.Printf("Destination address %s does not match routing pattern '%s' for system_id %s",
+			smppMsg.DestinationAddr, *routing.DestinationAddress, smppMsg.SystemID)
 		return sr.sendUndeliveredReport(smppMsg, "Destination address does not match routing pattern")
 	}
+
+	log.Printf("Destination address %s matches routing pattern '%s' for system_id %s",
+		smppMsg.DestinationAddr, *routing.DestinationAddress, smppMsg.SystemID)
 
 	// Find target device groups based on SMPP system_id
 	targetDeviceGroups, err := sr.findTargetDeviceGroups(smppMsg.SystemID)
@@ -400,35 +409,44 @@ func (sr *SmsRouter) getRoutingConfiguration(systemID string) (models.SmsRouting
 // matchesDestinationPattern checks if destination address matches routing pattern
 func (sr *SmsRouter) matchesDestinationPattern(destinationAddr string, routing models.SmsRouting) bool {
 	if routing.DestinationAddress == nil || *routing.DestinationAddress == "" {
+		log.Printf("Pattern matching: No pattern specified, accepting all addresses")
 		return true // No pattern specified, accept all
 	}
 
 	pattern := *routing.DestinationAddress
+	log.Printf("Pattern matching: destination='%s', pattern='%s'", destinationAddr, pattern)
 
 	// Simple pattern matching - can be enhanced with regex
 	if pattern == "*" {
+		log.Printf("Pattern matching: Wildcard pattern '*', accepting all addresses")
 		return true // Accept all addresses
 	}
 
 	if pattern == destinationAddr {
+		log.Printf("Pattern matching: Exact match found")
 		return true // Exact match
 	}
 
 	// Check if pattern is a prefix (e.g., "+90" matches "+905551234567")
 	if len(pattern) > 0 && pattern[len(pattern)-1] != '*' {
 		if len(destinationAddr) >= len(pattern) && destinationAddr[:len(pattern)] == pattern {
+			log.Printf("Pattern matching: Prefix match found (pattern='%s' matches start of '%s')", pattern, destinationAddr)
 			return true
 		}
+		log.Printf("Pattern matching: Prefix match failed (pattern='%s' does not match start of '%s')", pattern, destinationAddr)
 	}
 
 	// Check if pattern is a suffix (e.g., "*123" matches "905551234567")
 	if len(pattern) > 0 && pattern[0] == '*' {
 		suffix := pattern[1:]
 		if len(destinationAddr) >= len(suffix) && destinationAddr[len(destinationAddr)-len(suffix):] == suffix {
+			log.Printf("Pattern matching: Suffix match found (pattern='%s' matches end of '%s')", pattern, destinationAddr)
 			return true
 		}
+		log.Printf("Pattern matching: Suffix match failed (pattern='%s' does not match end of '%s')", pattern, destinationAddr)
 	}
 
+	log.Printf("Pattern matching: No match found for destination='%s' with pattern='%s'", destinationAddr, pattern)
 	return false
 }
 

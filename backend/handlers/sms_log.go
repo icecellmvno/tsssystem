@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -40,6 +41,10 @@ func GetSmsLogs(c *fiber.Ctx) error {
 	endTime := c.Query("end_time", "")
 	sortBy := c.Query("sort_by", "created_at")
 	sortOrder := c.Query("sort_order", "desc")
+
+	// Debug: Log the received parameters
+	log.Printf("SMS Logs Filter - startDate: %s, endDate: %s, startTime: %s, endTime: %s", 
+		startDate, endDate, startTime, endTime)
 
 	// Validate pagination
 	if page < 1 {
@@ -113,24 +118,57 @@ func GetSmsLogs(c *fiber.Ctx) error {
 
 	if startDate != "" {
 		if parsedDate, err := time.Parse("2006-01-02", startDate); err == nil {
-			query = query.Where("DATE(created_at) >= ?", parsedDate.Format("2006-01-02"))
+			// If start time is also provided, combine them
+			if startTime != "" {
+				// Parse the time
+				if parsedTime, err := time.Parse("15:04", startTime); err == nil {
+					// Combine date and time
+					startDateTime := time.Date(
+						parsedDate.Year(), parsedDate.Month(), parsedDate.Day(),
+						parsedTime.Hour(), parsedTime.Minute(), 0, 0,
+						time.UTC,
+					)
+					query = query.Where("created_at >= ?", startDateTime)
+				} else {
+					// Fallback to date only
+					query = query.Where("DATE(created_at) >= ?", parsedDate.Format("2006-01-02"))
+				}
+			} else {
+				// Date only
+				query = query.Where("DATE(created_at) >= ?", parsedDate.Format("2006-01-02"))
+			}
 		}
+	} else if startTime != "" {
+		// Only time filter (no date)
+		query = query.Where("TIME(created_at) >= ?", startTime)
 	}
 
 	if endDate != "" {
 		if parsedDate, err := time.Parse("2006-01-02", endDate); err == nil {
-			// Add one day to include the end date
-			endDatePlusOne := parsedDate.AddDate(0, 0, 1)
-			query = query.Where("DATE(created_at) < ?", endDatePlusOne.Format("2006-01-02"))
+			// If end time is also provided, combine them
+			if endTime != "" {
+				// Parse the time
+				if parsedTime, err := time.Parse("15:04", endTime); err == nil {
+					// Combine date and time
+					endDateTime := time.Date(
+						parsedDate.Year(), parsedDate.Month(), parsedDate.Day(),
+						parsedTime.Hour(), parsedTime.Minute(), 59, 999999999,
+						time.UTC,
+					)
+					query = query.Where("created_at <= ?", endDateTime)
+				} else {
+					// Fallback to date only (add one day to include the end date)
+					endDatePlusOne := parsedDate.AddDate(0, 0, 1)
+					query = query.Where("DATE(created_at) < ?", endDatePlusOne.Format("2006-01-02"))
+				}
+			} else {
+				// Date only (add one day to include the end date)
+				endDatePlusOne := parsedDate.AddDate(0, 0, 1)
+				query = query.Where("DATE(created_at) < ?", endDatePlusOne.Format("2006-01-02"))
+			}
 		}
-	}
-
-	// Apply time filters
-	if startTime != "" {
-		query = query.Where("TIME(created_at) >= ?", startTime)
-	}
-
-	if endTime != "" {
+	} else if endTime != "" {
+		// Only time filter (no date)
 		query = query.Where("TIME(created_at) <= ?", endTime)
 	}
 
@@ -148,6 +186,12 @@ func GetSmsLogs(c *fiber.Ctx) error {
 	// Apply pagination
 	offset := (page - 1) * perPage
 	query = query.Offset(offset).Limit(perPage)
+
+	// Debug: Log the final query
+	sql := query.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		return tx.Find(&[]models.SmsLog{})
+	})
+	log.Printf("SMS Logs Query: %s", sql)
 
 	// Execute query
 	var smsLogs []models.SmsLog

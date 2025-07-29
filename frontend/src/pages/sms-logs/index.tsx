@@ -109,6 +109,9 @@ export default function SmsLogsIndex() {
                 destination_addr: destinationAddress || undefined,
             };
 
+            // Debug: Log the parameters being sent
+            console.log('SMS Logs Filter Parameters:', params);
+
             const response = await smsLogsService.getAll(params);
             
             setSmsLogs(response.data);
@@ -809,22 +812,28 @@ export default function SmsLogsIndex() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor="start-time">Start Time</Label>
+                                            <Label htmlFor="start-time">Start Time (24h)</Label>
                                             <Input
                                                 id="start-time"
                                                 type="time"
+                                                step="60"
                                                 value={startTime}
                                                 onChange={(e) => handleStartTimeChange(e.target.value)}
+                                                placeholder="HH:MM"
                                             />
+                                            <p className="text-xs text-muted-foreground">Use 24-hour format (e.g., 14:30 for 2:30 PM)</p>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label htmlFor="end-time">End Time</Label>
+                                            <Label htmlFor="end-time">End Time (24h)</Label>
                                             <Input
                                                 id="end-time"
                                                 type="time"
+                                                step="60"
                                                 value={endTime}
                                                 onChange={(e) => handleEndTimeChange(e.target.value)}
+                                                placeholder="HH:MM"
                                             />
+                                            <p className="text-xs text-muted-foreground">Use 24-hour format (e.g., 23:45 for 11:45 PM)</p>
                                         </div>
                                     </div>
 

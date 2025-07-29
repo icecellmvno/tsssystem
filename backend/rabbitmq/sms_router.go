@@ -72,19 +72,31 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	log.Printf("Processing SMPP message: %s from %s to %s", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestinationAddr)
 
-	// Find active Android devices
-	activeDevices, err := sr.findActiveAndroidDevices()
+	// Find target device groups based on SMPP system_id
+	targetDeviceGroups, err := sr.findTargetDeviceGroups(smppMsg.SystemID)
 	if err != nil {
-		log.Printf("Error finding active devices: %v", err)
+		log.Printf("Error finding target device groups for system_id %s: %v", smppMsg.SystemID, err)
+		return err
+	}
+
+	if len(targetDeviceGroups) == 0 {
+		log.Printf("No target device groups found for system_id: %s", smppMsg.SystemID)
+		return sr.createSmsLogForSmpp(smppMsg, "failed", "No target device groups found")
+	}
+
+	// Find active Android devices in target device groups
+	activeDevices, err := sr.findActiveAndroidDevicesInGroups(targetDeviceGroups)
+	if err != nil {
+		log.Printf("Error finding active devices in target groups: %v", err)
 		return err
 	}
 
 	if len(activeDevices) == 0 {
-		log.Printf("No active Android devices found")
-		return sr.createSmsLogForSmpp(smppMsg, "failed", "No active devices")
+		log.Printf("No active Android devices found in target device groups")
+		return sr.createSmsLogForSmpp(smppMsg, "failed", "No active devices in target groups")
 	}
 
-	// Route message to all active devices
+	// Route message to devices in target groups
 	successCount := 0
 	for _, device := range activeDevices {
 		if err := sr.routeMessageToDevice(device, smppMsg); err != nil {
@@ -94,17 +106,65 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 		}
 	}
 
-	log.Printf("Successfully routed SMPP message to %d/%d active devices", successCount, len(activeDevices))
+	log.Printf("Successfully routed SMPP message to %d/%d active devices in target groups", successCount, len(activeDevices))
 	return nil
 }
 
-// findActiveAndroidDevices finds all active Android devices
+// findTargetDeviceGroups finds device groups based on SMPP system_id
+func (sr *SmsRouter) findTargetDeviceGroups(systemID string) ([]string, error) {
+	var routings []models.SmsRouting
+	var deviceGroupNames []string
+
+	// Find active SMPP routings for this system_id
+	err := database.GetDB().Where("is_active = ? AND source_type = ? AND system_id = ?",
+		true, "smpp", systemID).Find(&routings).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract device group names from routings
+	for _, routing := range routings {
+		if routing.DeviceGroupIDs != nil && *routing.DeviceGroupIDs != "" {
+			var deviceGroupIDs []uint
+			if err := json.Unmarshal([]byte(*routing.DeviceGroupIDs), &deviceGroupIDs); err == nil {
+				for _, groupID := range deviceGroupIDs {
+					var deviceGroup models.DeviceGroup
+					if err := database.GetDB().First(&deviceGroup, groupID).Error; err == nil {
+						deviceGroupNames = append(deviceGroupNames, deviceGroup.DeviceGroup)
+					}
+				}
+			}
+		}
+	}
+
+	return deviceGroupNames, nil
+}
+
+// findActiveAndroidDevicesInGroups finds all active Android devices in specific device groups
+func (sr *SmsRouter) findActiveAndroidDevicesInGroups(deviceGroups []string) ([]models.Device, error) {
+	var devices []models.Device
+
+	if len(deviceGroups) == 0 {
+		// If no specific groups, return all active Android devices (fallback)
+		err := database.GetDB().Where("is_online = ? AND device_type = ?",
+			true, "android").Find(&devices).Error
+		return devices, err
+	}
+
+	// Find devices that are active, online, android type, and in specified device groups
+	err := database.GetDB().Where("is_online = ? AND device_type = ? AND device_group IN ?",
+		true, "android", deviceGroups).Find(&devices).Error
+
+	return devices, err
+}
+
+// findActiveAndroidDevices finds all active Android devices (kept for backward compatibility)
 func (sr *SmsRouter) findActiveAndroidDevices() ([]models.Device, error) {
 	var devices []models.Device
 
 	// Find devices that are active, online, and of type android
 	err := database.GetDB().Where("is_online = ? AND device_type = ?",
-		true, true, "android").Find(&devices).Error
+		true, "android").Find(&devices).Error
 
 	return devices, err
 }

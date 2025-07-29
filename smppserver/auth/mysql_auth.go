@@ -227,6 +227,9 @@ func (am *MySQLAuthManager) AddSession(systemID, sessionID, remoteAddr, bindType
 		return fmt.Errorf("failed to update user connection status: %v", err)
 	}
 
+	// Publish user status update to RabbitMQ for real-time updates
+	am.publishUserStatusUpdate(systemID, true, remoteAddr, sessionID, bindType)
+
 	log.Printf("Session added for user %s: %s", systemID, sessionID)
 	return nil
 }
@@ -260,10 +263,21 @@ func (am *MySQLAuthManager) RemoveSession(systemID, sessionID string) error {
 		if err != nil {
 			return fmt.Errorf("failed to update user offline status: %v", err)
 		}
+
+		// Publish user status update to RabbitMQ for real-time updates
+		am.publishUserStatusUpdate(systemID, false, "", sessionID, "")
 	}
 
 	log.Printf("Session removed for user %s: %s", systemID, sessionID)
 	return nil
+}
+
+// publishUserStatusUpdate publishes user status changes to RabbitMQ
+func (am *MySQLAuthManager) publishUserStatusUpdate(systemID string, isOnline bool, remoteAddr, sessionID, bindType string) {
+	// This would publish to RabbitMQ for real-time updates
+	// For now, just log the status change
+	log.Printf("User status update - SystemID: %s, Online: %t, IP: %s, Session: %s, BindType: %s",
+		systemID, isOnline, remoteAddr, sessionID, bindType)
 }
 
 // UpdateSessionActivity updates the last activity timestamp for a session

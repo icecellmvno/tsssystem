@@ -19,6 +19,7 @@ import {
     type BaseRecord 
 } from '@/components/ui/data-table-columns';
 import { smppUsersService, type SmppUser } from '@/services/smpp-users';
+import { ColumnDef } from '@tanstack/react-table';
 
 interface SmppUserWithBase extends SmppUser, BaseRecord {}
 
@@ -82,11 +83,12 @@ export default function SmppUsersIndex() {
           if (user.system_id === data.system_id) {
             return {
               ...user,
-              status: data.is_online ? 'active' : 'inactive',
-              last_seen_at: data.timestamp,
-              session_id: data.session_id,
-              remote_addr: data.remote_addr,
-              bind_type: data.bind_type
+              is_online: data.is_online || false,
+              last_connected_at: data.last_connected_at,
+              last_ip_address: data.last_ip_address,
+              connection_count: data.connection_count || user.connection_count,
+              total_messages_sent: data.total_messages_sent || user.total_messages_sent,
+              total_messages_received: data.total_messages_received || user.total_messages_received
             };
           }
           return user;
@@ -118,24 +120,40 @@ export default function SmppUsersIndex() {
         merged.push({
           id: 0, // Temporary ID for real-time data
           system_id: realtimeUser.system_id,
-          username: realtimeUser.system_id,
-          password: '', // Not available in real-time data
-          system_type: realtimeUser.bind_type,
-          interface_version: '', // Not available in real-time data
-          addr_ton: 0, // Not available in real-time data
-          addr_npi: 0, // Not available in real-time data
-          address_range: '', // Not available in real-time data
-          status: realtimeUser.is_online ? 'active' : 'inactive',
-          max_connections: 0, // Not available in real-time data
+          password: '',
+          max_connection_speed: 100,
+          is_active: true,
+          is_online: realtimeUser.is_online || false,
+          connection_count: 0,
+          total_messages_sent: 0,
+          total_messages_received: 0,
+          last_connected_at: realtimeUser.last_connected_at,
+          last_ip_address: realtimeUser.last_ip_address,
+          mt_http_send: true,
+          mt_http_dlr_method: true,
+          mt_http_balance: true,
+          mt_smpps_send: true,
+          mt_priority: true,
+          mt_http_long_content: true,
+          mt_src_addr_auth: true,
+          mt_dlr_level: true,
+          mt_http_rate: true,
+          mt_validity_period: true,
+          mt_http_bulk: false,
+          mt_hex_content: true,
           created_at: realtimeUser.timestamp,
           updated_at: realtimeUser.timestamp,
         } as SmppUserWithBase);
       } else {
         // Update existing user with real-time data
-        merged[existingIndex] = { 
-          ...merged[existingIndex], 
-          status: realtimeUser.is_online ? 'active' : 'inactive',
-          updated_at: realtimeUser.timestamp,
+        merged[existingIndex] = {
+          ...merged[existingIndex],
+          is_online: realtimeUser.is_online || false,
+          last_connected_at: realtimeUser.last_connected_at,
+          last_ip_address: realtimeUser.last_ip_address,
+          connection_count: realtimeUser.connection_count || merged[existingIndex].connection_count,
+          total_messages_sent: realtimeUser.total_messages_sent || merged[existingIndex].total_messages_sent,
+          total_messages_received: realtimeUser.total_messages_received || merged[existingIndex].total_messages_received
         };
       }
     });
@@ -143,39 +161,48 @@ export default function SmppUsersIndex() {
     return merged;
   }, [smppUsers, realtimeSmppUsers]);
 
-  // Filtered SMPP users
+  // Filter and search
   const filteredSmppUsers = useMemo(() => {
     return combinedSmppUsers.filter(smppUser => {
-      const matchesSearch = searchTerm === '' || 
-        (smppUser.username?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      const matchesSearch = searchTerm === '' ||
         (smppUser.system_id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (smppUser.system_type?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+        (smppUser.last_ip_address?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       
-      const matchesStatus = statusFilter === 'all' || smppUser.status === statusFilter;
-      
+      const matchesStatus = statusFilter === 'all' || 
+        (statusFilter === 'online' && smppUser.is_online) ||
+        (statusFilter === 'offline' && !smppUser.is_online);
+
       return matchesSearch && matchesStatus;
     });
   }, [combinedSmppUsers, searchTerm, statusFilter]);
 
-  // Get unique values for filters
+  // Get unique statuses for filter
   const uniqueStatuses = useMemo(() => {
-    const statuses = combinedSmppUsers.map(s => s.status).filter(status => status && status !== '');
-    return [...new Set(statuses)];
+    const onlineCount = combinedSmppUsers.filter(s => s.is_online).length;
+    const offlineCount = combinedSmppUsers.filter(s => !s.is_online).length;
+    return [...new Set([...combinedSmppUsers.map(s => s.is_online ? 'ONLINE' : 'OFFLINE'), 'ALL'])];
   }, [combinedSmppUsers]);
 
-  // SMPP users statistics
-  const smppUserStats = useMemo(() => {
+  // Stats
+  const stats = useMemo(() => {
     const total = combinedSmppUsers.length;
-    const active = combinedSmppUsers.filter(s => s.status === 'active').length;
-    const inactive = combinedSmppUsers.filter(s => s.status === 'inactive').length;
-    
+    const active = combinedSmppUsers.filter(s => s.is_online).length;
+    const inactive = combinedSmppUsers.filter(s => !s.is_online).length;
+    const totalConnections = combinedSmppUsers.reduce((sum, user) => sum + user.connection_count, 0);
+    const totalMessagesSent = combinedSmppUsers.reduce((sum, user) => sum + user.total_messages_sent, 0);
+    const totalMessagesReceived = combinedSmppUsers.reduce((sum, user) => sum + user.total_messages_received, 0);
+    const activePercentage = total > 0 ? Math.round((active / total) * 100) : 0;
+
     return {
       total,
       active,
       inactive,
-      activePercentage: total > 0 ? Math.round((active / total) * 100) : 0
+      totalConnections,
+      totalMessagesSent,
+      totalMessagesReceived,
+      activePercentage
     };
-  }, [smppUsers]);
+  }, [combinedSmppUsers]);
 
   // Handle delete
   const handleDelete = useCallback(async (smppUser: SmppUserWithBase) => {
@@ -196,17 +223,8 @@ export default function SmppUsersIndex() {
   }, []);
 
   // TanStack Table columns
-  const columns = useMemo(() => [
-    {
-      accessorKey: 'username',
-      header: 'Username',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <User className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{row.getValue('username')}</span>
-        </div>
-      ),
-    },
+  const columns = useMemo<ColumnDef<SmppUserWithBase>[]>(() => [
+    createIdColumn<SmppUserWithBase>(),
     {
       accessorKey: 'system_id',
       header: 'System ID',
@@ -215,48 +233,83 @@ export default function SmppUsersIndex() {
       ),
     },
     {
-      accessorKey: 'system_type',
-      header: 'System Type',
-      cell: ({ row }) => row.getValue('system_type'),
-    },
-    {
-      accessorKey: 'interface_version',
-      header: 'Interface Version',
-      cell: ({ row }) => (
-        <Badge variant="outline" className="text-xs">
-          {row.getValue('interface_version')}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: 'status',
+      accessorKey: 'is_online',
       header: 'Status',
       cell: ({ row }) => {
-        const status = row.getValue('status') as string;
-        const statusText = status || 'unknown';
+        const isOnline = row.getValue('is_online') as boolean;
+        const isActive = row.getValue('is_active') as boolean;
+        
+        if (!isActive) {
+          return <Badge variant="destructive">INACTIVE</Badge>;
+        }
+        
         return (
-          <Badge variant={statusText === 'active' ? 'default' : 'secondary'}>
-            {statusText.toUpperCase()}
+          <Badge variant={isOnline ? 'default' : 'secondary'}>
+            {isOnline ? 'ONLINE' : 'OFFLINE'}
           </Badge>
         );
       },
     },
     {
-      accessorKey: 'max_connections',
+      accessorKey: 'max_connection_speed',
       header: 'Max Connections',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-muted-foreground" />
-          <span>{row.getValue('max_connections')}</span>
+          <span>{row.getValue('max_connection_speed')}</span>
         </div>
       ),
     },
     {
-      accessorKey: 'address_range',
-      header: 'Address Range',
+      accessorKey: 'connection_count',
+      header: 'Connections',
       cell: ({ row }) => (
-        <div className="font-mono text-sm">{row.getValue('address_range')}</div>
+        <div className="text-sm">
+          {row.getValue('connection_count')}
+        </div>
       ),
+    },
+    {
+      accessorKey: 'total_messages_sent',
+      header: 'Sent',
+      cell: ({ row }) => (
+        <div className="text-sm">
+          {row.getValue('total_messages_sent')}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'total_messages_received',
+      header: 'Received',
+      cell: ({ row }) => (
+        <div className="text-sm">
+          {row.getValue('total_messages_received')}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'last_ip_address',
+      header: 'Last IP',
+      cell: ({ row }) => {
+        const ip = row.getValue('last_ip_address') as string;
+        return (
+          <div className="font-mono text-sm">
+            {ip || '-'}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'last_connected_at',
+      header: 'Last Connected',
+      cell: ({ row }) => {
+        const date = row.getValue('last_connected_at') as string;
+        return (
+          <div className="text-sm">
+            {date ? new Date(date).toLocaleString() : '-'}
+          </div>
+        );
+      },
     },
     createCreatedAtColumn<SmppUserWithBase>(),
     {
@@ -320,7 +373,7 @@ export default function SmppUsersIndex() {
               <User className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{smppUserStats.total}</div>
+              <div className="text-2xl font-bold">{stats.total}</div>
               <p className="text-xs text-muted-foreground">
                 All registered SMPP users
               </p>
@@ -333,17 +386,17 @@ export default function SmppUsersIndex() {
               <Shield className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{smppUserStats.active}</div>
+              <div className="text-2xl font-bold text-green-600">{stats.active}</div>
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-[60px]">
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
                       className="h-2 rounded-full bg-green-500"
-                      style={{ width: `${smppUserStats.activePercentage}%` }}
+                      style={{ width: `${(stats.active / stats.total) * 100}%` }}
                     ></div>
                   </div>
                 </div>
-                <span className="text-xs text-muted-foreground">{smppUserStats.activePercentage}%</span>
+                <span className="text-xs text-muted-foreground">{stats.activePercentage}%</span>
               </div>
             </CardContent>
           </Card>
@@ -354,7 +407,7 @@ export default function SmppUsersIndex() {
               <Activity className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{smppUserStats.inactive}</div>
+              <div className="text-2xl font-bold text-red-600">{stats.inactive}</div>
               <p className="text-xs text-muted-foreground">
                 Disabled SMPP users
               </p>

@@ -78,7 +78,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	log.Printf("Processing SMPP message: %s from %s to %s (SystemID: %s)", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestinationAddr, smppMsg.SystemID)
 
-	// Log SMPP message processing to alarm log
+	// Log SMPP message processing to alarm log with routing info
 	sr.logSmppMessageProcessing(smppMsg, "Processing SMPP message")
 
 	// Find all matching SMS routing rules
@@ -129,6 +129,10 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	if routing == nil {
 		log.Printf("No matching routing rule found for SMPP message (SystemID: %s, Destination: %s)", smppMsg.SystemID, smppMsg.DestinationAddr)
+
+		// Log to alarm log
+		sr.logSmppMessageProcessing(smppMsg, fmt.Sprintf("No matching routing rule found for SystemID: %s, Destination: %s", smppMsg.SystemID, smppMsg.DestinationAddr))
+
 		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("No matching routing rule found for SystemID: %s, Destination: %s", smppMsg.SystemID, smppMsg.DestinationAddr))
 		return sr.sendUndeliveredReport(smppMsg, "No matching routing rule found")
 	}
@@ -137,6 +141,10 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	connectedDevices := sr.wsServer.GetConnectedDevices()
 	if len(connectedDevices) == 0 {
 		log.Printf("No connected devices available")
+
+		// Log to alarm log
+		sr.logSmppMessageProcessing(smppMsg, "No connected devices available")
+
 		sr.createSmsRoutingFailureAlarm(smppMsg, "No connected devices available")
 		return sr.sendUndeliveredReport(smppMsg, "No connected devices available")
 	}
@@ -146,8 +154,13 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	// Get all available devices for this routing
 	availableDevices := sr.getAllAvailableDevicesForRouting(*routing, connectedDevices, smppMsg)
 	if len(availableDevices) == 0 {
-		log.Printf("No suitable devices found for routing rule '%s' (Device Groups: %s)", routing.Name, sr.getDeviceGroupNames(*routing))
-		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("No suitable devices found for routing rule '%s' (Device Groups: %s)", routing.Name, sr.getDeviceGroupNames(*routing)))
+		deviceGroups := sr.getDeviceGroupNames(*routing)
+		log.Printf("No suitable devices found for routing rule '%s' (Device Groups: %s)", routing.Name, deviceGroups)
+
+		// Log detailed failure to alarm log
+		sr.logSmppMessageProcessing(smppMsg, fmt.Sprintf("No suitable devices found for routing rule '%s' (Device Groups: %s)", routing.Name, deviceGroups))
+
+		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("No suitable devices found for routing rule '%s' (Device Groups: %s)", routing.Name, deviceGroups))
 		return sr.sendUndeliveredReport(smppMsg, "No suitable devices found")
 	}
 
@@ -705,9 +718,22 @@ func (sr *SmsRouter) getDeviceGroupNames(routing models.SmsRouting) string {
 
 // logSmppMessageProcessing logs SMPP message processing to alarm log
 func (sr *SmsRouter) logSmppMessageProcessing(smppMsg SmppSubmitSMMessage, message string) {
+	// Get routing info for better context
+	var routingInfo string
+	var routing models.SmsRouting
+	if err := database.GetDB().Where("is_active = ? AND source_type = ? AND direction = ?", true, "smpp", "outbound").
+		Preload("DeviceGroupConfigs.DeviceGroup").
+		Order("priority DESC").
+		First(&routing).Error; err == nil {
+		deviceGroups := sr.getDeviceGroupNames(routing)
+		routingInfo = fmt.Sprintf(" (Routing: %s, Device Groups: %s)", routing.Name, deviceGroups)
+	} else {
+		routingInfo = " (No routing rule found)"
+	}
+
 	alarmData := models.AlarmData{
 		AlarmType:   "smpp_message_processing",
-		Message:     fmt.Sprintf("%s: %s from %s to %s (SystemID: %s)", message, smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestinationAddr, smppMsg.SystemID),
+		Message:     fmt.Sprintf("%s: %s from %s to %s (SystemID: %s)%s", message, smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestinationAddr, smppMsg.SystemID, routingInfo),
 		Severity:    "info",
 		DeviceGroup: "SMS_Router",
 		CountrySite: "System",

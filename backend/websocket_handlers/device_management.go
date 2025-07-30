@@ -270,9 +270,9 @@ func CheckAndUpdateDeviceStatus(deviceID string) {
 		conditions = append(conditions, "alarm_type = ?")
 		args = append(args, "battery_low")
 	}
+	// Note: Signal low alarms don't affect device active status (device remains operational)
 	if deviceGroup.EnableSignalAlarms {
-		conditions = append(conditions, "alarm_type = ?")
-		args = append(args, "signal_low")
+		// Signal low alarms are logged but don't set device to inactive
 	}
 	if deviceGroup.EnableErrorAlarms {
 		conditions = append(conditions, "alarm_type = ?")

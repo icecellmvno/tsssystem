@@ -29,18 +29,15 @@ func HandleHeartbeat(wsServer interfaces.WebSocketServerInterface, deviceID stri
 
 	// Signal kontrolü - device group ayarlarına göre
 	if data.SignalStrength <= deviceGroup.SignalLowThreshold && deviceGroup.EnableSignalAlarms {
-		log.Printf("Signal strength is %d (threshold: %d) for device %s, setting device to inactive", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
+		log.Printf("Signal strength is %d (threshold: %d) for device %s, sending signal low alarm (device remains active)", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
 
-		// Cihazı deaktif yap
-		if err := database.GetDB().Model(&models.Device{}).Where("imei = ?", deviceID).Update("is_active", false).Error; err != nil {
-			log.Printf("Error setting device to inactive: %v", err)
-		}
+		// Note: Device remains active even with low signal strength
 
 		// Signal low alarmı gönder
 		alarmData := models.AlarmData{
 			AlarmType:   "signal_low",
-			Message:     fmt.Sprintf("Device signal is low (signal strength: %d, threshold: %d). Device has been set to inactive.", data.SignalStrength, deviceGroup.SignalLowThreshold),
-			Severity:    "critical",
+			Message:     fmt.Sprintf("Device signal is low (signal strength: %d, threshold: %d). Device remains operational.", data.SignalStrength, deviceGroup.SignalLowThreshold),
+			Severity:    "warning",
 			DeviceGroup: data.DeviceInfo.DeviceGroup,
 			CountrySite: data.DeviceInfo.CountrySite,
 		}

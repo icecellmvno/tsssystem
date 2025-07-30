@@ -141,11 +141,13 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 		return sr.sendUndeliveredReport(smppMsg, "No connected devices available")
 	}
 
+	log.Printf("Found %d connected devices total", len(connectedDevices))
+
 	// Get all available devices for this routing
 	availableDevices := sr.getAllAvailableDevicesForRouting(*routing, connectedDevices, smppMsg)
 	if len(availableDevices) == 0 {
-		log.Printf("No suitable devices found for routing")
-		sr.createSmsRoutingFailureAlarm(smppMsg, "No suitable devices found for routing")
+		log.Printf("No suitable devices found for routing rule '%s' (Device Groups: %s)", routing.Name, sr.getDeviceGroupNames(*routing))
+		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("No suitable devices found for routing rule '%s' (Device Groups: %s)", routing.Name, sr.getDeviceGroupNames(*routing)))
 		return sr.sendUndeliveredReport(smppMsg, "No suitable devices found")
 	}
 
@@ -230,7 +232,7 @@ func (sr *SmsRouter) getAllAvailableDevicesForRouting(routing models.SmsRouting,
 		}
 
 		if len(dbDevices) == 0 {
-			log.Printf("No devices found in database for device group: %s", config.DeviceGroup.DeviceGroup)
+			log.Printf("No devices found in database for device group: %s (active and online)", config.DeviceGroup.DeviceGroup)
 			continue
 		}
 
@@ -279,6 +281,8 @@ func (sr *SmsRouter) getAllAvailableDevicesForRouting(routing models.SmsRouting,
 			log.Printf("Error fetching devices for legacy device groups: %v", err)
 			return allDevices
 		}
+
+		log.Printf("Found %d devices in legacy device groups: %s", len(dbDevices), strings.Join(deviceGroupNames, ", "))
 
 		// Convert database devices to DeviceConnection format
 		for _, dbDevice := range dbDevices {
@@ -666,6 +670,37 @@ func (sr *SmsRouter) createSmsRoutingFailureAlarm(smppMsg SmppSubmitSMMessage, r
 	})
 
 	log.Printf("SMS routing failure alarm created: %s", reason)
+}
+
+// getDeviceGroupNames returns a comma-separated list of device group names for a routing rule
+func (sr *SmsRouter) getDeviceGroupNames(routing models.SmsRouting) string {
+	var groupNames []string
+
+	// Get device group names from DeviceGroupConfigs
+	for _, config := range routing.DeviceGroupConfigs {
+		if config.DeviceGroup != nil {
+			groupNames = append(groupNames, config.DeviceGroup.DeviceGroup)
+		}
+	}
+
+	// If no DeviceGroupConfigs, try legacy device_group_ids
+	if len(groupNames) == 0 && routing.DeviceGroupIDs != nil && *routing.DeviceGroupIDs != "" {
+		var deviceGroupIDs []uint
+		if err := json.Unmarshal([]byte(*routing.DeviceGroupIDs), &deviceGroupIDs); err == nil {
+			for _, groupID := range deviceGroupIDs {
+				var deviceGroup models.DeviceGroup
+				if err := database.GetDB().First(&deviceGroup, groupID).Error; err == nil {
+					groupNames = append(groupNames, deviceGroup.DeviceGroup)
+				}
+			}
+		}
+	}
+
+	if len(groupNames) == 0 {
+		return "none"
+	}
+
+	return strings.Join(groupNames, ", ")
 }
 
 // logSmppMessageProcessing logs SMPP message processing to alarm log

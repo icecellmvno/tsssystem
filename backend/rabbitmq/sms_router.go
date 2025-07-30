@@ -189,7 +189,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 			log.Printf("Failed to send SMS to device %s: %v", device.DeviceID, err)
 
 			// Create SMS log entry for failed attempt
-			if err := sr.createSmsLogForSmpp(smppMsg, "failed", fmt.Sprintf("Device %s failed: %v", device.DeviceID, err)); err != nil {
+			if err := sr.createSmsLogForSmpp(smppMsg, "failed", fmt.Sprintf("Device %s failed: %v", device.DeviceID, err), device.DeviceID); err != nil {
 				log.Printf("Failed to create SMS log for failed attempt: %v", err)
 			}
 
@@ -209,7 +209,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 		// Success! Create SMS log entry for successful delivery
 		// Note: Status is "sent" initially, will be updated to "delivered" when delivery report comes
-		if err := sr.createSmsLogForSmpp(smppMsg, "sent", ""); err != nil {
+		if err := sr.createSmsLogForSmpp(smppMsg, "sent", "", device.DeviceID); err != nil {
 			log.Printf("Failed to create SMS log for successful delivery: %v", err)
 		}
 
@@ -466,7 +466,7 @@ func (sr *SmsRouter) sendDeliveryReportForFailedAttempt(smppMsg SmppSubmitSMMess
 // Helper function to send undelivered report
 func (sr *SmsRouter) sendUndeliveredReport(smppMsg SmppSubmitSMMessage, reason string) error {
 	// Create SMS log entry for failed delivery
-	if err := sr.createSmsLogForSmpp(smppMsg, "failed", reason); err != nil {
+	if err := sr.createSmsLogForSmpp(smppMsg, "failed", reason, ""); err != nil {
 		log.Printf("Error creating SMS log for undelivered message: %v", err)
 	}
 
@@ -528,7 +528,38 @@ func (sr *SmsRouter) publishDeliveryReport(report *types.DeliveryReportMessage) 
 }
 
 // createSmsLogForSmpp creates an SMS log entry for SMPP messages
-func (sr *SmsRouter) createSmsLogForSmpp(smppMsg SmppSubmitSMMessage, status, errorMsg string) error {
+func (sr *SmsRouter) createSmsLogForSmpp(smppMsg SmppSubmitSMMessage, status, errorMsg string, deviceID string) error {
+	// Get device information from the successful device (if available)
+	var deviceInfo *models.Device
+	var simCardInfo *models.SimCardRecord
+
+	// Try to find the specific device that was used for sending this SMS
+	if deviceID != "" {
+		if err := database.GetDB().Where("imei = ? AND is_active = ? AND is_online = ?", deviceID, true, true).First(&deviceInfo).Error; err == nil {
+			// Get SIM card information for this device
+			var simCards []models.SimCardRecord
+			if err := database.GetDB().Where("device_id = ?", deviceInfo.ID).Find(&simCards).Error; err == nil && len(simCards) > 0 {
+				simCardInfo = &simCards[0]
+			}
+		}
+	}
+
+	// If no specific device found, try to find any available device
+	if deviceInfo == nil {
+		var devices []models.Device
+		if err := database.GetDB().Where("is_active = ? AND is_online = ?", true, true).Find(&devices).Error; err == nil {
+			if len(devices) > 0 {
+				deviceInfo = &devices[0]
+
+				// Get SIM card information for this device
+				var simCards []models.SimCardRecord
+				if err := database.GetDB().Where("device_id = ?", deviceInfo.ID).Find(&simCards).Error; err == nil && len(simCards) > 0 {
+					simCardInfo = &simCards[0]
+				}
+			}
+		}
+	}
+
 	smsLog := models.SmsLog{
 		MessageID:               smppMsg.MessageID,
 		SourceAddr:              &smppMsg.SourceAddr,
@@ -543,6 +574,36 @@ func (sr *SmsRouter) createSmsLogForSmpp(smppMsg SmppSubmitSMMessage, status, er
 		DeliveryReportRequested: smppMsg.RegisteredDelivery == 1,
 		QueuedAt:                func() *time.Time { now := time.Now(); return &now }(),
 		Metadata:                sr.createMetadata(smppMsg),
+	}
+
+	// Add device information if available
+	if deviceInfo != nil {
+		smsLog.DeviceID = &deviceInfo.IMEI
+		smsLog.DeviceName = &deviceInfo.Name
+		smsLog.DeviceIMEI = &deviceInfo.IMEI
+		smsLog.DeviceGroup = &deviceInfo.DeviceGroup
+		smsLog.CountrySite = &deviceInfo.CountrySite
+
+		// Get device group ID
+		var deviceGroup models.DeviceGroup
+		if err := database.GetDB().Where("device_group = ?", deviceInfo.DeviceGroup).First(&deviceGroup).Error; err == nil {
+			smsLog.DeviceGroupID = &deviceGroup.ID
+		}
+
+		// Get country site ID
+		var countrySite models.CountrySite
+		if err := database.GetDB().Where("country_site = ?", deviceInfo.CountrySite).First(&countrySite).Error; err == nil {
+			smsLog.CountrySiteID = &countrySite.ID
+		}
+	}
+
+	// Add SIM card information if available
+	if simCardInfo != nil {
+		smsLog.SimSlot = &simCardInfo.SlotIndex
+		smsLog.SimcardName = &simCardInfo.DisplayName
+		smsLog.SimcardNumber = &simCardInfo.Number
+		smsLog.SimcardICCID = &simCardInfo.ICCID
+		smsLog.DeviceIMSI = &simCardInfo.IMSI
 	}
 
 	if errorMsg != "" {

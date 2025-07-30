@@ -287,9 +287,7 @@ func CheckAndUpdateDeviceStatus(deviceID string) {
 		args = append(args, "sim_balance_low")
 	}
 
-	// Always include SIM card change alarms (critical)
-	conditions = append(conditions, "alarm_type = ?")
-	args = append(args, "sim_card_change")
+	// Note: SIM card change alarms are handled separately and don't affect device active status
 
 	// Add severity conditions
 	conditions = append(conditions, "(severity = ? OR severity = ? OR severity = ?)")
@@ -317,8 +315,21 @@ func CheckAndUpdateDeviceStatus(deviceID string) {
 			log.Printf("Device %s set to inactive due to %d active alarms (device group: %s)", deviceID, activeAlarmCount, deviceGroup.DeviceGroup)
 		}
 	} else if device.MaintenanceMode {
-		// In maintenance mode - keep inactive
-		log.Printf("Device %s remains inactive due to maintenance mode", deviceID)
+		// In maintenance mode - check if it should be active (for SIM card changes)
+		if device.IsOnline {
+			// Device is online and in maintenance mode - keep it active for SIM card operations
+			updates := map[string]interface{}{
+				"is_active": true,
+			}
+			if err := db.Model(&device).Updates(updates).Error; err != nil {
+				log.Printf("Failed to set device %s to active in maintenance mode: %v", deviceID, err)
+			} else {
+				log.Printf("Device %s kept active in maintenance mode (online)", deviceID)
+			}
+		} else {
+			// Device is offline and in maintenance mode - keep inactive
+			log.Printf("Device %s remains inactive due to maintenance mode and being offline", deviceID)
+		}
 	} else if device.IsOnline {
 		// No alarms, not in maintenance, online - set to ready
 		updates := map[string]interface{}{

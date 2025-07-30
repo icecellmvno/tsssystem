@@ -251,8 +251,8 @@ func SetDeviceToMaintenanceMode(deviceID string, reason string) {
 	db := database.GetDB()
 
 	// Update device status to maintenance mode
+	// Note: For SIM card changes, we don't set is_active to false to keep device operational
 	updates := map[string]interface{}{
-		"is_active":              false,
 		"maintenance_mode":       true,
 		"maintenance_reason":     reason,
 		"maintenance_started_at": time.Now(),

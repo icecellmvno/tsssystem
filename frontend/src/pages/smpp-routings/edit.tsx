@@ -17,6 +17,16 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Edit', href: '/smpp-routings/edit' },
 ];
 
+interface DeviceGroupConfigForm {
+  device_group_id: number;
+  priority: number;
+  total_sms_count: number;
+  device_selection_strategy: string;
+  target_device_ids?: string[];
+  sim_slot_preference: number;
+  sim_card_selection_strategy: string;
+}
+
 export default function SmppRoutingEdit() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -44,7 +54,6 @@ export default function SmppRoutingEdit() {
         device_selection_strategy: string;
         sim_card_selection_strategy: string;
         sim_slot_preference: number;
-        max_devices_per_message: number;
     }>>({});
 
     // Fetch routing data and filter options
@@ -95,7 +104,6 @@ export default function SmppRoutingEdit() {
                             device_selection_strategy: config.device_selection_strategy || 'round_robin',
                             sim_card_selection_strategy: config.sim_card_selection_strategy || 'preferred',
                             sim_slot_preference: config.sim_slot_preference || 1,
-                            max_devices_per_message: config.max_devices_per_message || 1,
                         };
                     });
                 }
@@ -109,7 +117,6 @@ export default function SmppRoutingEdit() {
                             device_selection_strategy: 'round_robin',
                             sim_card_selection_strategy: 'preferred',
                             sim_slot_preference: 1,
-                            max_devices_per_message: 1,
                         };
                     }
                 });
@@ -329,7 +336,6 @@ export default function SmppRoutingEdit() {
                                                                     device_selection_strategy: 'round_robin',
                                                                     sim_card_selection_strategy: 'preferred',
                                                                     sim_slot_preference: 1,
-                                                                    max_devices_per_message: 1,
                                                                 }
                                                             }));
                                                         }

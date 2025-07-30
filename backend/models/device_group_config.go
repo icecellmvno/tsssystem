@@ -18,7 +18,6 @@ type DeviceGroupConfig struct {
 	// Device Selection Strategy
 	DeviceSelectionStrategy string  `json:"device_selection_strategy" gorm:"size:50;default:'round_robin'"`
 	TargetDeviceIDs         *string `json:"target_device_ids" gorm:"type:text"` // JSON array of device IMEIs
-	MaxDevicesPerMessage    int     `json:"max_devices_per_message" gorm:"default:1"`
 
 	// SIM Card Configuration
 	SimSlotPreference        int    `json:"sim_slot_preference" gorm:"default:1"`
@@ -48,9 +47,6 @@ func (dgc *DeviceGroupConfig) BeforeCreate(tx *gorm.DB) error {
 	}
 	if dgc.DeviceSelectionStrategy == "" {
 		dgc.DeviceSelectionStrategy = "round_robin"
-	}
-	if dgc.MaxDevicesPerMessage == 0 {
-		dgc.MaxDevicesPerMessage = 1
 	}
 	if dgc.SimSlotPreference == 0 {
 		dgc.SimSlotPreference = 1

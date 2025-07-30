@@ -4,16 +4,24 @@ import (
 	"log"
 	"time"
 
+	"tsimsocketserver/redis"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type RabbitMQHandler struct {
-	conn    *amqp.Connection
-	channel *amqp.Channel
+	conn         *amqp.Connection
+	channel      *amqp.Channel
+	redisService *redis.RedisService
 }
 
 func NewRabbitMQHandler() *RabbitMQHandler {
 	return &RabbitMQHandler{}
+}
+
+// SetRedisService sets the Redis service for the RabbitMQ handler
+func (r *RabbitMQHandler) SetRedisService(redisService *redis.RedisService) {
+	r.redisService = redisService
 }
 
 // Connect establishes connection to RabbitMQ

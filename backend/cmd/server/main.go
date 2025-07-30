@@ -52,6 +52,8 @@ func main() {
 		log.Printf("Warning: Failed to connect to Redis: %v", err)
 	} else {
 		log.Println("Successfully connected to Redis")
+		// Set Redis service for RabbitMQ handler
+		rabbitMQHandler.SetRedisService(redisService)
 	}
 
 	// Initialize WebSocket server
@@ -73,7 +75,7 @@ func main() {
 	}
 
 	// Initialize SMS router for SMPP messages
-	smsRouter := rabbitmq.NewSmsRouter(rabbitMQHandler, wsServer, redisService)
+	smsRouter := rabbitmq.NewSmsRouter(rabbitMQHandler, wsServer)
 
 	// Start routing SMPP messages from tsimcloudrouter queue
 	if err := smsRouter.StartRouting("tsimcloudrouter"); err != nil {

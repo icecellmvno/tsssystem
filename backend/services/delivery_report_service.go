@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -87,13 +88,14 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.MessageState = 2 // DELIVERED
 		report.Delivered = true
 		report.Failed = false
-	case "failed":
+		report.FailureReason = ""
+	case "failed", "undelivered":
 		report.MessageState = 4 // UNDELIVERABLE
 		report.Delivered = false
 		report.Failed = true
-		report.FailureReason = "Delivery failed"
+		report.FailureReason = "Message undelivered"
 	case "expired":
-		report.MessageState = 2 // EXPIRED
+		report.MessageState = 3 // EXPIRED
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message expired"
@@ -102,12 +104,25 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message rejected"
+	case "timeout":
+		report.MessageState = 5 // TIMEOUT
+		report.Delivered = false
+		report.Failed = true
+		report.FailureReason = "Message timeout"
+	case "cancelled":
+		report.MessageState = 8 // CANCELLED
+		report.Delivered = false
+		report.Failed = true
+		report.FailureReason = "Message cancelled"
 	default:
 		report.MessageState = 6 // UNKNOWN
 		report.Delivered = false
 		report.Failed = true
-		report.FailureReason = "Unknown status"
+		report.FailureReason = fmt.Sprintf("Unknown status: %s", status)
 	}
+
+	log.Printf("Created delivery report for message %s: status=%s, message_state=%d, delivered=%t, failed=%t",
+		smsLog.MessageID, status, report.MessageState, report.Delivered, report.Failed)
 
 	return report
 }

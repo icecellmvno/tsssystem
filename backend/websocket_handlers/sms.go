@@ -1,6 +1,7 @@
 package websocket_handlers
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -93,10 +94,10 @@ func HandleSmsMessage(wsServer interfaces.WebSocketServerInterface, deviceID str
 			SimSlot:                 &data.SimSlot,
 			SimcardNumber:           simcardNumber,
 			SimcardICCID:            simcardICCID,
-			SourceAddr:              &data.PhoneNumber,                                    // Sender's phone number
-			SourceConnector:         func() *string { s := "android"; return &s }(),     // Android device
-			SourceUser:              func() *string { s := "device"; return &s }(),      // Device itself
-			DestinationAddr:         simcardNumber,                                       // Device's SIM number
+			SourceAddr:              &data.PhoneNumber,                              // Sender's phone number
+			SourceConnector:         func() *string { s := "android"; return &s }(), // Android device
+			SourceUser:              func() *string { s := "device"; return &s }(),  // Device itself
+			DestinationAddr:         simcardNumber,                                  // Device's SIM number
 			Message:                 &data.Message,
 			MessageLength:           len(data.Message),
 			Direction:               "inbound",
@@ -144,23 +145,37 @@ func HandleSmsDeliveryReport(wsServer interfaces.WebSocketServerInterface, devic
 			"delivery_report_received_at": &now,
 		}
 
-		if data.Status == "delivered" {
+		// Update status based on delivery report
+		switch data.Status {
+		case "delivered":
 			updates["status"] = "delivered"
 			updates["delivered_at"] = &now
-		} else if data.Status == "failed" {
+			log.Printf("SMS delivered successfully: %s", data.MessageID)
+		case "failed", "undelivered", "expired", "rejected":
 			updates["status"] = "failed"
-			updates["error_message"] = "Delivery failed"
+			updates["error_message"] = fmt.Sprintf("Delivery %s", data.Status)
+			log.Printf("SMS delivery failed: %s - Status: %s", data.MessageID, data.Status)
+		default:
+			// For unknown statuses, keep current status but update delivery report info
+			log.Printf("Unknown delivery status: %s for message: %s", data.Status, data.MessageID)
 		}
 
-		database.GetDB().Model(&smsLog).Updates(updates)
+		// Update SMS log in database
+		if err := database.GetDB().Model(&smsLog).Updates(updates).Error; err != nil {
+			log.Printf("Failed to update SMS log for message %s: %v", data.MessageID, err)
+		} else {
+			log.Printf("Updated SMS log %s with delivery report status: %s", data.MessageID, data.Status)
+		}
 
-		log.Printf("Updated SMS log %s with delivery report status: %s", data.MessageID, data.Status)
-
-		// Publish delivery report to SMPP server if delivery report service is available
-		if deliveryReportService != nil {
+		// Publish delivery report to SMPP server if this is an SMPP message and delivery report service is available
+		if deliveryReportService != nil && smsLog.SourceConnector != nil && *smsLog.SourceConnector == "smpp" {
 			if err := deliveryReportService.PublishDeliveryReport(smsLog, data.Status); err != nil {
-				log.Printf("Failed to publish delivery report to SMPP: %v", err)
+				log.Printf("Failed to publish delivery report to SMPP for message %s: %v", data.MessageID, err)
+			} else {
+				log.Printf("Successfully published delivery report to SMPP for message %s with status: %s", data.MessageID, data.Status)
 			}
+		} else if smsLog.SourceConnector == nil || *smsLog.SourceConnector != "smpp" {
+			log.Printf("Skipping SMPP delivery report for non-SMPP message: %s (source: %v)", data.MessageID, smsLog.SourceConnector)
 		}
 	} else {
 		log.Printf("SMS log not found for message ID: %s", data.MessageID)

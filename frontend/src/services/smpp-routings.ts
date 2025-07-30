@@ -10,7 +10,6 @@ export interface DeviceGroupConfig {
   // Device Selection Strategy
   device_selection_strategy: string;
   target_device_ids?: string; // JSON array of device IMEIs
-  max_devices_per_message: number;
   
   // SIM Card Configuration
   sim_slot_preference: number;
@@ -121,7 +120,6 @@ export interface SmppRoutingCreateData {
   // Device Selection Strategy (legacy - now in DeviceGroupConfig)
   device_selection_strategy?: string;
   target_device_ids?: string[]; // Array of device IMEIs
-  max_devices_per_message?: number;
   
   // SIM Card Configuration (legacy - now in DeviceGroupConfig)
   sim_slot_preference?: number;
@@ -134,7 +132,6 @@ export interface SmppRoutingCreateData {
     total_sms_count: number;
     device_selection_strategy: string;
     target_device_ids?: string[];
-    max_devices_per_message: number;
     sim_slot_preference: number;
     sim_card_selection_strategy: string;
   }[];

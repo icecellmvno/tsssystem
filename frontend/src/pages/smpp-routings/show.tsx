@@ -222,10 +222,6 @@ export default function SmppRoutingShow() {
                                     {routing.device_selection_strategy || 'N/A'}
                                 </Badge>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="font-medium">Max Devices Per Message:</span>
-                                <span className="text-sm">{routing.max_devices_per_message || 1}</span>
-                            </div>
                             {routing.target_device_ids && (
                                 <div>
                                     <span className="font-medium">Target Devices:</span>

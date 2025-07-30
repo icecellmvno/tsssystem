@@ -589,7 +589,7 @@ func (h *DeviceHandler) ExitMaintenanceMode(c *fiber.Ctx) error {
 	updates := map[string]interface{}{
 		"maintenance_mode":       false,
 		"maintenance_reason":     "",
-		"maintenance_started_at": "",
+		"maintenance_started_at": nil,
 		"is_active":              true, // Re-enable device when exiting maintenance
 	}
 
@@ -649,10 +649,11 @@ func (h *DeviceHandler) EnterMaintenanceMode(c *fiber.Ctx) error {
 	}
 
 	// Update device to enter maintenance mode
+	now := time.Now()
 	updates := map[string]interface{}{
 		"maintenance_mode":       true,
 		"maintenance_reason":     request.Reason,
-		"maintenance_started_at": time.Now().Format("2006-01-02 15:04:05"),
+		"maintenance_started_at": &now,
 		"is_active":              false, // Disable device when entering maintenance
 	}
 
@@ -859,10 +860,11 @@ func (h *DeviceHandler) EnterMaintenanceModeBulk(c *fiber.Ctx) error {
 	}
 
 	// Update devices
+	now := time.Now()
 	updates := map[string]interface{}{
 		"maintenance_mode":       true,
 		"maintenance_reason":     request.Reason,
-		"maintenance_started_at": time.Now(),
+		"maintenance_started_at": &now,
 		"is_active":              false,
 	}
 
@@ -905,7 +907,7 @@ func (h *DeviceHandler) ExitMaintenanceModeBulk(c *fiber.Ctx) error {
 	updates := map[string]interface{}{
 		"maintenance_mode":       false,
 		"maintenance_reason":     "",
-		"maintenance_started_at": "",
+		"maintenance_started_at": nil,
 		"is_active":              true,
 	}
 

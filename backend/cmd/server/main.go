@@ -73,7 +73,7 @@ func main() {
 	}
 
 	// Initialize SMS router for SMPP messages
-	smsRouter := rabbitmq.NewSmsRouter(rabbitMQHandler, wsServer)
+	smsRouter := rabbitmq.NewSmsRouter(rabbitMQHandler, wsServer, redisService)
 
 	// Start routing SMPP messages from tsimcloudrouter queue
 	if err := smsRouter.StartRouting("tsimcloudrouter"); err != nil {

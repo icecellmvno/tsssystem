@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -373,4 +374,33 @@ func (r *RedisService) StartWebSocketCleanupRoutine() {
 		}
 	}()
 	log.Println("Started websocket connection cleanup routine")
+}
+
+// GetLastDeviceIndex gets the last used device index for round robin
+func (r *RedisService) GetLastDeviceIndex(deviceGroup string) (int, error) {
+	key := fmt.Sprintf("sms_router:last_device_index:%s", deviceGroup)
+	val, err := r.client.Get(r.ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return 0, nil // Return 0 if key doesn't exist
+		}
+		return 0, fmt.Errorf("failed to get last device index: %v", err)
+	}
+
+	index, err := strconv.Atoi(val)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert last device index to int: %v", err)
+	}
+
+	return index, nil
+}
+
+// SetLastDeviceIndex sets the last used device index for round robin
+func (r *RedisService) SetLastDeviceIndex(deviceGroup string, index int) error {
+	key := fmt.Sprintf("sms_router:last_device_index:%s", deviceGroup)
+	err := r.client.Set(r.ctx, key, strconv.Itoa(index), 24*time.Hour).Err()
+	if err != nil {
+		return fmt.Errorf("failed to set last device index: %v", err)
+	}
+	return nil
 }

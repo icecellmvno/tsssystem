@@ -181,6 +181,26 @@ export const useWebSocketStore = create<WebSocketStore>()(
       // Handle device status updates
     };
 
+    const handleDeviceOnline = (data: any) => {
+      console.log('WebSocket: Device online received:', data);
+      
+      // Update device status to online
+      get().updateDevice(data.device_id, {
+        status: 'online',
+        last_heartbeat: Date.now(),
+      });
+    };
+
+    const handleDeviceOffline = (data: any) => {
+      console.log('WebSocket: Device offline received:', data);
+      
+      // Update device status to offline
+      get().updateDevice(data.device_id, {
+        status: 'offline',
+        last_heartbeat: Date.now(),
+      });
+    };
+
     const handleAlarm = (data: AlarmData) => {
       console.log('WebSocket: Alarm received:', data);
       
@@ -858,6 +878,12 @@ export const useWebSocketStore = create<WebSocketStore>()(
             break;
           case 'device_status':
             handleDeviceStatus(data as DeviceStatusData);
+            break;
+          case 'device_online':
+            handleDeviceOnline(data);
+            break;
+          case 'device_offline':
+            handleDeviceOffline(data);
             break;
           case 'alarm':
             handleAlarm(data as AlarmData);

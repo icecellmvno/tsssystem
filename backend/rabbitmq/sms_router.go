@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"time"
 
 	"tsimsocketserver/database"
@@ -94,8 +95,8 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	// Check destination address pattern (if specified in routing)
 	if routing.DestinationAddress != nil && *routing.DestinationAddress != "" && *routing.DestinationAddress != "*" {
-		// Simple pattern matching - can be enhanced with regex
-		if *routing.DestinationAddress != smppMsg.DestinationAddr {
+		// Enhanced pattern matching with wildcard support
+		if !sr.matchesDestinationPattern(*routing.DestinationAddress, smppMsg.DestinationAddr) {
 			log.Printf("Destination address mismatch: routing expects %s, got %s", *routing.DestinationAddress, smppMsg.DestinationAddr)
 			return sr.sendUndeliveredReport(smppMsg, "Destination address mismatch")
 		}
@@ -472,6 +473,41 @@ func (sr *SmsRouter) createSmsLogForSmpp(smppMsg SmppSubmitSMMessage, status, er
 	}
 
 	return database.GetDB().Create(&smsLog).Error
+}
+
+// matchesDestinationPattern checks if destination address matches the pattern
+func (sr *SmsRouter) matchesDestinationPattern(pattern, address string) bool {
+	// If pattern is "*", it matches everything
+	if pattern == "*" {
+		return true
+	}
+
+	// If pattern ends with "*", check if address starts with the pattern (excluding "*")
+	if len(pattern) > 1 && pattern[len(pattern)-1] == '*' {
+		prefix := pattern[:len(pattern)-1]
+		return len(address) >= len(prefix) && address[:len(prefix)] == prefix
+	}
+
+	// If pattern starts with "*", check if address ends with the pattern (excluding "*")
+	if len(pattern) > 1 && pattern[0] == '*' {
+		suffix := pattern[1:]
+		return len(address) >= len(suffix) && address[len(address)-len(suffix):] == suffix
+	}
+
+	// If pattern contains "*" in the middle, split and check both parts
+	if strings.Contains(pattern, "*") {
+		parts := strings.Split(pattern, "*")
+		if len(parts) == 2 {
+			prefix := parts[0]
+			suffix := parts[1]
+			return len(address) >= len(prefix)+len(suffix) &&
+				address[:len(prefix)] == prefix &&
+				address[len(address)-len(suffix):] == suffix
+		}
+	}
+
+	// Exact match
+	return pattern == address
 }
 
 // convertPriority converts SMPP priority flag to string priority

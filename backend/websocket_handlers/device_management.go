@@ -3,7 +3,6 @@ package websocket_handlers
 import (
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"tsimsocketserver/database"
@@ -258,62 +257,76 @@ func CheckAndUpdateDeviceStatus(deviceID string) {
 		return
 	}
 
-	// Check active alarms based on device group settings
-	var activeAlarmCount int64
-	query := db.Model(&models.AlarmLog{}).Where("device_id = ? AND status = ?", deviceID, "started")
+	// Check each alarm type separately
+	var hasActiveAlarms bool = false
+	var activeAlarmTypes []string
 
-	// Only count alarms that are enabled in device group settings
-	var conditions []string
-	var args []interface{}
-
+	// Check Battery Low Alarms
 	if deviceGroup.EnableBatteryAlarms {
-		conditions = append(conditions, "alarm_type = ?")
-		args = append(args, "battery_low")
+		var batteryAlarmCount int64
+		if err := db.Model(&models.AlarmLog{}).
+			Where("device_id = ? AND alarm_type = ? AND status = ? AND (severity = ? OR severity = ? OR severity = ?)",
+				deviceID, "battery_low", "started", "critical", "error", "warning").
+			Count(&batteryAlarmCount).Error; err != nil {
+			log.Printf("Failed to check battery alarms for device %s: %v", deviceID, err)
+		} else if batteryAlarmCount > 0 {
+			hasActiveAlarms = true
+			activeAlarmTypes = append(activeAlarmTypes, "battery_low")
+			log.Printf("Device %s has %d active battery low alarms", deviceID, batteryAlarmCount)
+		}
 	}
-	// Note: Signal low alarms don't affect device active status (device remains operational)
-	if deviceGroup.EnableSignalAlarms {
-		// Signal low alarms are logged but don't set device to inactive
-	}
+
+	// Check Error Count Alarms
 	if deviceGroup.EnableErrorAlarms {
-		conditions = append(conditions, "alarm_type = ?")
-		args = append(args, "error_count")
+		var errorAlarmCount int64
+		if err := db.Model(&models.AlarmLog{}).
+			Where("device_id = ? AND alarm_type = ? AND status = ? AND (severity = ? OR severity = ? OR severity = ?)",
+				deviceID, "error_count", "started", "critical", "error", "warning").
+			Count(&errorAlarmCount).Error; err != nil {
+			log.Printf("Failed to check error alarms for device %s: %v", deviceID, err)
+		} else if errorAlarmCount > 0 {
+			hasActiveAlarms = true
+			activeAlarmTypes = append(activeAlarmTypes, "error_count")
+			log.Printf("Device %s has %d active error count alarms", deviceID, errorAlarmCount)
+		}
 	}
+
+	// Check Device Offline Alarms
 	if deviceGroup.EnableOfflineAlarms {
-		conditions = append(conditions, "alarm_type = ?")
-		args = append(args, "device_offline")
+		var offlineAlarmCount int64
+		if err := db.Model(&models.AlarmLog{}).
+			Where("device_id = ? AND alarm_type = ? AND status = ? AND (severity = ? OR severity = ? OR severity = ?)",
+				deviceID, "device_offline", "started", "critical", "error", "warning").
+			Count(&offlineAlarmCount).Error; err != nil {
+			log.Printf("Failed to check offline alarms for device %s: %v", deviceID, err)
+		} else if offlineAlarmCount > 0 {
+			hasActiveAlarms = true
+			activeAlarmTypes = append(activeAlarmTypes, "device_offline")
+			log.Printf("Device %s has %d active device offline alarms", deviceID, offlineAlarmCount)
+		}
 	}
+
+	// Check SIM Balance Low Alarms
 	if deviceGroup.EnableSimBalanceAlarms {
-		conditions = append(conditions, "alarm_type = ?")
-		args = append(args, "sim_balance_low")
+		var simBalanceAlarmCount int64
+		if err := db.Model(&models.AlarmLog{}).
+			Where("device_id = ? AND alarm_type = ? AND status = ? AND (severity = ? OR severity = ? OR severity = ?)",
+				deviceID, "sim_balance_low", "started", "critical", "error", "warning").
+			Count(&simBalanceAlarmCount).Error; err != nil {
+			log.Printf("Failed to check SIM balance alarms for device %s: %v", deviceID, err)
+		} else if simBalanceAlarmCount > 0 {
+			hasActiveAlarms = true
+			activeAlarmTypes = append(activeAlarmTypes, "sim_balance_low")
+			log.Printf("Device %s has %d active SIM balance low alarms", deviceID, simBalanceAlarmCount)
+		}
 	}
 
-	// Note: SIM card change alarms are handled separately and don't affect device active status
-
-	// Add severity conditions
-	conditions = append(conditions, "(severity = ? OR severity = ? OR severity = ?)")
-	args = append(args, "critical", "error", "warning")
-
-	// Build the query
-	if len(conditions) > 0 {
-		query = query.Where("("+strings.Join(conditions, " OR ")+")", args...)
-	}
-
-	if err := query.Count(&activeAlarmCount).Error; err != nil {
-		log.Printf("Failed to check active alarms for device %s: %v", deviceID, err)
-		return
-	}
+	// Note: Signal low and SIM card change alarms don't affect device active status
 
 	// Determine device status based on conditions
-	if activeAlarmCount > 0 {
-		// Has active alarms - set to inactive
-		updates := map[string]interface{}{
-			"is_active": false,
-		}
-		if err := db.Model(&device).Updates(updates).Error; err != nil {
-			log.Printf("Failed to set device %s to inactive due to alarms: %v", deviceID, err)
-		} else {
-			log.Printf("Device %s set to inactive due to %d active alarms (device group: %s)", deviceID, activeAlarmCount, deviceGroup.DeviceGroup)
-		}
+	if hasActiveAlarms {
+		// Has active alarms - log but keep device active
+		log.Printf("Device %s has active alarms: %v but remains operational (device group: %s)", deviceID, activeAlarmTypes, deviceGroup.DeviceGroup)
 	} else if device.MaintenanceMode {
 		// In maintenance mode - check if it should be active (for SIM card changes)
 		if device.IsOnline {

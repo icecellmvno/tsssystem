@@ -59,8 +59,17 @@ func HandleHeartbeat(wsServer interfaces.WebSocketServerInterface, deviceID stri
 		// Log alarm to database
 		LogAlarmToDatabase(deviceID, alarmData)
 	} else if data.SignalStrength > deviceGroup.SignalLowThreshold {
-		// Signal geri geldi, cihazı aktif yap
-		log.Printf("Signal strength is %d (above threshold: %d) for device %s, checking if device should be active", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
+		// Signal geri geldi, signal low alarmını durdur
+		log.Printf("Signal strength is %d (above threshold: %d) for device %s, signal has recovered", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
+
+		// Stop any active signal low alarms for this device
+		if err := database.GetDB().Model(&models.AlarmLog{}).
+			Where("device_id = ? AND alarm_type = ? AND status = ?", deviceID, "signal_low", "started").
+			Update("status", "stopped").Error; err != nil {
+			log.Printf("Failed to stop signal low alarm for device %s: %v", deviceID, err)
+		} else {
+			log.Printf("Signal low alarm stopped for device %s", deviceID)
+		}
 
 		// Check and update device status (this will handle setting to active if no other alarms)
 		CheckAndUpdateDeviceStatus(deviceID)
@@ -96,8 +105,17 @@ func HandleHeartbeat(wsServer interfaces.WebSocketServerInterface, deviceID stri
 		// Log alarm to database
 		LogAlarmToDatabase(deviceID, alarmData)
 	} else if data.BatteryLevel > deviceGroup.BatteryLowThreshold {
-		// Battery geri geldi
-		log.Printf("Battery level is %d%% (above threshold: %d%%) for device %s", data.BatteryLevel, deviceGroup.BatteryLowThreshold, deviceID)
+		// Battery geri geldi, battery low alarmını durdur
+		log.Printf("Battery level is %d%% (above threshold: %d%%) for device %s, battery has recovered", data.BatteryLevel, deviceGroup.BatteryLowThreshold, deviceID)
+
+		// Stop any active battery low alarms for this device
+		if err := database.GetDB().Model(&models.AlarmLog{}).
+			Where("device_id = ? AND alarm_type = ? AND status = ?", deviceID, "battery_low", "started").
+			Update("status", "stopped").Error; err != nil {
+			log.Printf("Failed to stop battery low alarm for device %s: %v", deviceID, err)
+		} else {
+			log.Printf("Battery low alarm stopped for device %s", deviceID)
+		}
 	}
 
 	// Update device info in database

@@ -81,40 +81,57 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	// Log SMPP message processing to alarm log
 	sr.logSmppMessageProcessing(smppMsg, "Processing SMPP message")
 
-	// Find matching SMS routing rule
-	var routing models.SmsRouting
+	// Find all matching SMS routing rules
+	var routings []models.SmsRouting
 	if err := database.GetDB().Where("is_active = ? AND source_type = ? AND direction = ?", true, "smpp", "outbound").
 		Preload("DeviceGroupConfigs.DeviceGroup").
 		Order("priority DESC").
-		First(&routing).Error; err != nil {
+		Find(&routings).Error; err != nil {
+		log.Printf("Error fetching SMS routing rules: %v", err)
+		sr.createSmsRoutingFailureAlarm(smppMsg, "Error fetching routing rules")
+		return sr.sendUndeliveredReport(smppMsg, "Error fetching routing rules")
+	}
+
+	if len(routings) == 0 {
 		log.Printf("No active SMS routing found for SMPP outbound messages")
 		sr.createSmsRoutingFailureAlarm(smppMsg, "No active routing rule found")
 		return sr.sendUndeliveredReport(smppMsg, "No active routing rule found")
 	}
 
-	// Check if system_id matches (if specified in routing)
-	if routing.SystemID != nil && *routing.SystemID != "" && *routing.SystemID != "*" && *routing.SystemID != smppMsg.SystemID {
-		log.Printf("System ID mismatch: routing expects %s, got %s", *routing.SystemID, smppMsg.SystemID)
-		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("System ID mismatch: expected %s, got %s", *routing.SystemID, smppMsg.SystemID))
-		return sr.sendUndeliveredReport(smppMsg, "System ID mismatch")
+	// Find the best matching routing rule
+	var routing *models.SmsRouting
+	for _, r := range routings {
+		// Check if system_id matches (if specified in routing)
+		if r.SystemID != nil && *r.SystemID != "" && *r.SystemID != "*" && *r.SystemID != smppMsg.SystemID {
+			log.Printf("System ID mismatch for routing %s: expects %s, got %s", r.Name, *r.SystemID, smppMsg.SystemID)
+			continue // Try next routing rule
+		}
+
+		// Check destination address pattern (if specified in routing)
+		if r.DestinationAddress != nil && *r.DestinationAddress != "" && *r.DestinationAddress != "*" {
+			// Enhanced pattern matching with wildcard support
+			if !sr.matchesDestinationPattern(*r.DestinationAddress, smppMsg.DestinationAddr) {
+				log.Printf("Destination address mismatch for routing %s: expects %s, got %s", r.Name, *r.DestinationAddress, smppMsg.DestinationAddr)
+				continue // Try next routing rule
+			}
+		}
+
+		// Found matching routing rule
+		routing = &r
+		log.Printf("Found matching routing rule: %s (ID: %d, SystemID: %s)", routing.Name, routing.ID, func() string {
+			if routing.SystemID != nil {
+				return *routing.SystemID
+			}
+			return "not set"
+		}())
+		break
 	}
 
-	// Check destination address pattern (if specified in routing)
-	if routing.DestinationAddress != nil && *routing.DestinationAddress != "" && *routing.DestinationAddress != "*" {
-		// Enhanced pattern matching with wildcard support
-		if !sr.matchesDestinationPattern(*routing.DestinationAddress, smppMsg.DestinationAddr) {
-			log.Printf("Destination address mismatch: routing expects %s, got %s", *routing.DestinationAddress, smppMsg.DestinationAddr)
-			sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("Destination address mismatch: expected %s, got %s", *routing.DestinationAddress, smppMsg.DestinationAddr))
-			return sr.sendUndeliveredReport(smppMsg, "Destination address mismatch")
-		}
+	if routing == nil {
+		log.Printf("No matching routing rule found for SMPP message (SystemID: %s, Destination: %s)", smppMsg.SystemID, smppMsg.DestinationAddr)
+		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("No matching routing rule found for SystemID: %s, Destination: %s", smppMsg.SystemID, smppMsg.DestinationAddr))
+		return sr.sendUndeliveredReport(smppMsg, "No matching routing rule found")
 	}
-
-	log.Printf("Found matching routing rule: %s (ID: %d, SystemID: %s)", routing.Name, routing.ID, func() string {
-		if routing.SystemID != nil {
-			return *routing.SystemID
-		}
-		return "not set"
-	}())
 
 	// Get connected devices
 	connectedDevices := sr.wsServer.GetConnectedDevices()
@@ -125,7 +142,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	}
 
 	// Get all available devices for this routing
-	availableDevices := sr.getAllAvailableDevicesForRouting(routing, connectedDevices, smppMsg)
+	availableDevices := sr.getAllAvailableDevicesForRouting(*routing, connectedDevices, smppMsg)
 	if len(availableDevices) == 0 {
 		log.Printf("No suitable devices found for routing")
 		sr.createSmsRoutingFailureAlarm(smppMsg, "No suitable devices found for routing")
@@ -137,7 +154,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	// Try to send SMS to devices until one succeeds
 	var lastError error
 	for i, device := range availableDevices {
-		simSlot := sr.selectSimSlot(device, routing)
+		simSlot := sr.selectSimSlot(device, *routing)
 
 		// Create SMS data
 		smsData := models.SendSmsData{

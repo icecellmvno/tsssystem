@@ -194,25 +194,38 @@ func (sr *SmsRouter) getAllAvailableDevicesForRouting(routing models.SmsRouting,
 			continue
 		}
 
-		// Filter devices by device group
-		var groupDevices []*models.DeviceConnection
-		for _, device := range connectedDevices {
-			if device.DeviceGroup == config.DeviceGroup.DeviceGroup {
-				groupDevices = append(groupDevices, device)
-			}
+		// Get devices from database for this device group
+		var dbDevices []models.Device
+		if err := database.GetDB().Where("device_group = ? AND is_active = ? AND is_online = ?", config.DeviceGroup.DeviceGroup, true, true).Find(&dbDevices).Error; err != nil {
+			log.Printf("Error fetching devices for group %s: %v", config.DeviceGroup.DeviceGroup, err)
+			continue
 		}
 
-		if len(groupDevices) == 0 {
-			log.Printf("No connected devices found in device group: %s", config.DeviceGroup.DeviceGroup)
+		if len(dbDevices) == 0 {
+			log.Printf("No devices found in database for device group: %s", config.DeviceGroup.DeviceGroup)
 			continue
+		}
+
+		// Convert database devices to DeviceConnection format
+		var groupDevices []*models.DeviceConnection
+		for _, dbDevice := range dbDevices {
+			deviceConn := &models.DeviceConnection{
+				DeviceID:       dbDevice.IMEI,
+				DeviceGroup:    dbDevice.DeviceGroup,
+				CountrySite:    dbDevice.CountrySite,
+				ConnectionType: "android",
+				IsHandicap:     false,
+			}
+			groupDevices = append(groupDevices, deviceConn)
 		}
 
 		// Order devices based on strategy
 		orderedDevices := sr.orderDevicesByStrategy(groupDevices, config, config.DeviceGroup.DeviceGroup)
 		allDevices = append(allDevices, orderedDevices...)
 
-		log.Printf("Added %d devices from group %s (priority: %d)",
-			len(orderedDevices), config.DeviceGroup.DeviceGroup, config.Priority)
+		onlineCount := sr.countOnlineDevices(orderedDevices)
+		log.Printf("Added %d devices from database for group %s (priority: %d, online: %d)",
+			len(orderedDevices), config.DeviceGroup.DeviceGroup, config.Priority, onlineCount)
 	}
 
 	// If no device group configs, use legacy device_group_ids
@@ -232,14 +245,23 @@ func (sr *SmsRouter) getAllAvailableDevicesForRouting(routing models.SmsRouting,
 			}
 		}
 
-		// Filter devices by device groups
-		for _, device := range connectedDevices {
-			for _, groupName := range deviceGroupNames {
-				if device.DeviceGroup == groupName {
-					allDevices = append(allDevices, device)
-					break
-				}
+		// Get devices from database for these device groups
+		var dbDevices []models.Device
+		if err := database.GetDB().Where("device_group IN ? AND is_active = ? AND is_online = ?", deviceGroupNames, true, true).Find(&dbDevices).Error; err != nil {
+			log.Printf("Error fetching devices for legacy device groups: %v", err)
+			return allDevices
+		}
+
+		// Convert database devices to DeviceConnection format
+		for _, dbDevice := range dbDevices {
+			deviceConn := &models.DeviceConnection{
+				DeviceID:       dbDevice.IMEI,
+				DeviceGroup:    dbDevice.DeviceGroup,
+				CountrySite:    dbDevice.CountrySite,
+				ConnectionType: "android",
+				IsHandicap:     false,
 			}
+			allDevices = append(allDevices, deviceConn)
 		}
 	}
 
@@ -616,4 +638,26 @@ func (sr *SmsRouter) createSmsRoutingFailureAlarm(smppMsg SmppSubmitSMMessage, r
 	})
 
 	log.Printf("SMS routing failure alarm created: %s", reason)
+}
+
+// isDeviceOnline checks if a device is currently online (connected via WebSocket)
+func (sr *SmsRouter) isDeviceOnline(deviceID string, connectedDevices []*models.DeviceConnection) bool {
+	for _, device := range connectedDevices {
+		if device.DeviceID == deviceID {
+			return true
+		}
+	}
+	return false
+}
+
+// countOnlineDevices counts how many devices in the list are online
+func (sr *SmsRouter) countOnlineDevices(devices []*models.DeviceConnection) int {
+	count := 0
+	for _, device := range devices {
+		// Check if device is online by looking in connected devices
+		if sr.isDeviceOnline(device.DeviceID, sr.wsServer.GetConnectedDevices()) {
+			count++
+		}
+	}
+	return count
 }

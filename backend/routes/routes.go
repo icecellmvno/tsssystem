@@ -110,8 +110,6 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	devices.Post("/maintenance/enter", deviceHandler.EnterMaintenanceModeBulk)
 	devices.Post("/maintenance/exit", deviceHandler.ExitMaintenanceModeBulk)
 
-
-
 	// SMS Routing routes
 	smsRouting := protected.Group("/sms-routing")
 	smsRouting.Post("/send", smsRoutingHandler.RouteSms)

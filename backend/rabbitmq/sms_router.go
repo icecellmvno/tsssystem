@@ -12,6 +12,7 @@ import (
 	"tsimsocketserver/models"
 	"tsimsocketserver/types"
 	"tsimsocketserver/websocket"
+	"tsimsocketserver/websocket_handlers"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -84,12 +85,14 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 		Order("priority DESC").
 		First(&routing).Error; err != nil {
 		log.Printf("No active SMS routing found for SMPP outbound messages")
+		sr.createSmsRoutingFailureAlarm(smppMsg, "No active routing rule found")
 		return sr.sendUndeliveredReport(smppMsg, "No active routing rule found")
 	}
 
 	// Check if system_id matches (if specified in routing)
 	if routing.SystemID != nil && *routing.SystemID != "" && *routing.SystemID != smppMsg.SystemID {
 		log.Printf("System ID mismatch: routing expects %s, got %s", *routing.SystemID, smppMsg.SystemID)
+		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("System ID mismatch: expected %s, got %s", *routing.SystemID, smppMsg.SystemID))
 		return sr.sendUndeliveredReport(smppMsg, "System ID mismatch")
 	}
 
@@ -98,6 +101,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 		// Enhanced pattern matching with wildcard support
 		if !sr.matchesDestinationPattern(*routing.DestinationAddress, smppMsg.DestinationAddr) {
 			log.Printf("Destination address mismatch: routing expects %s, got %s", *routing.DestinationAddress, smppMsg.DestinationAddr)
+			sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("Destination address mismatch: expected %s, got %s", *routing.DestinationAddress, smppMsg.DestinationAddr))
 			return sr.sendUndeliveredReport(smppMsg, "Destination address mismatch")
 		}
 	}
@@ -108,6 +112,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	connectedDevices := sr.wsServer.GetConnectedDevices()
 	if len(connectedDevices) == 0 {
 		log.Printf("No connected devices available")
+		sr.createSmsRoutingFailureAlarm(smppMsg, "No connected devices available")
 		return sr.sendUndeliveredReport(smppMsg, "No connected devices available")
 	}
 
@@ -115,6 +120,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	availableDevices := sr.getAllAvailableDevicesForRouting(routing, connectedDevices, smppMsg)
 	if len(availableDevices) == 0 {
 		log.Printf("No suitable devices found for routing")
+		sr.createSmsRoutingFailureAlarm(smppMsg, "No suitable devices found for routing")
 		return sr.sendUndeliveredReport(smppMsg, "No suitable devices found")
 	}
 
@@ -154,6 +160,9 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 				}
 			}
 
+			// Create SMS failure alarm
+			sr.createSmsFailureAlarm(smppMsg, device.DeviceID, fmt.Sprintf("Device %s failed: %v", device.DeviceID, err))
+
 			// Continue to next device
 			continue
 		}
@@ -171,6 +180,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	// All devices failed
 	log.Printf("Failed to send SMS to any device after trying %d devices", len(availableDevices))
+	sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("All devices failed after trying %d devices. Last error: %v", len(availableDevices), lastError))
 	return sr.sendUndeliveredReport(smppMsg, fmt.Sprintf("All devices failed. Last error: %v", lastError))
 }
 
@@ -546,4 +556,64 @@ func (sr *SmsRouter) createMetadata(smppMsg SmppSubmitSMMessage) *string {
 	metadataJSON, _ := json.Marshal(metadata)
 	metadataStr := string(metadataJSON)
 	return &metadataStr
+}
+
+// createSmsFailureAlarm creates an alarm when SMS sending fails
+func (sr *SmsRouter) createSmsFailureAlarm(smppMsg SmppSubmitSMMessage, deviceID string, errorMsg string) {
+	alarmData := models.AlarmData{
+		AlarmType:   "sms_send_failed",
+		Message:     fmt.Sprintf("SMS sending failed for device %s: %s", deviceID, errorMsg),
+		Severity:    "error",
+		DeviceGroup: "SMS_Router",
+		CountrySite: "System",
+	}
+
+	// Log alarm to database
+	websocket_handlers.LogAlarmToDatabase(deviceID, alarmData)
+
+	// Broadcast alarm to frontend
+	sr.wsServer.BroadcastMessage(models.WebSocketMessage{
+		Type: "alarm",
+		Data: map[string]interface{}{
+			"device_id":    deviceID,
+			"alarm_type":   alarmData.AlarmType,
+			"message":      alarmData.Message,
+			"severity":     alarmData.Severity,
+			"device_group": alarmData.DeviceGroup,
+			"country_site": alarmData.CountrySite,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
+
+	log.Printf("SMS failure alarm created for device %s: %s", deviceID, errorMsg)
+}
+
+// createSmsRoutingFailureAlarm creates an alarm when SMS routing fails completely
+func (sr *SmsRouter) createSmsRoutingFailureAlarm(smppMsg SmppSubmitSMMessage, reason string) {
+	alarmData := models.AlarmData{
+		AlarmType:   "sms_routing_failed",
+		Message:     fmt.Sprintf("SMS routing failed: %s. Message: %s to %s", reason, smppMsg.MessageID, smppMsg.DestinationAddr),
+		Severity:    "critical",
+		DeviceGroup: "SMS_Router",
+		CountrySite: "System",
+	}
+
+	// Log alarm to database (using a system device ID)
+	websocket_handlers.LogAlarmToDatabase("SMS_Router_System", alarmData)
+
+	// Broadcast alarm to frontend
+	sr.wsServer.BroadcastMessage(models.WebSocketMessage{
+		Type: "alarm",
+		Data: map[string]interface{}{
+			"device_id":    "SMS_Router_System",
+			"alarm_type":   alarmData.AlarmType,
+			"message":      alarmData.Message,
+			"severity":     alarmData.Severity,
+			"device_group": alarmData.DeviceGroup,
+			"country_site": alarmData.CountrySite,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
+
+	log.Printf("SMS routing failure alarm created: %s", reason)
 }

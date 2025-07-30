@@ -326,7 +326,7 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		DestAddrTON:          0,
 		DestAddrNPI:          0,
 		DestinationAddr:      report.DestinationAddr,
-		ESMClass:             protocol.ESM_CLASS_DEFAULT,
+		ESMClass:             protocol.ESM_CLASS_DEFAULT, // Delivery receipt için default ESM class
 		ProtocolID:           0,
 		PriorityFlag:         0,
 		ScheduleDeliveryTime: "",
@@ -336,7 +336,7 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		DataCoding:           0,
 		SMDefaultMsgID:       0,
 		SMLength:             0,
-		ShortMessage:         "",
+		ShortMessage:         "", // Delivery report'larda mesaj boş olmalı
 		OptionalParameters:   make(map[uint16][]byte),
 	}
 

@@ -475,8 +475,8 @@ func (sr *SmsRouter) sendUndeliveredReport(smppMsg SmppSubmitSMMessage, reason s
 		deliveryReport := &types.DeliveryReportMessage{
 			MessageID:       smppMsg.MessageID,
 			SystemID:        smppMsg.SystemID,
-			SourceAddr:      smppMsg.SourceAddr,      // SMPP client adresi (mesajın geldiği yer)
-			DestinationAddr: smppMsg.DestinationAddr, // Hedef numara (mesajın gideceği yer)
+			SourceAddr:      smppMsg.DestinationAddr, // Orijinal hedef numara (mesajın gönderildiği yer)
+			DestinationAddr: smppMsg.SourceAddr,      // SMPP client adresi (mesajın geldiği yer)
 			MessageState:    4,                       // UNDELIVERABLE
 			ErrorCode:       0,
 			FinalDate:       time.Now().Format("20060102150405"),

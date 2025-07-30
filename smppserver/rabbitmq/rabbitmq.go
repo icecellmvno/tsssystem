@@ -320,20 +320,20 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// Create deliver_sm PDU for delivery report
 	deliverPDU := &protocol.DeliverSMPDU{
 		ServiceType:          "",
-		SourceAddrTON:        0,
-		SourceAddrNPI:        0,
+		SourceAddrTON:        protocol.TON_INTERNATIONAL, // International number
+		SourceAddrNPI:        protocol.NPI_ISDN,          // ISDN numbering plan
 		SourceAddr:           report.SourceAddr,
-		DestAddrTON:          0,
-		DestAddrNPI:          0,
+		DestAddrTON:          protocol.TON_INTERNATIONAL, // International number
+		DestAddrNPI:          protocol.NPI_ISDN,          // ISDN numbering plan
 		DestinationAddr:      report.DestinationAddr,
-		ESMClass:             protocol.ESM_CLASS_DEFAULT, // Delivery receipt için default ESM class
-		ProtocolID:           0,
-		PriorityFlag:         0,
+		ESMClass:             protocol.ESM_CLASS_DATAGRAM_MODE, // Delivery receipt için doğru ESM class
+		ProtocolID:           0,                                // Normal SMS
+		PriorityFlag:         0,                                // Normal priority
 		ScheduleDeliveryTime: "",
 		ValidityPeriod:       "",
-		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC,
+		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC, // SMSC delivery receipt
 		ReplaceIfPresentFlag: 0,
-		DataCoding:           0,
+		DataCoding:           protocol.DCS_GSM7, // GSM 7-bit
 		SMDefaultMsgID:       0,
 		SMLength:             0,
 		ShortMessage:         "", // Delivery report'larda mesaj boş olmalı

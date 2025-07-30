@@ -184,6 +184,20 @@ export const createDeviceColumns = (
     ),
   },
   {
+    accessorKey: 'model',
+    header: 'Model',
+    cell: ({ row }) => {
+      const model = row.getValue('model') as string;
+      const manufacturer = row.original.manufacturer;
+      return (
+        <div className="flex flex-col gap-1">
+          <div className="font-medium text-sm">{model}</div>
+          <div className="text-xs text-muted-foreground">{manufacturer}</div>
+        </div>
+      );
+    },
+  },
+  {
     accessorKey: 'device_group',
     header: 'Device Group',
     cell: ({ row }) => {

@@ -215,7 +215,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 }
 
 // getAllAvailableDevicesForRouting gets all available devices for routing, ordered by priority and strategy
-func (sr *SmsRouter) getAllAvailableDevicesForRouting(routing models.SmsRouting, connectedDevices []*models.DeviceConnection, smppMsg SmppSubmitSMMessage) []*models.DeviceConnection {
+func (sr *SmsRouter) getAllAvailableDevicesForRouting(routing models.SmsRouting, _ []*models.DeviceConnection, _ SmppSubmitSMMessage) []*models.DeviceConnection {
 	var allDevices []*models.DeviceConnection
 
 	// Process device group configurations in priority order

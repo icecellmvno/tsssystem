@@ -76,7 +76,10 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 		return err
 	}
 
-	log.Printf("Processing SMPP message: %s from %s to %s", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestinationAddr)
+	log.Printf("Processing SMPP message: %s from %s to %s (SystemID: %s)", smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestinationAddr, smppMsg.SystemID)
+
+	// Log SMPP message processing to alarm log
+	sr.logSmppMessageProcessing(smppMsg, "Processing SMPP message")
 
 	// Find matching SMS routing rule
 	var routing models.SmsRouting
@@ -90,7 +93,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	}
 
 	// Check if system_id matches (if specified in routing)
-	if routing.SystemID != nil && *routing.SystemID != "" && *routing.SystemID != smppMsg.SystemID {
+	if routing.SystemID != nil && *routing.SystemID != "" && *routing.SystemID != "*" && *routing.SystemID != smppMsg.SystemID {
 		log.Printf("System ID mismatch: routing expects %s, got %s", *routing.SystemID, smppMsg.SystemID)
 		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("System ID mismatch: expected %s, got %s", *routing.SystemID, smppMsg.SystemID))
 		return sr.sendUndeliveredReport(smppMsg, "System ID mismatch")
@@ -106,7 +109,12 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 		}
 	}
 
-	log.Printf("Found matching routing rule: %s (ID: %d)", routing.Name, routing.ID)
+	log.Printf("Found matching routing rule: %s (ID: %d, SystemID: %s)", routing.Name, routing.ID, func() string {
+		if routing.SystemID != nil {
+			return *routing.SystemID
+		}
+		return "not set"
+	}())
 
 	// Get connected devices
 	connectedDevices := sr.wsServer.GetConnectedDevices()
@@ -172,6 +180,9 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 		if err := sr.createSmsLogForSmpp(smppMsg, "sent", ""); err != nil {
 			log.Printf("Failed to create SMS log for successful delivery: %v", err)
 		}
+
+		// Log successful SMS delivery to alarm log
+		sr.logSmppMessageProcessing(smppMsg, fmt.Sprintf("SMS delivered successfully to device %s (SIM slot %d, attempt %d)", device.DeviceID, simSlot, i+1))
 
 		log.Printf("SMPP message processed successfully: %s (sent to device %s, SIM slot %d, attempt %d)",
 			smppMsg.MessageID, device.DeviceID, simSlot, i+1)
@@ -638,6 +649,34 @@ func (sr *SmsRouter) createSmsRoutingFailureAlarm(smppMsg SmppSubmitSMMessage, r
 	})
 
 	log.Printf("SMS routing failure alarm created: %s", reason)
+}
+
+// logSmppMessageProcessing logs SMPP message processing to alarm log
+func (sr *SmsRouter) logSmppMessageProcessing(smppMsg SmppSubmitSMMessage, message string) {
+	alarmData := models.AlarmData{
+		AlarmType:   "smpp_message_processing",
+		Message:     fmt.Sprintf("%s: %s from %s to %s (SystemID: %s)", message, smppMsg.MessageID, smppMsg.SourceAddr, smppMsg.DestinationAddr, smppMsg.SystemID),
+		Severity:    "info",
+		DeviceGroup: "SMS_Router",
+		CountrySite: "System",
+	}
+
+	// Log alarm to database
+	websocket_handlers.LogAlarmToDatabase("SMS_Router_System", alarmData)
+
+	// Broadcast alarm to frontend
+	sr.wsServer.BroadcastMessage(models.WebSocketMessage{
+		Type: "alarm",
+		Data: map[string]interface{}{
+			"device_id":    "SMS_Router_System",
+			"alarm_type":   alarmData.AlarmType,
+			"message":      alarmData.Message,
+			"severity":     alarmData.Severity,
+			"device_group": alarmData.DeviceGroup,
+			"country_site": alarmData.CountrySite,
+		},
+		Timestamp: time.Now().UnixMilli(),
+	})
 }
 
 // isDeviceOnline checks if a device is currently online (connected via WebSocket)

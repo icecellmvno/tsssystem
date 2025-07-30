@@ -66,6 +66,7 @@ type DeliveryReportMessage struct {
 	Delivered       bool   `json:"delivered"`
 	Failed          bool   `json:"failed"`
 	FailureReason   string `json:"failure_reason,omitempty"`
+	OriginalText    string `json:"original_text,omitempty"` // Orijinal SMS metni
 }
 
 func NewRabbitMQClient(config *Config) (*RabbitMQClient, error) {
@@ -317,6 +318,9 @@ func (r *RabbitMQClient) handleDeliveryReport(msg amqp.Delivery, sessionManager 
 
 // sendDeliveryReportToSession sends a delivery report to a specific session
 func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, report *DeliveryReportMessage) error {
+	// Create delivery report text in SMPP format
+	deliveryReportText := r.createDeliveryReportText(report)
+
 	// Create deliver_sm PDU for delivery report
 	deliverPDU := &protocol.DeliverSMPDU{
 		ServiceType:          "",
@@ -335,8 +339,8 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		ReplaceIfPresentFlag: 0,
 		DataCoding:           protocol.DCS_GSM7, // GSM 7-bit
 		SMDefaultMsgID:       0,
-		SMLength:             0,
-		ShortMessage:         "", // Delivery report'larda mesaj boş olmalı
+		SMLength:             uint8(len(deliveryReportText)),
+		ShortMessage:         deliveryReportText, // Delivery report text
 		OptionalParameters:   make(map[uint16][]byte),
 	}
 
@@ -354,4 +358,41 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	}
 
 	return session.SendPDU(pdu)
+}
+
+// createDeliveryReportText creates the delivery report text in SMPP format
+func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage) string {
+	// Format: "jid:message_id sub:000 dlvrd:000 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
+
+	// Convert message state to SMPP status string
+	var status string
+	switch report.MessageState {
+	case 2: // DELIVERED
+		status = "DELIVRD"
+	case 3: // EXPIRED
+		status = "EXPIRED"
+	case 4: // UNDELIVERABLE
+		status = "UNDELIV"
+	case 5: // TIMEOUT
+		status = "TIMEOUT"
+	case 6: // UNKNOWN
+		status = "UNKNOWN"
+	case 7: // REJECTED
+		status = "REJECTD"
+	case 8: // CANCELLED
+		status = "CANCELLED"
+	default:
+		status = "UNKNOWN"
+	}
+
+	// Create delivery report text
+	originalText := "Delivery Report"
+	if report.OriginalText != "" {
+		originalText = report.OriginalText
+	}
+
+	deliveryText := fmt.Sprintf("jid:%s sub:000 dlvrd:000 submit date:%s done date:%s stat:%s err:000 text:%s",
+		report.MessageID, report.SubmitDate, report.DoneDate, status, originalText)
+
+	return deliveryText
 }

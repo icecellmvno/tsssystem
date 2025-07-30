@@ -82,6 +82,11 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.DestinationAddr = *smsLog.SourceAddr // SMPP client adresi (mesajın geldiği yer)
 	}
 
+	// Set original text if available
+	if smsLog.Message != nil {
+		report.OriginalText = *smsLog.Message
+	}
+
 	// Convert status to SMPP message state
 	switch status {
 	case "delivered":

@@ -14,4 +14,5 @@ type DeliveryReportMessage struct {
 	Delivered       bool   `json:"delivered"`
 	Failed          bool   `json:"failed"`
 	FailureReason   string `json:"failure_reason,omitempty"`
+	OriginalText    string `json:"original_text,omitempty"` // Orijinal SMS metni
 }

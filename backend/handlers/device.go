@@ -84,7 +84,7 @@ func (h *DeviceHandler) GetAllDevices(c *fiber.Ctx) error {
 	if maintenance != "" && maintenance != "all" {
 		if maintenance == "maintenance" {
 			query = query.Where("maintenance_mode = ?", true)
-		} else {
+		} else if maintenance == "not_maintenance" {
 			query = query.Where("maintenance_mode = ?", false)
 		}
 	}

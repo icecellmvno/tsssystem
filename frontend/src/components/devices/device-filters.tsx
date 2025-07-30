@@ -173,7 +173,7 @@ export function DeviceFilters({
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="maintenance">In Maintenance</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="not_maintenance">Not in Maintenance</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -27,6 +27,11 @@ func HandleHeartbeat(wsServer interfaces.WebSocketServerInterface, deviceID stri
 		return
 	}
 
+	// Update device online status
+	if err := database.GetDB().Model(&models.Device{}).Where("imei = ?", deviceID).Update("is_online", true).Error; err != nil {
+		log.Printf("Failed to update device online status: %v", err)
+	}
+
 	// Signal kontrolü - device group ayarlarına göre
 	if data.SignalStrength <= deviceGroup.SignalLowThreshold && deviceGroup.EnableSignalAlarms {
 		log.Printf("Signal strength is %d (threshold: %d) for device %s, sending signal low alarm (device remains active)", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
@@ -128,7 +133,10 @@ func HandleHeartbeat(wsServer interfaces.WebSocketServerInterface, deviceID stri
 		deviceName = device.Name
 	}
 
-	// Create heartbeat data with device name
+	// Process SIM card statuses and create enhanced heartbeat data
+	enhancedSimCards := processSimCardStatuses(data.SimCards, deviceID, deviceGroup)
+
+	// Create heartbeat data with device name and enhanced SIM card statuses
 	heartbeatData := map[string]interface{}{
 		"device_info":     data.DeviceInfo,
 		"battery_level":   data.BatteryLevel,
@@ -136,9 +144,10 @@ func HandleHeartbeat(wsServer interfaces.WebSocketServerInterface, deviceID stri
 		"signal_strength": data.SignalStrength,
 		"signal_dbm":      data.SignalDBM,
 		"network_type":    data.NetworkType,
-		"sim_cards":       data.SimCards,
+		"sim_cards":       enhancedSimCards,
 		"location":        data.Location,
 		"device_name":     deviceName, // Add device name from database
+		"device_id":       deviceID,
 	}
 
 	// Broadcast to frontend clients
@@ -215,4 +224,94 @@ func UpdateDeviceSimCards(deviceID string, simCards []models.SimCard) {
 			log.Printf("Error creating SIM card record: %v", err)
 		}
 	}
+}
+
+// processSimCardStatuses processes SIM card statuses based on business logic
+func processSimCardStatuses(simCards []models.SimCard, deviceID string, deviceGroup *models.DeviceGroup) []map[string]interface{} {
+	enhancedSimCards := make([]map[string]interface{}, len(simCards))
+
+	for i, simCard := range simCards {
+		// Determine SIM Card Status based on business logic
+		simCardStatus := "Unknown"
+		statusBadgeVariant := "secondary"
+
+		if !simCard.IsActive {
+			simCardStatus = "Blocked"
+			statusBadgeVariant = "destructive"
+		} else {
+			// Check if device is online (we know it is since we're in heartbeat)
+			simCardStatus = "Active"
+			statusBadgeVariant = "default"
+		}
+
+		// Create enhanced SIM card data
+		enhancedSimCard := map[string]interface{}{
+			"slot_index":                    simCard.SlotIndex,
+			"carrier_name":                  simCard.CarrierName,
+			"phone_number":                  simCard.PhoneNumber,
+			"network_mcc":                   simCard.NetworkMCC,
+			"network_mnc":                   simCard.NetworkMNC,
+			"is_active":                     simCard.IsActive,
+			"imei":                          simCard.IMEI,
+			"imsi":                          simCard.IMSI,
+			"iccid":                         simCard.ICCID,
+			"signal_strength":               simCard.SignalStrength,
+			"signal_dbm":                    simCard.SignalDBM,
+			"network_type":                  simCard.NetworkType,
+			"sim_card_status":               simCardStatus,
+			"status_badge_variant":          statusBadgeVariant,
+			"signal_strength_badge_variant": getSignalStrengthBadgeVariant(simCard.SignalStrength),
+			"network_type_badge_variant":    getNetworkTypeBadgeVariant(simCard.NetworkType),
+			"signal_strength_text":          getSignalStrengthText(simCard.SignalStrength),
+		}
+
+		enhancedSimCards[i] = enhancedSimCard
+	}
+
+	return enhancedSimCards
+}
+
+// getSignalStrengthBadgeVariant returns badge variant based on signal strength
+func getSignalStrengthBadgeVariant(signalStrength int) string {
+	if signalStrength >= 80 {
+		return "default"
+	} else if signalStrength >= 60 {
+		return "outline"
+	} else if signalStrength >= 40 {
+		return "secondary"
+	} else {
+		return "destructive"
+	}
+}
+
+// getNetworkTypeBadgeVariant returns badge variant based on network type
+func getNetworkTypeBadgeVariant(networkType string) string {
+	switch networkType {
+	case "5G":
+		return "default"
+	case "4G":
+		return "outline"
+	case "3G":
+		return "secondary"
+	case "2G":
+		return "destructive"
+	default:
+		return "secondary"
+	}
+}
+
+// getSignalStrengthText returns human readable signal strength text
+func getSignalStrengthText(signalStrength int) string {
+	if signalStrength >= 80 {
+		return "Excellent"
+	} else if signalStrength >= 60 {
+		return "Good"
+	} else if signalStrength >= 40 {
+		return "Fair"
+	} else if signalStrength >= 20 {
+		return "Poor"
+	} else if signalStrength > 0 {
+		return "Very Poor"
+	}
+	return "Unknown"
 }

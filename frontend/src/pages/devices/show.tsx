@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle, Edit, Trash2, Copy, MessageSquare, Phone, Search, Bell, Power, Smartphone, Wrench, MapPin, RefreshCw, Battery, Signal, Wifi, Clock, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle, Edit, Trash2, Copy, MessageSquare, Phone, Search, Bell, Power, Smartphone, Wrench, MapPin, RefreshCw, Battery, Signal, Wifi, Clock, XCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -306,6 +306,11 @@ export default function DeviceShow() {
               imsi: sim.imsi || 'Unknown',
               iccid: sim.iccid || 'Unknown',
               imei: sim.imei || 'Unknown',
+              sim_card_status: sim.sim_card_status || 'Unknown',
+              status_badge_variant: sim.status_badge_variant || 'secondary',
+              signal_strength_badge_variant: sim.signal_strength_badge_variant || 'secondary',
+              network_type_badge_variant: sim.network_type_badge_variant || 'secondary',
+              signal_strength_text: sim.signal_strength_text || 'Unknown',
               has_sim: true
             }))
           };
@@ -464,6 +469,11 @@ export default function DeviceShow() {
             imsi: sim.imsi || 'Unknown',
             iccid: sim.iccid || 'Unknown',
             imei: sim.imei || 'Unknown',
+            sim_card_status: sim.sim_card_status || 'Unknown',
+            status_badge_variant: sim.status_badge_variant || 'secondary',
+            signal_strength_badge_variant: sim.signal_strength_badge_variant || 'secondary',
+            network_type_badge_variant: sim.network_type_badge_variant || 'secondary',
+            signal_strength_text: sim.signal_strength_text || 'Unknown',
             has_sim: true
           });
         });
@@ -1274,6 +1284,35 @@ export default function DeviceShow() {
                             </Badge>
                           </div>
                           
+                          {sim.has_sim && (
+                            <div className="space-y-2 mt-2">
+                              <div className="flex items-center gap-2">
+                                <div className="text-sm font-medium">SIM Card Status</div>
+                                <div className="relative group">
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                                    <div className="mb-1 font-semibold">Status Definitions:</div>
+                                    <div>• Active: SIM working, on route, processing traffic</div>
+                                    <div>• Good: SIM operational, device offline</div>
+                                    <div>• No Balance: SMS limit reached</div>
+                                    <div>• Blocked: SIM blocked, unable to send/receive</div>
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                  </div>
+                                </div>
+                              </div>
+                              <Badge 
+                                variant={
+                                  sim.sim_card_status === 'Active' ? 'default' :
+                                  sim.sim_card_status === 'Good' ? 'outline' :
+                                  sim.sim_card_status === 'No Balance' ? 'destructive' :
+                                  sim.sim_card_status === 'Blocked' ? 'destructive' : 'secondary'
+                                }
+                              >
+                                {sim.sim_card_status || 'Unknown'}
+                              </Badge>
+                            </div>
+                          )}
+                          
                           {sim.has_sim ? (
                             <>
                               <div className="space-y-2 mt-4">
@@ -1290,16 +1329,21 @@ export default function DeviceShow() {
                               </div>
                               <div className="space-y-2 mt-4">
                                 <div className="text-sm font-medium">Network Type</div>
-                                <div className="text-sm">{sim.network_type}</div>
+                                <div className="text-sm">
+                                  <Badge variant={sim.network_type_badge_variant || 'secondary'}>
+                                    {sim.network_type}
+                                  </Badge>
+                                </div>
                               </div>
                               <div className="space-y-2 mt-4">
                                 <div className="text-sm font-medium">Signal Strength</div>
                                 <div className="text-sm">
-                                  {sim.signal_level === 5 ? "Excellent" :
-                                   sim.signal_level === 4 ? "Good" :
-                                   sim.signal_level === 3 ? "Fair" :
-                                   sim.signal_level === 2 ? "Poor" :
-                                   sim.signal_level === 1 ? "Very Poor" : "Unknown"} ({sim.signal_level}/5)
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant={sim.signal_strength_badge_variant || 'secondary'}>
+                                      {sim.signal_strength_text || 'Unknown'}
+                                    </Badge>
+                                    <span>({sim.signal_level}/5)</span>
+                                  </div>
                                   {sim.signal_dbm && ` (${sim.signal_dbm} dBm)`}
                                 </div>
                               </div>

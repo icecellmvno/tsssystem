@@ -282,12 +282,26 @@ func enhanceDeviceSimCardsWithAdditionalData(simCards []models.DeviceSimCard) []
 }
 
 func enhanceDeviceSimCardWithAdditionalData(simCard models.DeviceSimCard) map[string]interface{} {
-	// Determine badge variants
+	// Get device information to access model
+	var device models.Device
+	database.GetDB().Where("imei = ?", simCard.DeviceIMEI).First(&device)
+
+	// Determine SIM Card Status based on business logic
+	simCardStatus := "Unknown"
 	statusBadgeVariant := "secondary"
-	if simCard.IsActive {
-		statusBadgeVariant = "default"
-	} else {
+
+	if !simCard.IsActive {
+		simCardStatus = "Blocked"
 		statusBadgeVariant = "destructive"
+	} else if simCard.SmsBalance <= 0 || simCard.SmsLimit <= 0 {
+		simCardStatus = "No Balance"
+		statusBadgeVariant = "destructive"
+	} else if device.IsOnline && simCard.IsActive {
+		simCardStatus = "Active"
+		statusBadgeVariant = "default"
+	} else if simCard.IsActive {
+		simCardStatus = "Good"
+		statusBadgeVariant = "outline"
 	}
 
 	signalStrengthBadgeVariant := "secondary"
@@ -372,7 +386,9 @@ func enhanceDeviceSimCardWithAdditionalData(simCard models.DeviceSimCard) map[st
 		"device_id":              nil,
 		"device_name":            simCard.DeviceName,
 		"country_site":           simCard.CountrySite,
-		"device_group_name":      nil,
+		"device_group_name":      simCard.DeviceGroupName,
+		"device_model":           device.Model,
+		"sim_card_status":        simCardStatus,
 		"roaming_badge_variant":  "secondary",
 		"success_rate":           0.0,
 		"formatted_main_balance": "$0.00",

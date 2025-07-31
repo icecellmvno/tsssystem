@@ -37,6 +37,8 @@ export interface SimCard {
   device_name?: string;
   country_site?: string;
   device_group_name?: string;
+  device_model?: string;
+  sim_card_status?: string;
   created_at: string;
   updated_at: string;
   // Enhanced fields from backend

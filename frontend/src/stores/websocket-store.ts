@@ -154,13 +154,14 @@ export const useWebSocketStore = create<WebSocketStore>()(
     setupPageVisibilityReconnection();
 
     const handleHeartbeat = (data: any) => {
-      const deviceId = data.device_info.imei;
+      const deviceId = data.device_id || data.device_info?.imei;
       console.log('WebSocket: Heartbeat received for device:', deviceId, 'Battery:', data.battery_level, 'Signal:', data.signal_strength);
       
+      // Update device with enhanced data
       get().updateDevice(deviceId, {
         name: data.device_name, // Use device name from database
-        device_group: data.device_info.device_group,
-        sitename: data.device_info.sitename,
+        device_group: data.device_info?.device_group,
+        sitename: data.device_info?.country_site,
         status: 'online',
         last_heartbeat: Date.now(),
         battery_level: data.battery_level !== undefined && data.battery_level !== null && data.battery_level > 0 ? data.battery_level : undefined,
@@ -168,12 +169,22 @@ export const useWebSocketStore = create<WebSocketStore>()(
         signal_strength: data.signal_strength !== undefined && data.signal_strength !== null ? data.signal_strength : undefined,
         signal_dbm: data.signal_dbm !== undefined && data.signal_dbm !== null ? data.signal_dbm : undefined,
         network_type: data.network_type,
-        manufacturer: data.device_info.manufacturer,
-        model: data.device_info.model,
-        android_version: data.device_info.android_version,
-        sim_cards: data.sim_cards,
+        manufacturer: data.device_info?.manufacturer,
+        model: data.device_info?.model,
+        android_version: data.device_info?.android_version,
+        sim_cards: data.sim_cards, // Now contains enhanced SIM card data with status
         location: data.location,
       });
+
+      // Log enhanced SIM card data if available
+      if (data.sim_cards && Array.isArray(data.sim_cards)) {
+        console.log('WebSocket: Enhanced SIM cards data:', data.sim_cards.map((sim: any) => ({
+          slot: sim.slot_index,
+          carrier: sim.carrier_name,
+          status: sim.sim_card_status,
+          signal: sim.signal_strength
+        })));
+      }
     };
 
     const handleDeviceStatus = (data: DeviceStatusData) => {

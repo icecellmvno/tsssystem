@@ -35,6 +35,7 @@ export default function SimCardsIndex() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [operatorFilter, setOperatorFilter] = useState('all');
+  const [simCardStatusFilter, setSimCardStatusFilter] = useState('all');
 
 
   // Fetch SIM cards from API
@@ -76,14 +77,19 @@ export default function SimCardsIndex() {
         simCard.iccid.toLowerCase().includes(searchTerm.toLowerCase()) ||
         simCard.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
         simCard.carrier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        simCard.network_operator_name.toLowerCase().includes(searchTerm.toLowerCase());
+        simCard.network_operator_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (simCard.device_name && simCard.device_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (simCard.device_model && simCard.device_model.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (simCard.device_group_name && simCard.device_group_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (simCard.country_site && simCard.country_site.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? simCard.is_active : !simCard.is_active);
       const matchesOperator = operatorFilter === 'all' || simCard.carrier_name === operatorFilter;
+      const matchesSimCardStatus = simCardStatusFilter === 'all' || simCard.sim_card_status === simCardStatusFilter;
       
-      return matchesSearch && matchesStatus && matchesOperator;
+      return matchesSearch && matchesStatus && matchesOperator && matchesSimCardStatus;
     });
-  }, [simCards, searchTerm, statusFilter, operatorFilter]);
+  }, [simCards, searchTerm, statusFilter, operatorFilter, simCardStatusFilter]);
 
   // Get unique values for filters
   const uniqueStatuses = useMemo(() => {
@@ -95,11 +101,18 @@ export default function SimCardsIndex() {
     return [...new Set(operators)];
   }, [simCards]);
 
+  const uniqueSimCardStatuses = useMemo(() => {
+    const statuses = simCards.map(s => s.sim_card_status).filter(Boolean);
+    return [...new Set(statuses)];
+  }, [simCards]);
+
   // SIM card statistics
   const simCardStats = useMemo(() => {
     const total = simCards.length;
-    const active = simCards.filter(s => s.is_active).length;
-    const inactive = simCards.filter(s => !s.is_active).length;
+    const active = simCards.filter(s => s.sim_card_status === 'Active').length;
+    const good = simCards.filter(s => s.sim_card_status === 'Good').length;
+    const noBalance = simCards.filter(s => s.sim_card_status === 'No Balance').length;
+    const blocked = simCards.filter(s => s.sim_card_status === 'Blocked').length;
     const totalBalance = simCards.reduce((sum, s) => sum + (s.main_balance || 0), 0);
     const totalSmsBalance = simCards.reduce((sum, s) => sum + (s.sms_balance || 0), 0);
     const totalSmsSent = simCards.reduce((sum, s) => sum + (s.total_sent || 0), 0);
@@ -107,7 +120,9 @@ export default function SimCardsIndex() {
     return {
       total,
       active,
-      inactive,
+      good,
+      noBalance,
+      blocked,
       totalBalance,
       totalSmsBalance,
       totalSmsSent,
@@ -132,6 +147,7 @@ export default function SimCardsIndex() {
     setSearchTerm('');
     setStatusFilter('all');
     setOperatorFilter('all');
+    setSimCardStatusFilter('all');
   }, []);
 
   // TanStack Table columns
@@ -158,6 +174,60 @@ export default function SimCardsIndex() {
       ),
     },
     {
+      accessorKey: 'device_name',
+      header: 'Device Name',
+      cell: ({ row }) => {
+        const deviceName = row.getValue('device_name') as string;
+        return (
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">{deviceName || 'N/A'}</span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'device_model',
+      header: 'Model',
+      cell: ({ row }) => {
+        const deviceModel = row.getValue('device_model') as string;
+        return (
+          <div className="text-sm text-muted-foreground">
+            {deviceModel || 'N/A'}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'device_group_name',
+      header: 'Device Group',
+      cell: ({ row }) => {
+        const deviceGroupName = row.getValue('device_group_name') as string;
+        return (
+          <div className="text-sm">
+            {deviceGroupName || 'N/A'}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'country_iso',
+      header: 'Country',
+      cell: ({ row }) => row.getValue('country_iso'),
+    },
+    {
+      accessorKey: 'country_site',
+      header: 'Site',
+      cell: ({ row }) => {
+        const countrySite = row.getValue('country_site') as string;
+        return (
+          <div className="text-sm">
+            {countrySite || 'N/A'}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: 'carrier_name',
       header: 'Carrier',
       cell: ({ row }) => (
@@ -168,18 +238,30 @@ export default function SimCardsIndex() {
       ),
     },
     {
-      accessorKey: 'country_iso',
-      header: 'Country',
-      cell: ({ row }) => row.getValue('country_iso'),
-    },
-    {
-      accessorKey: 'is_active',
-      header: 'Status',
+      accessorKey: 'sim_card_status',
+      header: 'SIM Card Status',
       cell: ({ row }) => {
-        const isActive = row.getValue('is_active') as boolean;
+        const simCardStatus = row.getValue('sim_card_status') as string;
+        const statusBadgeVariant = row.original.status_badge_variant as string;
+        
+        const getStatusVariant = (status: string) => {
+          switch (status) {
+            case 'Active':
+              return 'default';
+            case 'Good':
+              return 'outline';
+            case 'No Balance':
+              return 'destructive';
+            case 'Blocked':
+              return 'destructive';
+            default:
+              return 'secondary';
+          }
+        };
+
         return (
-          <Badge variant={isActive ? 'default' : 'secondary'}>
-            {isActive ? 'ACTIVE' : 'INACTIVE'}
+          <Badge variant={getStatusVariant(simCardStatus)}>
+            {simCardStatus || 'Unknown'}
           </Badge>
         );
       },
@@ -251,7 +333,7 @@ export default function SimCardsIndex() {
         </div>
 
         {/* SIM Card Statistics Cards */}
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total SIM Cards</CardTitle>
@@ -276,6 +358,45 @@ export default function SimCardsIndex() {
                 <Progress value={simCardStats.activePercentage} className="h-2 flex-1" />
                 <span className="text-xs text-muted-foreground">{simCardStats.activePercentage}%</span>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Good SIM Cards</CardTitle>
+              <Signal className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{simCardStats.good}</div>
+              <p className="text-xs text-muted-foreground">
+                Operational but offline
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">No Balance</CardTitle>
+              <CreditCard className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{simCardStats.noBalance}</div>
+              <p className="text-xs text-muted-foreground">
+                SMS limit reached
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Blocked SIM Cards</CardTitle>
+              <Signal className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{simCardStats.blocked}</div>
+              <p className="text-xs text-muted-foreground">
+                Unable to send/receive
+              </p>
             </CardContent>
           </Card>
 
@@ -361,6 +482,20 @@ export default function SimCardsIndex() {
                   {uniqueOperators.map((operator) => (
                     <SelectItem key={operator} value={operator}>
                       {operator}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={simCardStatusFilter} onValueChange={setSimCardStatusFilter}>
+                <SelectTrigger className="h-8 min-w-[150px]">
+                  <SelectValue placeholder="All SIM Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All SIM Status</SelectItem>
+                  {uniqueSimCardStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -9,9 +9,22 @@ import (
 	"tsimsocketserver/models"
 )
 
+// getDeviceName retrieves device name from database
+func getDeviceName(deviceID string) string {
+	var device models.Device
+	if err := database.GetDB().Where("imei = ?", deviceID).First(&device).Error; err != nil {
+		log.Printf("Error getting device name for %s: %v", deviceID, err)
+		return ""
+	}
+	return device.Name
+}
+
 // HandleUssdResponse processes USSD response messages
 func HandleUssdResponse(wsServer interfaces.WebSocketServerInterface, deviceID string, data models.UssdResponseData) {
 	log.Printf("USSD response from %s: %s", deviceID, data.Status)
+
+	// Get device name
+	deviceName := getDeviceName(deviceID)
 
 	// Update existing USSD log or create new one
 	var ussdLog models.UssdLog
@@ -22,6 +35,7 @@ func HandleUssdResponse(wsServer interfaces.WebSocketServerInterface, deviceID s
 		ussdLog = models.UssdLog{
 			SessionID:       data.SessionID,
 			DeviceID:        deviceID,
+			DeviceName:      &deviceName,
 			UssdCode:        "",  // USSD code not available in response data
 			RequestMessage:  nil, // Request message not available in response data
 			ResponseMessage: &data.Response,
@@ -61,6 +75,9 @@ func HandleUssdResponse(wsServer interfaces.WebSocketServerInterface, deviceID s
 func HandleUssdResponseFailed(wsServer interfaces.WebSocketServerInterface, deviceID string, data models.UssdResponseFailedData) {
 	log.Printf("USSD response failed from %s: %s", deviceID, data.ErrorMessage)
 
+	// Get device name
+	deviceName := getDeviceName(deviceID)
+
 	// Update existing USSD log or create new one
 	var ussdLog models.UssdLog
 	result := database.GetDB().Where("session_id = ? AND device_id = ?", data.SessionID, deviceID).First(&ussdLog)
@@ -70,6 +87,7 @@ func HandleUssdResponseFailed(wsServer interfaces.WebSocketServerInterface, devi
 		ussdLog = models.UssdLog{
 			SessionID:       data.SessionID,
 			DeviceID:        deviceID,
+			DeviceName:      &deviceName,
 			UssdCode:        data.UssdCode,
 			RequestMessage:  nil,
 			ResponseMessage: nil,
@@ -109,10 +127,14 @@ func HandleUssdResponseFailed(wsServer interfaces.WebSocketServerInterface, devi
 func HandleUssdCode(wsServer interfaces.WebSocketServerInterface, deviceID string, data models.UssdCodeData) {
 	log.Printf("USSD code from %s: %s from %s", deviceID, data.UssdCode, data.Sender)
 
+	// Get device name
+	deviceName := getDeviceName(deviceID)
+
 	// Save USSD log to database
 	ussdLog := models.UssdLog{
 		SessionID:       "",
 		DeviceID:        deviceID,
+		DeviceName:      &deviceName,
 		UssdCode:        data.UssdCode,
 		RequestMessage:  nil,
 		ResponseMessage: nil,
@@ -141,6 +163,9 @@ func HandleUssdCode(wsServer interfaces.WebSocketServerInterface, deviceID strin
 func HandleUssdCancelled(wsServer interfaces.WebSocketServerInterface, deviceID string, data models.UssdCancelledData) {
 	log.Printf("USSD cancelled from %s: %s - %s", deviceID, data.UssdCode, data.Reason)
 
+	// Get device name
+	deviceName := getDeviceName(deviceID)
+
 	// Update existing USSD log or create new one
 	var ussdLog models.UssdLog
 	result := database.GetDB().Where("session_id = ? AND device_id = ?", data.SessionID, deviceID).First(&ussdLog)
@@ -150,6 +175,7 @@ func HandleUssdCancelled(wsServer interfaces.WebSocketServerInterface, deviceID 
 		ussdLog = models.UssdLog{
 			SessionID:       data.SessionID,
 			DeviceID:        deviceID,
+			DeviceName:      &deviceName,
 			UssdCode:        data.UssdCode,
 			RequestMessage:  nil,
 			ResponseMessage: nil,

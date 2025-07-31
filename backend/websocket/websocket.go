@@ -927,10 +927,21 @@ func (ws *WebSocketServer) SendUssd(deviceID string, data models.SendUssdData) e
 	log.Printf("Delay: %d", data.Delay)
 	log.Printf("Command sent at: %s", time.Now().Format("2006-01-02 15:04:05.000"))
 
+	// Get device name
+	var device models.Device
+	var deviceName string
+	if err := database.GetDB().Where("imei = ?", deviceID).First(&device).Error; err != nil {
+		log.Printf("Error getting device name for %s: %v", deviceID, err)
+		deviceName = ""
+	} else {
+		deviceName = device.Name
+	}
+
 	// Save USSD command to database as pending
 	ussdLog := models.UssdLog{
 		SessionID:       data.SessionID,
 		DeviceID:        deviceID,
+		DeviceName:      &deviceName,
 		UssdCode:        data.UssdCode,
 		RequestMessage:  nil,
 		ResponseMessage: nil,

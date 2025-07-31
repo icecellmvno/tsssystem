@@ -49,6 +49,8 @@ type DeviceSimCard struct {
 	SignalStrength int       `json:"signal_strength"`
 	SignalDBM      int       `json:"signal_dbm"`
 	NetworkType    string    `json:"network_type" gorm:"type:varchar(50)"`
+	DeviceName     string    `json:"device_name" gorm:"type:varchar(255)"`
+	CountrySite    string    `json:"country_site" gorm:"type:varchar(255)"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }

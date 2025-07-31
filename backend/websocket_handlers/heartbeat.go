@@ -183,6 +183,14 @@ func UpdateDeviceSimCards(deviceID string, simCards []models.SimCard) {
 		return
 	}
 
+	// Get device info for device name and country site
+	var device models.Device
+	var deviceName, countrySite string
+	if err := database.GetDB().Where("imei = ?", deviceID).First(&device).Error; err == nil {
+		deviceName = device.Name
+		countrySite = device.CountrySite
+	}
+
 	// Insert new SIM card info
 	for _, simCard := range simCards {
 		deviceSimCard := models.DeviceSimCard{
@@ -199,6 +207,8 @@ func UpdateDeviceSimCards(deviceID string, simCards []models.SimCard) {
 			SignalStrength: simCard.SignalStrength,
 			SignalDBM:      simCard.SignalDBM,
 			NetworkType:    simCard.NetworkType,
+			DeviceName:     deviceName,
+			CountrySite:    countrySite,
 		}
 
 		if err := database.GetDB().Create(&deviceSimCard).Error; err != nil {

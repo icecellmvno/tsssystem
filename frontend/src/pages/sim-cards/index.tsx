@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-import { Search, Plus, RefreshCw, Signal, Wifi, CreditCard, Smartphone } from 'lucide-react';
+import { Search, RefreshCw, Signal, Wifi, CreditCard, Smartphone } from 'lucide-react';
 import { DataTable } from '@/components/ui/data-table';
 import {
     createIdColumn, 
@@ -41,10 +41,13 @@ export default function SimCardsIndex() {
   const fetchSimCards = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await simCardsService.getSimCards();
+      const response = await simCardsService.getSimCards();
+      
+      // Backend returns { data: SimCard[] } format
+      const simCardsData = response.data || [];
       
       // Transform data to include BaseRecord properties
-      const transformedData: SimCardWithBase[] = data.sim_cards.map(simCard => ({
+      const transformedData: SimCardWithBase[] = simCardsData.map(simCard => ({
         ...simCard,
         id: simCard.id,
         created_at: simCard.created_at,
@@ -71,11 +74,12 @@ export default function SimCardsIndex() {
       const matchesSearch = searchTerm === '' || 
         simCard.imei.toLowerCase().includes(searchTerm.toLowerCase()) ||
         simCard.iccid.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        simCard.msisdn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        simCard.operator.toLowerCase().includes(searchTerm.toLowerCase());
+        simCard.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        simCard.carrier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        simCard.network_operator_name.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesStatus = statusFilter === 'all' || simCard.status === statusFilter;
-      const matchesOperator = operatorFilter === 'all' || simCard.operator === operatorFilter;
+      const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? simCard.is_active : !simCard.is_active);
+      const matchesOperator = operatorFilter === 'all' || simCard.carrier_name === operatorFilter;
       
       return matchesSearch && matchesStatus && matchesOperator;
     });
@@ -83,31 +87,30 @@ export default function SimCardsIndex() {
 
   // Get unique values for filters
   const uniqueStatuses = useMemo(() => {
-    const statuses = simCards.map(s => s.status).filter(Boolean);
-    return [...new Set(statuses)];
-  }, [simCards]);
+    return ['active', 'inactive'];
+  }, []);
 
   const uniqueOperators = useMemo(() => {
-    const operators = simCards.map(s => s.operator).filter(Boolean);
+    const operators = simCards.map(s => s.carrier_name).filter(Boolean);
     return [...new Set(operators)];
   }, [simCards]);
 
   // SIM card statistics
   const simCardStats = useMemo(() => {
     const total = simCards.length;
-    const active = simCards.filter(s => s.status === 'active').length;
-    const inactive = simCards.filter(s => s.status === 'inactive').length;
-    const totalBalance = simCards.reduce((sum, s) => sum + (s.balance || 0), 0);
-    const totalDataUsage = simCards.reduce((sum, s) => sum + (s.data_usage || 0), 0);
-    const totalSmsUsage = simCards.reduce((sum, s) => sum + (s.sms_usage || 0), 0);
+    const active = simCards.filter(s => s.is_active).length;
+    const inactive = simCards.filter(s => !s.is_active).length;
+    const totalBalance = simCards.reduce((sum, s) => sum + (s.main_balance || 0), 0);
+    const totalSmsBalance = simCards.reduce((sum, s) => sum + (s.sms_balance || 0), 0);
+    const totalSmsSent = simCards.reduce((sum, s) => sum + (s.total_sent || 0), 0);
     
     return {
       total,
       active,
       inactive,
       totalBalance,
-      totalDataUsage,
-      totalSmsUsage,
+      totalSmsBalance,
+      totalSmsSent,
       activePercentage: total > 0 ? Math.round((active / total) * 100) : 0
     };
   }, [simCards]);
@@ -148,44 +151,44 @@ export default function SimCardsIndex() {
       ),
     },
     {
-      accessorKey: 'msisdn',
-      header: 'MSISDN',
+      accessorKey: 'number',
+      header: 'Number',
       cell: ({ row }) => (
-        <div className="font-mono text-sm">{row.getValue('msisdn')}</div>
+        <div className="font-mono text-sm">{row.getValue('number')}</div>
       ),
     },
     {
-      accessorKey: 'operator',
-      header: 'Operator',
+      accessorKey: 'carrier_name',
+      header: 'Carrier',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Signal className="h-4 w-4 text-muted-foreground" />
-          <span>{row.getValue('operator')}</span>
+          <span>{row.getValue('carrier_name')}</span>
         </div>
       ),
     },
     {
-      accessorKey: 'country',
+      accessorKey: 'country_iso',
       header: 'Country',
-      cell: ({ row }) => row.getValue('country'),
+      cell: ({ row }) => row.getValue('country_iso'),
     },
     {
-      accessorKey: 'status',
+      accessorKey: 'is_active',
       header: 'Status',
       cell: ({ row }) => {
-        const status = row.getValue('status') as string;
+        const isActive = row.getValue('is_active') as boolean;
         return (
-          <Badge variant={status === 'active' ? 'default' : 'secondary'}>
-            {status.toUpperCase()}
+          <Badge variant={isActive ? 'default' : 'secondary'}>
+            {isActive ? 'ACTIVE' : 'INACTIVE'}
           </Badge>
         );
       },
     },
     {
-      accessorKey: 'balance',
+      accessorKey: 'main_balance',
       header: 'Balance',
       cell: ({ row }) => {
-        const balance = row.getValue('balance') as number;
+        const balance = row.getValue('main_balance') as number;
         return (
           <div className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-muted-foreground" />
@@ -195,27 +198,27 @@ export default function SimCardsIndex() {
       },
     },
     {
-      accessorKey: 'data_usage',
-      header: 'Data Usage',
+      accessorKey: 'sms_balance',
+      header: 'SMS Balance',
       cell: ({ row }) => {
-        const dataUsage = row.getValue('data_usage') as number;
+        const smsBalance = row.getValue('sms_balance') as number;
         return (
           <div className="flex items-center gap-2">
-            <Wifi className="h-4 w-4 text-muted-foreground" />
-            <span>{dataUsage} MB</span>
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+            <span>{smsBalance}</span>
           </div>
         );
       },
     },
     {
-      accessorKey: 'sms_usage',
-      header: 'SMS Usage',
+      accessorKey: 'total_sent',
+      header: 'SMS Sent',
       cell: ({ row }) => {
-        const smsUsage = row.getValue('sms_usage') as number;
+        const totalSent = row.getValue('total_sent') as number;
         return (
           <div className="flex items-center gap-2">
             <Smartphone className="h-4 w-4 text-muted-foreground" />
-            <span>{smsUsage}</span>
+            <span>{totalSent}</span>
           </div>
         );
       },
@@ -223,7 +226,6 @@ export default function SimCardsIndex() {
     createCreatedAtColumn<SimCardWithBase>(),
     createActionsColumn<SimCardWithBase>({
       onDelete: handleDelete,
-      editPath: (record) => `/sim-cards/${record.id}/edit`,
       deleteConfirmMessage: "Are you sure you want to delete this SIM card?",
     }),
   ], [handleDelete]);
@@ -245,12 +247,6 @@ export default function SimCardsIndex() {
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
-            <Link to="/sim-cards/create">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add SIM Card
-              </Button>
-            </Link>
           </div>
         </div>
 
@@ -298,26 +294,26 @@ export default function SimCardsIndex() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Data Usage</CardTitle>
-              <Wifi className="h-4 w-4 text-purple-500" />
+              <CardTitle className="text-sm font-medium">Total SMS Balance</CardTitle>
+              <Smartphone className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{simCardStats.totalDataUsage} MB</div>
+              <div className="text-2xl font-bold text-purple-600">{simCardStats.totalSmsBalance}</div>
               <p className="text-xs text-muted-foreground">
-                Combined data usage
+                Combined SMS balance
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total SMS Usage</CardTitle>
+              <CardTitle className="text-sm font-medium">Total SMS Sent</CardTitle>
               <Smartphone className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{simCardStats.totalSmsUsage}</div>
+              <div className="text-2xl font-bold text-orange-600">{simCardStats.totalSmsSent}</div>
               <p className="text-xs text-muted-foreground">
-                Combined SMS usage
+                Combined SMS sent
               </p>
             </CardContent>
           </Card>

@@ -57,9 +57,7 @@ import ScheduleTasksEdit from '@/pages/schedule-tasks/edit'
 import UssdLogsIndex from '@/pages/ussd-logs/index'
 import UssdLogsShow from '@/pages/ussd-logs/show'
 import SimCardsIndex from '@/pages/sim-cards/index'
-import SimCardsCreate from '@/pages/sim-cards/create'
 import SimCardsShow from '@/pages/sim-cards/show'
-import SimCardsEdit from '@/pages/sim-cards/edit'
 import MccMncIndex from '@/pages/mcc-mnc/index'
 import MccMncCreate from '@/pages/mcc-mnc/create'
 import MccMncShow from '@/pages/mcc-mnc/show'
@@ -381,19 +379,9 @@ function App() {
                 <SimCardsIndex />
               </ProtectedRoute>
             } />
-            <Route path="/sim-cards/create" element={
-              <ProtectedRoute>
-                <SimCardsCreate />
-              </ProtectedRoute>
-            } />
             <Route path="/sim-cards/:id" element={
               <ProtectedRoute>
                 <SimCardsShow />
-              </ProtectedRoute>
-            } />
-            <Route path="/sim-cards/:id/edit" element={
-              <ProtectedRoute>
-                <SimCardsEdit />
               </ProtectedRoute>
             } />
             

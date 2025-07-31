@@ -2,83 +2,72 @@ import { apiClient } from './api-client';
 
 export interface SimCard {
   id: number;
+  slot_index: number;
+  subscription_id: number;
+  display_name: string;
+  carrier_name: string;
+  country_iso: string;
+  number: string;
   imei: string;
   iccid: string;
-  msisdn: string;
-  operator: string;
-  country: string;
-  status: string;
-  balance: number;
-  data_usage: number;
-  sms_usage: number;
-  created_at: string;
-  updated_at: string;
+  imsi: string;
+  network_mcc: string;
+  network_mnc: string;
+  sim_mcc: string;
+  sim_mnc: string;
+  network_operator_name: string;
+  sim_operator_name: string;
+  roaming: boolean;
+  signal_strength: number;
+  signal_dbm: number;
+  signal_type: string;
+  rsrp: number;
+  rsrq: number;
+  rssnr: number;
+  cqi: number;
+  network_type: string;
+  is_active: boolean;
+  total_delivered: number;
+  total_sent: number;
+  total_waiting: number;
+  main_balance: number;
+  sms_balance: number;
+  sms_limit: number;
   device_id?: number;
   device_name?: string;
-  display_name?: string;
-  slot_index?: number;
-  subscription_id?: string;
-  carrier_name?: string;
-  country_iso?: string;
-  number?: string;
-  is_active?: boolean;
-  network_type?: string;
-  roaming?: boolean;
-  network_operator_name?: string;
-  sim_operator_name?: string;
-  network_mcc?: string;
-  network_mnc?: string;
-  imsi?: string;
-  sim_mcc?: string;
-  sim_mnc?: string;
-  signal_strength?: number;
-  signal_dbm?: number;
-  signal_type?: string;
-  rsrp?: number;
-  rsrq?: number;
-  rssnr?: number;
-  cqi?: number;
+  country_site?: string;
+  device_group_name?: string;
+  created_at: string;
+  updated_at: string;
+  // Enhanced fields from backend
+  status_badge_variant?: string;
+  roaming_badge_variant?: string;
+  signal_strength_badge_variant?: string;
+  network_type_badge_variant?: string;
+  success_rate?: number;
+  signal_strength_text?: string;
   formatted_main_balance?: string;
   formatted_sms_balance?: string;
   formatted_sms_limit?: string;
-  total_sent?: number;
-  total_delivered?: number;
-  total_waiting?: number;
-  success_rate?: number;
-  sitename?: string;
-  device_group_name?: string;
-  main_balance?: number;
-  sms_balance?: number;
-  sms_limit?: number;
 }
 
 export interface CreateSimCardData {
-  imei: string;
-  iccid: string;
-  msisdn: string;
-  operator: string;
-  country: string;
-  status: string;
-  balance: number;
-  data_usage: number;
-  sms_usage: number;
-  device_id?: number;
+  slot_index: number;
+  subscription_id: number;
   display_name?: string;
-  slot_index?: number;
-  subscription_id?: string;
   carrier_name?: string;
   country_iso?: string;
   number?: string;
-  is_active?: boolean;
-  network_type?: string;
-  roaming?: boolean;
-  network_operator_name?: string;
-  sim_operator_name?: string;
+  imei?: string;
+  iccid?: string;
+  imsi?: string;
   network_mcc?: string;
   network_mnc?: string;
-  imsi?: string;
   sim_mcc?: string;
   sim_mnc?: string;
+  network_operator_name?: string;
+  sim_operator_name?: string;
+  roaming?: boolean;
   signal_strength?: number;
   signal_dbm?: number;
   signal_type?: string;
@@ -86,24 +75,21 @@ export interface CreateSimCardData {
   rsrq?: number;
   rssnr?: number;
   cqi?: number;
-  formatted_main_balance?: string;
-  formatted_sms_balance?: string;
-  formatted_sms_limit?: string;
-  total_sent?: number;
-  total_delivered?: number;
-  total_waiting?: number;
-  success_rate?: number;
-  sitename?: string;
-  device_group_name?: string;
+  network_type?: string;
+  is_active?: boolean;
   main_balance?: number;
   sms_balance?: number;
   sms_limit?: number;
+  device_id?: number;
+  device_name?: string;
+  country_site?: string;
+  device_group_name?: string;
 }
 
 export interface UpdateSimCardData extends Partial<CreateSimCardData> {}
 
 export const simCardsService = {
-  async getSimCards(): Promise<{ sim_cards: SimCard[] }> {
+  async getSimCards(): Promise<{ data: SimCard[] }> {
     return apiClient.get('/sim-cards');
   },
 

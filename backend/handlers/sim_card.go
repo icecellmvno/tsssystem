@@ -17,16 +17,8 @@ func GetSimCards(c *fiber.Ctx) error {
 	search := c.Query("search", "")
 	slotIndex := c.Query("slot_index", "")
 	carrierName := c.Query("carrier_name", "")
-	countryISO := c.Query("country_iso", "")
-	networkOperatorName := c.Query("network_operator_name", "")
-	simOperatorName := c.Query("sim_operator_name", "")
-	roaming := c.Query("roaming", "")
 	isActive := c.Query("is_active", "")
 	networkType := c.Query("network_type", "")
-	sitename := c.Query("sitename", "")
-	deviceGroupName := c.Query("device_group_name", "")
-	deviceName := c.Query("device_name", "")
-	smsStatus := c.Query("sms_status", "")
 	sortBy := c.Query("sort_by", "created_at")
 	sortOrder := c.Query("sort_order", "desc")
 
@@ -38,15 +30,15 @@ func GetSimCards(c *fiber.Ctx) error {
 		perPage = 15
 	}
 
-	// Build query
-	query := database.GetDB().Model(&models.SimCardRecord{})
+	// Build query - Use device_sim_cards table instead of sim_card_records
+	query := database.GetDB().Model(&models.DeviceSimCard{})
 
 	// Apply filters
 	if search != "" {
 		searchTerm := "%" + search + "%"
 		query = query.Where(
-			"display_name LIKE ? OR carrier_name LIKE ? OR number LIKE ? OR imei LIKE ? OR iccid LIKE ? OR imsi LIKE ? OR network_operator_name LIKE ? OR sim_operator_name LIKE ?",
-			searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm,
+			"carrier_name LIKE ? OR phone_number LIKE ? OR imei LIKE ? OR iccid LIKE ? OR imsi LIKE ?",
+			searchTerm, searchTerm, searchTerm, searchTerm, searchTerm,
 		)
 	}
 
@@ -60,24 +52,6 @@ func GetSimCards(c *fiber.Ctx) error {
 		query = query.Where("carrier_name LIKE ?", "%"+carrierName+"%")
 	}
 
-	if countryISO != "" && countryISO != "all" {
-		query = query.Where("country_iso = ?", countryISO)
-	}
-
-	if networkOperatorName != "" && networkOperatorName != "all" {
-		query = query.Where("network_operator_name LIKE ?", "%"+networkOperatorName+"%")
-	}
-
-	if simOperatorName != "" && simOperatorName != "all" {
-		query = query.Where("sim_operator_name LIKE ?", "%"+simOperatorName+"%")
-	}
-
-	if roaming != "" && roaming != "all" {
-		if roamingBool, err := strconv.ParseBool(roaming); err == nil {
-			query = query.Where("roaming = ?", roamingBool)
-		}
-	}
-
 	if isActive != "" && isActive != "all" {
 		if activeBool, err := strconv.ParseBool(isActive); err == nil {
 			query = query.Where("is_active = ?", activeBool)
@@ -88,29 +62,7 @@ func GetSimCards(c *fiber.Ctx) error {
 		query = query.Where("network_type = ?", networkType)
 	}
 
-	if sitename != "" && sitename != "all" {
-		query = query.Where("sitename LIKE ?", "%"+sitename+"%")
-	}
-
-	if deviceGroupName != "" && deviceGroupName != "all" {
-		query = query.Where("device_group_name LIKE ?", "%"+deviceGroupName+"%")
-	}
-
-	if deviceName != "" && deviceName != "all" {
-		query = query.Where("device_name LIKE ?", "%"+deviceName+"%")
-	}
-
-	// Apply SMS status filter
-	if smsStatus != "" && smsStatus != "all" {
-		switch smsStatus {
-		case "active":
-			query = query.Where("sms_balance > 0 AND is_active = true")
-		case "inactive":
-			query = query.Where("(sms_balance = 0 OR is_active = false)")
-		case "limit_reached":
-			query = query.Where("total_sent >= sms_limit AND sms_limit > 0")
-		}
-	}
+	// SMS status filter removed for device_sim_cards table
 
 	// Apply sorting
 	if sortOrder == "asc" {
@@ -128,7 +80,7 @@ func GetSimCards(c *fiber.Ctx) error {
 	query = query.Offset(offset).Limit(perPage)
 
 	// Execute query
-	var simCards []models.SimCardRecord
+	var simCards []models.DeviceSimCard
 	if err := query.Find(&simCards).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch SIM cards",
@@ -136,7 +88,7 @@ func GetSimCards(c *fiber.Ctx) error {
 	}
 
 	// Enhance SIM cards with additional data
-	enhancedSimCards := enhanceSimCardsWithAdditionalData(simCards)
+	enhancedSimCards := enhanceDeviceSimCardsWithAdditionalData(simCards)
 
 	// Calculate pagination info
 	lastPage := int((total + int64(perPage) - 1) / int64(perPage))
@@ -163,7 +115,7 @@ func GetSimCard(c *fiber.Ctx) error {
 	}
 
 	// Find SIM card
-	var simCard models.SimCardRecord
+	var simCard models.DeviceSimCard
 	if err := database.GetDB().First(&simCard, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -176,7 +128,7 @@ func GetSimCard(c *fiber.Ctx) error {
 	}
 
 	// Enhance SIM card with additional data
-	enhancedSimCard := enhanceSimCardWithAdditionalData(simCard)
+	enhancedSimCard := enhanceDeviceSimCardWithAdditionalData(simCard)
 
 	return c.JSON(fiber.Map{
 		"data": enhancedSimCard,
@@ -185,7 +137,7 @@ func GetSimCard(c *fiber.Ctx) error {
 
 // CreateSimCard creates a new SIM card
 func CreateSimCard(c *fiber.Ctx) error {
-	var simCard models.SimCardRecord
+	var simCard models.DeviceSimCard
 	if err := c.BodyParser(&simCard); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
@@ -193,9 +145,9 @@ func CreateSimCard(c *fiber.Ctx) error {
 	}
 
 	// Validate required fields
-	if simCard.SlotIndex == 0 || simCard.SubscriptionID == 0 {
+	if simCard.SlotIndex == 0 || simCard.DeviceIMEI == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Slot index and subscription ID are required",
+			"error": "Slot index and device IMEI are required",
 		})
 	}
 
@@ -207,7 +159,7 @@ func CreateSimCard(c *fiber.Ctx) error {
 	}
 
 	// Enhance SIM card with additional data
-	enhancedSimCard := enhanceSimCardWithAdditionalData(simCard)
+	enhancedSimCard := enhanceDeviceSimCardWithAdditionalData(simCard)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "SIM card created successfully",
@@ -218,8 +170,8 @@ func CreateSimCard(c *fiber.Ctx) error {
 // UpdateSimCard updates an existing SIM card
 func UpdateSimCard(c *fiber.Ctx) error {
 	id := c.Params("id")
-	var simCard models.SimCardRecord
-	var existingSimCard models.SimCardRecord
+	var simCard models.DeviceSimCard
+	var existingSimCard models.DeviceSimCard
 
 	// Check if SIM card exists
 	if err := database.GetDB().First(&existingSimCard, id).Error; err != nil {
@@ -251,7 +203,7 @@ func UpdateSimCard(c *fiber.Ctx) error {
 	database.GetDB().First(&simCard, id)
 
 	// Enhance SIM card with additional data
-	enhancedSimCard := enhanceSimCardWithAdditionalData(simCard)
+	enhancedSimCard := enhanceDeviceSimCardWithAdditionalData(simCard)
 
 	return c.JSON(fiber.Map{
 		"message": "SIM card updated successfully",
@@ -262,7 +214,7 @@ func UpdateSimCard(c *fiber.Ctx) error {
 // DeleteSimCard deletes a SIM card
 func DeleteSimCard(c *fiber.Ctx) error {
 	id := c.Params("id")
-	var simCard models.SimCardRecord
+	var simCard models.DeviceSimCard
 
 	if err := database.GetDB().First(&simCard, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -290,113 +242,52 @@ func DeleteSimCard(c *fiber.Ctx) error {
 func GetSimCardFilterOptions(c *fiber.Ctx) error {
 	var slotIndexes []int
 	var carrierNames []string
-	var countryISOs []string
-	var networkOperatorNames []string
-	var simOperatorNames []string
 	var networkTypes []string
-	var sitenames []string
-	var deviceGroupNames []string
-	var deviceNames []string
 
 	// Get unique slot indexes
-	database.GetDB().Model(&models.SimCardRecord{}).
+	database.GetDB().Model(&models.DeviceSimCard{}).
 		Distinct("slot_index").
 		Where("slot_index IS NOT NULL").
 		Pluck("slot_index", &slotIndexes)
 
 	// Get unique carrier names
-	database.GetDB().Model(&models.SimCardRecord{}).
+	database.GetDB().Model(&models.DeviceSimCard{}).
 		Distinct("carrier_name").
 		Where("carrier_name IS NOT NULL AND carrier_name != ''").
 		Pluck("carrier_name", &carrierNames)
 
-	// Get unique country ISOs
-	database.GetDB().Model(&models.SimCardRecord{}).
-		Distinct("country_iso").
-		Where("country_iso IS NOT NULL AND country_iso != ''").
-		Pluck("country_iso", &countryISOs)
-
-	// Get unique network operator names
-	database.GetDB().Model(&models.SimCardRecord{}).
-		Distinct("network_operator_name").
-		Where("network_operator_name IS NOT NULL AND network_operator_name != ''").
-		Pluck("network_operator_name", &networkOperatorNames)
-
-	// Get unique SIM operator names
-	database.GetDB().Model(&models.SimCardRecord{}).
-		Distinct("sim_operator_name").
-		Where("sim_operator_name IS NOT NULL AND sim_operator_name != ''").
-		Pluck("sim_operator_name", &simOperatorNames)
-
 	// Get unique network types
-	database.GetDB().Model(&models.SimCardRecord{}).
+	database.GetDB().Model(&models.DeviceSimCard{}).
 		Distinct("network_type").
 		Where("network_type IS NOT NULL AND network_type != ''").
 		Pluck("network_type", &networkTypes)
 
-	// Get unique sitenames
-	database.GetDB().Model(&models.SimCardRecord{}).
-		Distinct("sitename").
-		Where("sitename IS NOT NULL AND sitename != ''").
-		Pluck("sitename", &sitenames)
-
-	// Get unique device group names
-	database.GetDB().Model(&models.SimCardRecord{}).
-		Distinct("device_group_name").
-		Where("device_group_name IS NOT NULL AND device_group_name != ''").
-		Pluck("device_group_name", &deviceGroupNames)
-
-	// Get unique device names
-	database.GetDB().Model(&models.SimCardRecord{}).
-		Distinct("device_name").
-		Where("device_name IS NOT NULL AND device_name != ''").
-		Pluck("device_name", &deviceNames)
-
 	return c.JSON(fiber.Map{
-		"slot_indexes":           slotIndexes,
-		"carrier_names":          carrierNames,
-		"country_isos":           countryISOs,
-		"network_operator_names": networkOperatorNames,
-		"sim_operator_names":     simOperatorNames,
-		"network_types":          networkTypes,
-		"sitenames":              sitenames,
-		"device_group_names":     deviceGroupNames,
-		"device_names":           deviceNames,
+		"slot_indexes":  slotIndexes,
+		"carrier_names": carrierNames,
+		"network_types": networkTypes,
 	})
 }
 
 // Helper functions
 
-func enhanceSimCardsWithAdditionalData(simCards []models.SimCardRecord) []map[string]interface{} {
+func enhanceDeviceSimCardsWithAdditionalData(simCards []models.DeviceSimCard) []map[string]interface{} {
 	enhancedSimCards := make([]map[string]interface{}, len(simCards))
 
 	for i, simCard := range simCards {
-		enhancedSimCards[i] = enhanceSimCardWithAdditionalData(simCard)
+		enhancedSimCards[i] = enhanceDeviceSimCardWithAdditionalData(simCard)
 	}
 
 	return enhancedSimCards
 }
 
-func enhanceSimCardWithAdditionalData(simCard models.SimCardRecord) map[string]interface{} {
-	// Calculate success rate
-	successRate := 0.0
-	if simCard.TotalSent > 0 {
-		successRate = float64(simCard.TotalDelivered) / float64(simCard.TotalSent) * 100
-	}
-
+func enhanceDeviceSimCardWithAdditionalData(simCard models.DeviceSimCard) map[string]interface{} {
 	// Determine badge variants
 	statusBadgeVariant := "secondary"
 	if simCard.IsActive {
 		statusBadgeVariant = "default"
 	} else {
 		statusBadgeVariant = "destructive"
-	}
-
-	roamingBadgeVariant := "secondary"
-	if simCard.Roaming {
-		roamingBadgeVariant = "destructive"
-	} else {
-		roamingBadgeVariant = "default"
 	}
 
 	signalStrengthBadgeVariant := "secondary"
@@ -439,51 +330,54 @@ func enhanceSimCardWithAdditionalData(simCard models.SimCardRecord) map[string]i
 	return map[string]interface{}{
 		"id":                            simCard.ID,
 		"slot_index":                    simCard.SlotIndex,
-		"subscription_id":               simCard.SubscriptionID,
-		"display_name":                  simCard.DisplayName,
+		"device_imei":                   simCard.DeviceIMEI,
 		"carrier_name":                  simCard.CarrierName,
-		"country_iso":                   simCard.CountryISO,
-		"number":                        simCard.Number,
+		"phone_number":                  simCard.PhoneNumber,
 		"imei":                          simCard.IMEI,
 		"iccid":                         simCard.ICCID,
 		"imsi":                          simCard.IMSI,
 		"network_mcc":                   simCard.NetworkMCC,
 		"network_mnc":                   simCard.NetworkMNC,
-		"sim_mcc":                       simCard.SimMCC,
-		"sim_mnc":                       simCard.SimMNC,
-		"network_operator_name":         simCard.NetworkOperatorName,
-		"sim_operator_name":             simCard.SimOperatorName,
-		"roaming":                       simCard.Roaming,
 		"signal_strength":               simCard.SignalStrength,
 		"signal_dbm":                    simCard.SignalDBM,
-		"signal_type":                   simCard.SignalType,
-		"rsrp":                          simCard.RSRP,
-		"rsrq":                          simCard.RSRQ,
-		"rssnr":                         simCard.RSSNR,
-		"cqi":                           simCard.CQI,
 		"network_type":                  simCard.NetworkType,
 		"is_active":                     simCard.IsActive,
-		"total_delivered":               simCard.TotalDelivered,
-		"total_sent":                    simCard.TotalSent,
-		"total_waiting":                 simCard.TotalWaiting,
-		"main_balance":                  simCard.MainBalance,
-		"sms_balance":                   simCard.SmsBalance,
-		"sms_limit":                     simCard.SmsLimit,
-		"device_id":                     simCard.DeviceID,
-		"device_name":                   simCard.DeviceName,
-		"country_site":                  simCard.CountrySite,
-		"device_group_name":             simCard.DeviceGroupName,
 		"created_at":                    simCard.CreatedAt,
 		"updated_at":                    simCard.UpdatedAt,
 		"status_badge_variant":          statusBadgeVariant,
-		"roaming_badge_variant":         roamingBadgeVariant,
 		"signal_strength_badge_variant": signalStrengthBadgeVariant,
 		"network_type_badge_variant":    networkTypeBadgeVariant,
-		"success_rate":                  successRate,
 		"signal_strength_text":          signalStrengthText,
-		"formatted_main_balance":        formatCurrency(simCard.MainBalance),
-		"formatted_sms_balance":         formatNumber(simCard.SmsBalance),
-		"formatted_sms_limit":           formatNumber(simCard.SmsLimit),
+		// Add missing fields with default values for compatibility
+		"subscription_id":        0,
+		"display_name":           simCard.CarrierName,
+		"country_iso":            "",
+		"number":                 simCard.PhoneNumber,
+		"sim_mcc":                "",
+		"sim_mnc":                "",
+		"network_operator_name":  simCard.CarrierName,
+		"sim_operator_name":      simCard.CarrierName,
+		"roaming":                false,
+		"signal_type":            "",
+		"rsrp":                   0,
+		"rsrq":                   0,
+		"rssnr":                  0,
+		"cqi":                    0,
+		"total_delivered":        0,
+		"total_sent":             0,
+		"total_waiting":          0,
+		"main_balance":           0.0,
+		"sms_balance":            0,
+		"sms_limit":              0,
+		"device_id":              nil,
+		"device_name":            nil,
+		"country_site":           nil,
+		"device_group_name":      nil,
+		"roaming_badge_variant":  "secondary",
+		"success_rate":           0.0,
+		"formatted_main_balance": "$0.00",
+		"formatted_sms_balance":  "0",
+		"formatted_sms_limit":    "0",
 	}
 }
 

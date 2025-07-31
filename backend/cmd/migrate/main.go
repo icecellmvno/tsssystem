@@ -47,7 +47,7 @@ func runMigrations() error {
 		&models.ScheduleTask{},
 		&models.ScheduleTaskExecution{},
 		&models.UssdLog{},
-		&models.SimCardRecord{},
+		// &models.SimCardRecord{}, // Removed - using device_sim_cards table instead
 		&models.MccMnc{},
 		// SMS routing models
 		&models.SmsRouting{},

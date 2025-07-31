@@ -41,7 +41,7 @@ export default function UssdLogsIndex() {
       const data = await ussdLogsService.getUssdLogs();
       
       // Transform data to include BaseRecord properties
-      const transformedData: UssdLogWithBase[] = data.ussd_logs.map(log => ({
+      const transformedData: UssdLogWithBase[] = data.data.map(log => ({
         ...log,
         id: log.id,
         created_at: log.created_at,
@@ -69,7 +69,7 @@ export default function UssdLogsIndex() {
         log.device_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.ussd_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.response.toLowerCase().includes(searchTerm.toLowerCase());
+        (log.response_message?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
       
       const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
       
@@ -89,7 +89,15 @@ export default function UssdLogsIndex() {
     const success = ussdLogs.filter(s => s.status === 'success').length;
     const failed = ussdLogs.filter(s => s.status === 'failed').length;
     const pending = ussdLogs.filter(s => s.status === 'pending').length;
-    const totalDuration = ussdLogs.reduce((sum, s) => sum + (s.duration_ms || 0), 0);
+    // Calculate duration from sent_at and received_at if available
+    const totalDuration = ussdLogs.reduce((sum, s) => {
+      if (s.sent_at && s.received_at) {
+        const sent = new Date(s.sent_at).getTime();
+        const received = new Date(s.received_at).getTime();
+        return sum + (received - sent);
+      }
+      return sum;
+    }, 0);
     const avgDuration = total > 0 ? Math.round(totalDuration / total) : 0;
     
     return {
@@ -153,11 +161,11 @@ export default function UssdLogsIndex() {
       ),
     },
     {
-      accessorKey: 'response',
+      accessorKey: 'response_message',
       header: 'Response',
       cell: ({ row }) => (
         <div className="max-w-[200px] truncate text-sm">
-          {row.getValue('response')}
+          {row.getValue('response_message') || 'N/A'}
         </div>
       ),
     },
@@ -193,14 +201,24 @@ export default function UssdLogsIndex() {
       },
     },
     {
-      accessorKey: 'duration_ms',
+      accessorKey: 'duration',
       header: 'Duration',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm">{formatDuration(row.getValue('duration_ms'))}</span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const log = row.original;
+        let duration = 0;
+        if (log.sent_at && log.received_at) {
+          const sent = new Date(log.sent_at).getTime();
+          const received = new Date(log.received_at).getTime();
+          duration = received - sent;
+        }
+        
+        return (
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">{formatDuration(duration)}</span>
+          </div>
+        );
+      },
     },
     createCreatedAtColumn<UssdLogWithBase>(),
     createActionsColumn<UssdLogWithBase>({

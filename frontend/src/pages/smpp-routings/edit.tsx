@@ -65,7 +65,8 @@ export default function SmppRoutingEdit() {
                     smppRoutingsService.getFilterOptions()
                 ]);
 
-
+                console.log('Routing data received:', routingData);
+                console.log('Filter options received:', options);
 
                 setFilterOptions(options);
 
@@ -95,9 +96,12 @@ export default function SmppRoutingEdit() {
                 // Initialize device group configs with existing data or default values
                 const configs: Record<number, any> = {};
                 
+                console.log('Device group configs from backend:', routingData.device_group_configs);
+                
                 // If we have existing device group configs from backend, use them
                 if (routingData.device_group_configs && Array.isArray(routingData.device_group_configs)) {
                     routingData.device_group_configs.forEach((config: any) => {
+                        console.log('Processing config:', config);
                         configs[config.device_group_id] = {
                             priority: config.priority || 50,
                             total_sms_count: config.total_sms_count || 1000,
@@ -120,6 +124,8 @@ export default function SmppRoutingEdit() {
                         };
                     }
                 });
+                
+                console.log('Final device group configs:', configs);
                 setDeviceGroupConfigs(configs);
             } catch (error) {
                 console.error('Error fetching data:', error);
@@ -252,7 +258,7 @@ export default function SmppRoutingEdit() {
                                     {form.source_type === 'smpp' && (
                                         <div>
                                             <Label htmlFor="system_id">System ID</Label>
-                                            <Select value={form.system_id} onValueChange={(v) => handleSelect('system_id', v)}>
+                                            <Select value={form.system_id || undefined} onValueChange={(v) => handleSelect('system_id', v)}>
                                                 <SelectTrigger id="system_id" className="w-full">
                                                     <SelectValue placeholder="Select System ID" />
                                                 </SelectTrigger>
@@ -267,7 +273,7 @@ export default function SmppRoutingEdit() {
                                     {form.source_type === 'http' && (
                                         <div>
                                             <Label htmlFor="user_id">User</Label>
-                                            <Select value={form.user_id} onValueChange={(v) => handleSelect('user_id', v)}>
+                                            <Select value={form.user_id || undefined} onValueChange={(v) => handleSelect('user_id', v)}>
                                                 <SelectTrigger id="user_id" className="w-full">
                                                     <SelectValue placeholder="Select User" />
                                                 </SelectTrigger>

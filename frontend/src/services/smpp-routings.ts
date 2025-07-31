@@ -170,8 +170,8 @@ class SmppRoutingsService {
   }
 
   async getById(id: number): Promise<SmppRoutingItem> {
-    const response = await apiClient.get<SmppRoutingItem>(`${this.baseUrl}/${id}`);
-    return response;
+    const response = await apiClient.get<{ data: SmppRoutingItem }>(`${this.baseUrl}/${id}`);
+    return response.data;
   }
 
   async create(data: SmppRoutingCreateData): Promise<SmppRoutingItem> {
@@ -180,8 +180,8 @@ class SmppRoutingsService {
   }
 
   async update(id: number, data: SmppRoutingUpdateData): Promise<SmppRoutingItem> {
-    const response = await apiClient.put<SmppRoutingItem>(`${this.baseUrl}/${id}`, data);
-    return response;
+    const response = await apiClient.put<{ data: SmppRoutingItem }>(`${this.baseUrl}/${id}`, data);
+    return response.data;
   }
 
   async delete(id: number): Promise<void> {

@@ -927,6 +927,26 @@ func (ws *WebSocketServer) SendUssd(deviceID string, data models.SendUssdData) e
 	log.Printf("Delay: %d", data.Delay)
 	log.Printf("Command sent at: %s", time.Now().Format("2006-01-02 15:04:05.000"))
 
+	// Save USSD command to database as pending
+	ussdLog := models.UssdLog{
+		SessionID:       data.SessionID,
+		DeviceID:        deviceID,
+		UssdCode:        data.UssdCode,
+		RequestMessage:  nil,
+		ResponseMessage: nil,
+		Status:          "pending",
+		SentAt:          nil,
+		ReceivedAt:      nil,
+		ErrorMessage:    nil,
+		Metadata:        nil,
+	}
+
+	if err := database.GetDB().Create(&ussdLog).Error; err != nil {
+		log.Printf("Error saving USSD command to database: %v", err)
+	} else {
+		log.Printf("USSD command saved to database for device %s", deviceID)
+	}
+
 	message := models.WebSocketMessage{
 		Type:      "send_ussd",
 		Data:      data,

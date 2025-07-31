@@ -311,6 +311,11 @@ export default function DeviceShow() {
               signal_strength_badge_variant: sim.signal_strength_badge_variant || 'secondary',
               network_type_badge_variant: sim.network_type_badge_variant || 'secondary',
               signal_strength_text: sim.signal_strength_text || 'Unknown',
+              main_balance: sim.main_balance || 0,
+              sms_balance: sim.sms_balance || 0,
+              sms_limit: sim.sms_limit || 0,
+              total_sent: sim.total_sent || 0,
+              total_delivered: sim.total_delivered || 0,
               has_sim: true
             }))
           };
@@ -474,6 +479,11 @@ export default function DeviceShow() {
             signal_strength_badge_variant: sim.signal_strength_badge_variant || 'secondary',
             network_type_badge_variant: sim.network_type_badge_variant || 'secondary',
             signal_strength_text: sim.signal_strength_text || 'Unknown',
+            main_balance: sim.main_balance || 0,
+            sms_balance: sim.sms_balance || 0,
+            sms_limit: sim.sms_limit || 0,
+            total_sent: sim.total_sent || 0,
+            total_delivered: sim.total_delivered || 0,
             has_sim: true
           });
         });
@@ -505,6 +515,11 @@ export default function DeviceShow() {
                 imsi: 'No SIM',
                 iccid: 'No SIM',
                 imei: 'No SIM',
+                main_balance: 0,
+                sms_balance: 0,
+                sms_limit: 0,
+                total_sent: 0,
+                total_delivered: 0,
                 has_sim: false
               };
             }
@@ -1345,6 +1360,52 @@ export default function DeviceShow() {
                                     <span>({sim.signal_level}/5)</span>
                                   </div>
                                   {sim.signal_dbm && ` (${sim.signal_dbm} dBm)`}
+                                </div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">Main Balance</div>
+                                <div className="text-sm">
+                                  <Badge variant={sim.main_balance > 0 ? 'default' : 'secondary'} className="font-mono">
+                                    ${sim.main_balance ? sim.main_balance.toFixed(2) : '0.00'}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">SMS Balance</div>
+                                <div className="text-sm">
+                                  <Badge 
+                                    variant={
+                                      sim.sms_balance > 0 ? 'default' : 
+                                      sim.sms_balance === 0 ? 'destructive' : 'secondary'
+                                    } 
+                                    className="font-mono"
+                                  >
+                                    {sim.sms_balance || 0} SMS
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">SMS Limit</div>
+                                <div className="text-sm">
+                                  <Badge variant="outline" className="font-mono">
+                                    {sim.sms_limit || 0} SMS
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">Total Sent</div>
+                                <div className="text-sm">
+                                  <Badge variant="secondary" className="font-mono">
+                                    {sim.total_sent || 0} SMS
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="space-y-2 mt-4">
+                                <div className="text-sm font-medium">Total Delivered</div>
+                                <div className="text-sm">
+                                  <Badge variant="secondary" className="font-mono">
+                                    {sim.total_delivered || 0} SMS
+                                  </Badge>
                                 </div>
                               </div>
                               <div className="space-y-2 mt-4">

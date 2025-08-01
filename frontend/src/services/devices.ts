@@ -202,7 +202,14 @@ export const deviceService = {
   },
 
   // Bulk update SMS limit data for all devices
-  bulkUpdateSmsLimitData: async (): Promise<{ success: boolean }> => {
+  bulkUpdateSmsLimitData: async (): Promise<{ 
+    success: boolean; 
+    data?: {
+      updated_devices: number;
+      total_devices: number;
+      device_groups_processed: number;
+    };
+  }> => {
     return apiClient.post('/devices/bulk-update-sms-limits');
   }
 }; 

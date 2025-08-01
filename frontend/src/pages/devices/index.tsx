@@ -334,7 +334,8 @@ export default function DevicesIndex() {
     try {
       const response = await deviceService.bulkUpdateSmsLimitData();
       if (response.success) {
-        toast.success('SMS limit data updated successfully for all devices');
+        const data = response.data;
+        toast.success(`SMS limit data updated successfully! Updated ${data.updated_devices} devices from ${data.total_devices} total devices across ${data.device_groups_processed} device groups.`);
         fetchDevices(); // Refresh devices to show updated data
       }
     } catch (error) {

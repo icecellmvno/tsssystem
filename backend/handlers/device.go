@@ -1066,24 +1066,60 @@ func (h *DeviceHandler) BulkUpdateSmsLimitData(c *fiber.Ctx) error {
 	}
 
 	updatedCount := 0
+	deviceGroupCache := make(map[string]*models.DeviceGroup)
 
 	for _, device := range devices {
-		// Initialize SMS limit data if not exists
+		// Get device group for this device
+		var deviceGroup models.DeviceGroup
+		if cached, exists := deviceGroupCache[device.DeviceGroup]; exists {
+			deviceGroup = *cached
+		} else {
+			if err := database.GetDB().Where("device_group = ?", device.DeviceGroup).First(&deviceGroup).Error; err != nil {
+				log.Printf("Failed to fetch device group for device %s: %v", device.IMEI, err)
+				continue
+			}
+			deviceGroupCache[device.DeviceGroup] = &deviceGroup
+		}
+
+		// Check if SMS limits are enabled for this device group
+		if !deviceGroup.EnableSmsLimits {
+			log.Printf("SMS limits not enabled for device group %s, skipping device %s", device.DeviceGroup, device.IMEI)
+			continue
+		}
+
+		// Initialize SMS limit data if not exists or reset if needed
+		needsUpdate := false
+		updateData := map[string]interface{}{
+			"sim1_daily_sms_used":         0,
+			"sim1_monthly_sms_used":       0,
+			"sim1_daily_limit_reset_at":   nil,
+			"sim1_monthly_limit_reset_at": nil,
+			"sim2_daily_sms_used":         0,
+			"sim2_monthly_sms_used":       0,
+			"sim2_daily_limit_reset_at":   nil,
+			"sim2_monthly_limit_reset_at": nil,
+		}
+
+		// Check if device needs SMS limit initialization
 		if device.Sim1DailySmsUsed == 0 && device.Sim1MonthlySmsUsed == 0 {
-			if err := database.GetDB().Model(&device).Updates(map[string]interface{}{
-				"sim1_daily_sms_used":         0,
-				"sim1_monthly_sms_used":       0,
-				"sim1_daily_limit_reset_at":   nil,
-				"sim1_monthly_limit_reset_at": nil,
-				"sim2_daily_sms_used":         0,
-				"sim2_monthly_sms_used":       0,
-				"sim2_daily_limit_reset_at":   nil,
-				"sim2_monthly_limit_reset_at": nil,
-			}).Error; err != nil {
+			needsUpdate = true
+		}
+
+		// If SMS limits are enabled but device doesn't have reset timestamps, initialize them
+		if device.Sim1DailyLimitResetAt == nil || device.Sim1MonthlyLimitResetAt == nil {
+			needsUpdate = true
+		}
+
+		if needsUpdate {
+			if err := database.GetDB().Model(&device).Updates(updateData).Error; err != nil {
 				log.Printf("Failed to update SMS limit data for device %s: %v", device.IMEI, err)
 				continue
 			}
 			updatedCount++
+			log.Printf("Updated SMS limit data for device %s (Group: %s, SIM1 Daily: %d, SIM1 Monthly: %d, SIM2 Daily: %d, SIM2 Monthly: %d)",
+				device.IMEI, device.DeviceGroup,
+				deviceGroup.Sim1DailySmsLimit, deviceGroup.Sim1MonthlySmsLimit,
+				deviceGroup.Sim2DailySmsLimit, deviceGroup.Sim2MonthlySmsLimit)
 		}
 	}
 
@@ -1091,8 +1127,9 @@ func (h *DeviceHandler) BulkUpdateSmsLimitData(c *fiber.Ctx) error {
 		"success": true,
 		"message": "SMS limit data updated successfully",
 		"data": fiber.Map{
-			"updated_devices": updatedCount,
-			"total_devices":   len(devices),
+			"updated_devices":         updatedCount,
+			"total_devices":           len(devices),
+			"device_groups_processed": len(deviceGroupCache),
 		},
 	})
 }

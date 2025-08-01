@@ -81,6 +81,8 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id/toggle", "POST")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id/maintenance/enter", "POST")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id/maintenance/exit", "POST")
+	Enforcer.AddPolicy("admin", "/api/devices/:device_id/sms-limits/reset", "POST")
+	Enforcer.AddPolicy("admin", "/api/devices/:device_id/sms-limits/status", "GET")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id", "DELETE")
 	Enforcer.AddPolicy("admin", "/api/devices/:device_id/rename", "PUT")
 	Enforcer.AddPolicy("admin", "/api/devices", "DELETE")
@@ -175,8 +177,6 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/bulk-sms/send", "POST")
 	Enforcer.AddPolicy("admin", "/api/bulk-sms/status", "GET")
 
-
-
 	// Admin SMPP routing policies
 	Enforcer.AddPolicy("admin", "/api/smpp-routings", "GET")
 	Enforcer.AddPolicy("admin", "/api/smpp-routings", "POST")
@@ -217,6 +217,8 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/find", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/maintenance/enter", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/maintenance/exit", "POST")
+	Enforcer.AddPolicy("manager", "/api/devices/:device_id/sms-limits/reset", "POST")
+	Enforcer.AddPolicy("manager", "/api/devices/:device_id/sms-limits/status", "GET")
 	Enforcer.AddPolicy("manager", "/api/devices/maintenance/enter", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/maintenance/exit", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/rename", "PUT")
@@ -304,6 +306,8 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/find", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/maintenance/enter", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/maintenance/exit", "POST")
+	Enforcer.AddPolicy("operator", "/api/devices/:device_id/sms-limits/reset", "POST")
+	Enforcer.AddPolicy("operator", "/api/devices/:device_id/sms-limits/status", "GET")
 	Enforcer.AddPolicy("operator", "/api/devices/maintenance/enter", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/maintenance/exit", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/rename", "PUT")

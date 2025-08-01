@@ -32,54 +32,6 @@ func HandleHeartbeat(wsServer interfaces.WebSocketServerInterface, deviceID stri
 		log.Printf("Failed to update device online status: %v", err)
 	}
 
-	// Signal kontrolü - device group ayarlarına göre
-	if data.SignalStrength <= deviceGroup.SignalLowThreshold && deviceGroup.EnableSignalAlarms {
-		log.Printf("Signal strength is %d (threshold: %d) for device %s, sending signal low alarm (device remains active)", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
-
-		// Note: Device remains active even with low signal strength
-
-		// Signal low alarmı gönder
-		alarmData := models.AlarmData{
-			AlarmType:   "signal_low",
-			Message:     fmt.Sprintf("Device signal is low (signal strength: %d, threshold: %d). Device remains operational.", data.SignalStrength, deviceGroup.SignalLowThreshold),
-			Severity:    "warning",
-			DeviceGroup: data.DeviceInfo.DeviceGroup,
-			CountrySite: data.DeviceInfo.CountrySite,
-		}
-
-		// Broadcast alarm to frontend
-		wsServer.BroadcastMessage(models.WebSocketMessage{
-			Type: "alarm",
-			Data: map[string]interface{}{
-				"device_id":    deviceID,
-				"alarm_type":   alarmData.AlarmType,
-				"message":      alarmData.Message,
-				"severity":     alarmData.Severity,
-				"device_group": alarmData.DeviceGroup,
-				"country_site": alarmData.CountrySite,
-			},
-			Timestamp: time.Now().UnixMilli(),
-		})
-
-		// Log alarm to database
-		LogAlarmToDatabase(deviceID, alarmData)
-	} else if data.SignalStrength > deviceGroup.SignalLowThreshold {
-		// Signal geri geldi, signal low alarmını durdur
-		log.Printf("Signal strength is %d (above threshold: %d) for device %s, signal has recovered", data.SignalStrength, deviceGroup.SignalLowThreshold, deviceID)
-
-		// Stop any active signal low alarms for this device
-		if err := database.GetDB().Model(&models.AlarmLog{}).
-			Where("device_id = ? AND alarm_type = ? AND status = ?", deviceID, "signal_low", "started").
-			Update("status", "stopped").Error; err != nil {
-			log.Printf("Failed to stop signal low alarm for device %s: %v", deviceID, err)
-		} else {
-			log.Printf("Signal low alarm stopped for device %s", deviceID)
-		}
-
-		// Check and update device status (this will handle setting to active if no other alarms)
-		CheckAndUpdateDeviceStatus(deviceID)
-	}
-
 	// Battery kontrolü - device group ayarlarına göre
 	if data.BatteryLevel <= deviceGroup.BatteryLowThreshold && deviceGroup.EnableBatteryAlarms {
 		log.Printf("Battery level is %d%% (threshold: %d%%) for device %s, sending battery alarm", data.BatteryLevel, deviceGroup.BatteryLowThreshold, deviceID)

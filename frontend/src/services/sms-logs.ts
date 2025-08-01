@@ -68,6 +68,7 @@ export interface SmsLogsFilterOptions {
 export interface SmsLogsFilters {
   search?: string;
   status?: string;
+  sms_status?: string;
   smpp_sent?: string;
   source_addr?: string;
   destination_addr?: string;
@@ -95,11 +96,12 @@ export const smsLogsService = {
     
     if (params?.search) searchParams.append('search', params.search);
     if (params?.status && params.status !== 'all') searchParams.append('status', params.status);
+    if (params?.sms_status && params.sms_status !== 'all') searchParams.append('sms_status', params.sms_status);
     if (params?.smpp_sent && params.smpp_sent !== 'all') searchParams.append('smpp_sent', params.smpp_sent);
     if (params?.source_addr) searchParams.append('source_addr', params.source_addr);
     if (params?.destination_addr) searchParams.append('destination_addr', params.destination_addr);
     if (params?.device_id) searchParams.append('device_id', params.device_id);
-    if (params?.device_name && params.device_name !== 'all') searchParams.append('device_name', params.device_name);
+    if (params?.device_name) searchParams.append('device_name', params.device_name);
     if (params?.simcard_name && params.simcard_name !== 'all') searchParams.append('simcard_name', params.simcard_name);
     if (params?.sim_slot && params.sim_slot !== 'all') searchParams.append('sim_slot', params.sim_slot);
     if (params?.country_site && params.country_site !== 'all') searchParams.append('country_site', params.country_site);

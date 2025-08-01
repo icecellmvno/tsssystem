@@ -25,6 +25,7 @@ func GetSmsLogs(c *fiber.Ctx) error {
 	perPage, _ := strconv.Atoi(c.Query("per_page", "15"))
 	search := c.Query("search", "")
 	status := c.Query("status", "")
+	smsStatus := c.Query("sms_status", "")
 	smppSent := c.Query("smpp_sent", "")
 	sourceAddr := c.Query("source_addr", "")
 	destinationAddr := c.Query("destination_addr", "")
@@ -43,7 +44,7 @@ func GetSmsLogs(c *fiber.Ctx) error {
 	sortOrder := c.Query("sort_order", "desc")
 
 	// Debug: Log the received parameters
-	log.Printf("SMS Logs Filter - startDate: %s, endDate: %s, startTime: %s, endTime: %s", 
+	log.Printf("SMS Logs Filter - startDate: %s, endDate: %s, startTime: %s, endTime: %s",
 		startDate, endDate, startTime, endTime)
 
 	// Validate pagination
@@ -66,7 +67,10 @@ func GetSmsLogs(c *fiber.Ctx) error {
 		)
 	}
 
-	if status != "" {
+	// Use sms_status if provided, otherwise fall back to status
+	if smsStatus != "" {
+		query = query.Where("status = ?", smsStatus)
+	} else if status != "" {
 		query = query.Where("status = ?", status)
 	}
 

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { type BreadcrumbItem } from '@/types';
 import { Search, RefreshCw, MessageSquare, Phone, Building2, ArrowUp, ArrowDown, Calendar, CheckCircle, Clock, DollarSign, Hash, Settings, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, XCircle, Clock4, Filter, X } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/stores/auth-store';
 import { useWebSocket } from '@/contexts/websocket-context';
 import { toast } from 'sonner';
@@ -43,6 +44,8 @@ export default function SmsLogsIndex() {
     const [endTime, setEndTime] = useState('');
     const [sourceAddress, setSourceAddress] = useState('');
     const [destinationAddress, setDestinationAddress] = useState('');
+    const [deviceName, setDeviceName] = useState('');
+    const [smsStatus, setSmsStatus] = useState('');
     const [showFilters, setShowFilters] = useState(false);
 
     // Initialize filters from URL params
@@ -53,6 +56,8 @@ export default function SmsLogsIndex() {
         const urlEndTime = searchParams.get('end_time');
         const urlSourceAddr = searchParams.get('source_addr');
         const urlDestAddr = searchParams.get('destination_addr');
+        const urlDeviceName = searchParams.get('device_name');
+        const urlSmsStatus = searchParams.get('sms_status');
         
         if (urlStartDate) setStartDate(urlStartDate);
         if (urlEndDate) setEndDate(urlEndDate);
@@ -60,9 +65,11 @@ export default function SmsLogsIndex() {
         if (urlEndTime) setEndTime(urlEndTime);
         if (urlSourceAddr) setSourceAddress(urlSourceAddr);
         if (urlDestAddr) setDestinationAddress(urlDestAddr);
+        if (urlDeviceName) setDeviceName(urlDeviceName);
+        if (urlSmsStatus) setSmsStatus(urlSmsStatus);
         
         // Show filters if any are set
-        if (urlStartDate || urlEndDate || urlStartTime || urlEndTime || urlSourceAddr || urlDestAddr) {
+        if (urlStartDate || urlEndDate || urlStartTime || urlEndTime || urlSourceAddr || urlDestAddr || urlDeviceName || urlSmsStatus) {
             setShowFilters(true);
         }
     }, [searchParams]);
@@ -75,6 +82,8 @@ export default function SmsLogsIndex() {
         end_time?: string;
         source_addr?: string;
         destination_addr?: string;
+        device_name?: string;
+        sms_status?: string;
     }) => {
         const newSearchParams = new URLSearchParams(searchParams);
         
@@ -107,6 +116,8 @@ export default function SmsLogsIndex() {
                 end_time: endTime || undefined,
                 source_addr: sourceAddress || undefined,
                 destination_addr: destinationAddress || undefined,
+                device_name: deviceName || undefined,
+                sms_status: smsStatus || undefined,
             };
 
             // Debug: Log the parameters being sent
@@ -128,7 +139,7 @@ export default function SmsLogsIndex() {
 
     useEffect(() => {
         fetchSmsLogs();
-    }, [currentPage, pageSize, search, startDate, endDate, startTime, endTime, sourceAddress, destinationAddress, isAuthenticated, token]);
+    }, [currentPage, pageSize, search, startDate, endDate, startTime, endTime, sourceAddress, destinationAddress, deviceName, smsStatus, isAuthenticated, token]);
 
     // Clear all filters
     const clearFilters = () => {
@@ -139,6 +150,8 @@ export default function SmsLogsIndex() {
         setEndTime('');
         setSourceAddress('');
         setDestinationAddress('');
+        setDeviceName('');
+        setSmsStatus('');
         setCurrentPage(1);
         updateURLParams({});
     };
@@ -174,8 +187,18 @@ export default function SmsLogsIndex() {
         updateURLParams({ destination_addr: value });
     };
 
+    const handleDeviceNameChange = (value: string) => {
+        setDeviceName(value);
+        updateURLParams({ device_name: value });
+    };
+
+    const handleSmsStatusChange = (value: string) => {
+        setSmsStatus(value);
+        updateURLParams({ sms_status: value });
+    };
+
     // Check if any filters are active
-    const hasActiveFilters = search || startDate || endDate || startTime || endTime || sourceAddress || destinationAddress;
+    const hasActiveFilters = search || startDate || endDate || startTime || endTime || sourceAddress || destinationAddress || deviceName || smsStatus;
 
     // Combine API data with real-time data
     const combinedSmsLogs = useMemo(() => {
@@ -858,6 +881,36 @@ export default function SmsLogsIndex() {
                                             />
                                         </div>
                                     </div>
+
+                                    {/* Device and Status Filters */}
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="device-name">Device Name</Label>
+                                            <Input
+                                                id="device-name"
+                                                placeholder="Enter device name..."
+                                                value={deviceName}
+                                                onChange={(e) => handleDeviceNameChange(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="sms-status">SMS Status</Label>
+                                            <Select value={smsStatus} onValueChange={handleSmsStatusChange}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select status..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="">All Statuses</SelectItem>
+                                                    <SelectItem value="delivered">Delivered</SelectItem>
+                                                    <SelectItem value="failed">Failed</SelectItem>
+                                                    <SelectItem value="pending">Pending</SelectItem>
+                                                    <SelectItem value="sent">Sent</SelectItem>
+                                                    <SelectItem value="expired">Expired</SelectItem>
+                                                    <SelectItem value="rejected">Rejected</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
@@ -924,6 +977,24 @@ export default function SmsLogsIndex() {
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
                                                 onClick={() => handleDestinationAddressChange('')}
+                                            />
+                                        </Badge>
+                                    )}
+                                    {deviceName && (
+                                        <Badge variant="secondary" className="flex items-center gap-1">
+                                            Device: {deviceName}
+                                            <X
+                                                className="h-3 w-3 cursor-pointer"
+                                                onClick={() => handleDeviceNameChange('')}
+                                            />
+                                        </Badge>
+                                    )}
+                                    {smsStatus && (
+                                        <Badge variant="secondary" className="flex items-center gap-1">
+                                            Status: {smsStatus}
+                                            <X
+                                                className="h-3 w-3 cursor-pointer"
+                                                onClick={() => handleSmsStatusChange('')}
                                             />
                                         </Badge>
                                     )}

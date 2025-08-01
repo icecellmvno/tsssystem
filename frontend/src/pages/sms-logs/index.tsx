@@ -797,7 +797,7 @@ export default function SmsLogsIndex() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4">
+                        <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
                             {/* Search */}
                             <div className="flex items-center gap-4">
                                 <div className="flex-1">
@@ -807,11 +807,16 @@ export default function SmsLogsIndex() {
                                             placeholder="Search messages, devices, phone numbers..."
                                             value={search}
                                             onChange={(e) => setSearch(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                }
+                                            }}
                                             className="pl-10"
                                         />
                                     </div>
                                 </div>
-                                <Button onClick={() => setSearch('')} variant="outline">
+                                <Button onClick={() => setSearch('')} variant="outline" type="button">
                                     Clear
                                 </Button>
                             </div>
@@ -874,6 +879,11 @@ export default function SmsLogsIndex() {
                                                 placeholder="Enter source address..."
                                                 value={sourceAddress}
                                                 onChange={(e) => handleSourceAddressChange(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -883,6 +893,11 @@ export default function SmsLogsIndex() {
                                                 placeholder="Enter destination address..."
                                                 value={destinationAddress}
                                                 onChange={(e) => handleDestinationAddressChange(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
                                             />
                                         </div>
                                     </div>
@@ -896,6 +911,11 @@ export default function SmsLogsIndex() {
                                                 placeholder="Enter device name..."
                                                 value={deviceName}
                                                 onChange={(e) => handleDeviceNameChange(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -1005,7 +1025,7 @@ export default function SmsLogsIndex() {
                                     )}
                                 </div>
                             )}
-                        </div>
+                        </form>
                     </CardContent>
                 </Card>
 

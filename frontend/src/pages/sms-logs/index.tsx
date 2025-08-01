@@ -66,7 +66,11 @@ export default function SmsLogsIndex() {
         if (urlSourceAddr) setSourceAddress(urlSourceAddr);
         if (urlDestAddr) setDestinationAddress(urlDestAddr);
         if (urlDeviceName) setDeviceName(urlDeviceName);
-        if (urlSmsStatus) setSmsStatus(urlSmsStatus);
+        if (urlSmsStatus) {
+            setSmsStatus(urlSmsStatus);
+        } else {
+            setSmsStatus('all');
+        }
         
         // Show filters if any are set
         if (urlStartDate || urlEndDate || urlStartTime || urlEndTime || urlSourceAddr || urlDestAddr || urlDeviceName || urlSmsStatus) {
@@ -117,7 +121,7 @@ export default function SmsLogsIndex() {
                 source_addr: sourceAddress || undefined,
                 destination_addr: destinationAddress || undefined,
                 device_name: deviceName || undefined,
-                sms_status: smsStatus || undefined,
+                sms_status: (smsStatus && smsStatus !== 'all') ? smsStatus : undefined,
             };
 
             // Debug: Log the parameters being sent
@@ -151,7 +155,7 @@ export default function SmsLogsIndex() {
         setSourceAddress('');
         setDestinationAddress('');
         setDeviceName('');
-        setSmsStatus('');
+        setSmsStatus('all');
         setCurrentPage(1);
         updateURLParams({});
     };
@@ -193,12 +197,13 @@ export default function SmsLogsIndex() {
     };
 
     const handleSmsStatusChange = (value: string) => {
-        setSmsStatus(value);
-        updateURLParams({ sms_status: value });
+        const statusValue = value === 'all' ? '' : value;
+        setSmsStatus(statusValue);
+        updateURLParams({ sms_status: statusValue });
     };
 
     // Check if any filters are active
-    const hasActiveFilters = search || startDate || endDate || startTime || endTime || sourceAddress || destinationAddress || deviceName || smsStatus;
+    const hasActiveFilters = search || startDate || endDate || startTime || endTime || sourceAddress || destinationAddress || deviceName || (smsStatus && smsStatus !== 'all');
 
     // Combine API data with real-time data
     const combinedSmsLogs = useMemo(() => {
@@ -900,7 +905,7 @@ export default function SmsLogsIndex() {
                                                     <SelectValue placeholder="Select status..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="">All Statuses</SelectItem>
+                                                    <SelectItem value="all">All Statuses</SelectItem>
                                                     <SelectItem value="delivered">Delivered</SelectItem>
                                                     <SelectItem value="failed">Failed</SelectItem>
                                                     <SelectItem value="pending">Pending</SelectItem>
@@ -989,12 +994,12 @@ export default function SmsLogsIndex() {
                                             />
                                         </Badge>
                                     )}
-                                    {smsStatus && (
+                                    {smsStatus && smsStatus !== 'all' && (
                                         <Badge variant="secondary" className="flex items-center gap-1">
                                             Status: {smsStatus}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => handleSmsStatusChange('')}
+                                                onClick={() => handleSmsStatusChange('all')}
                                             />
                                         </Badge>
                                     )}

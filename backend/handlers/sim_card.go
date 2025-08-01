@@ -290,10 +290,23 @@ func enhanceDeviceSimCardWithAdditionalData(simCard models.DeviceSimCard) map[st
 	simCardStatus := "Unknown"
 	statusBadgeVariant := "secondary"
 
+	// Get device group to check SMS limits
+	var deviceGroup models.DeviceGroup
+	var smsLimit int = 0
+	err := database.GetDB().Where("device_group = ?", simCard.DeviceGroupName).First(&deviceGroup).Error
+	if err == nil {
+		// Get SMS limit based on sim slot
+		if simCard.SlotIndex == 1 {
+			smsLimit = deviceGroup.Sim1DailySmsLimit
+		} else if simCard.SlotIndex == 2 {
+			smsLimit = deviceGroup.Sim2DailySmsLimit
+		}
+	}
+
 	if !simCard.IsActive {
 		simCardStatus = "Blocked"
 		statusBadgeVariant = "destructive"
-	} else if simCard.SmsBalance <= 0 || simCard.SmsLimit <= 0 {
+	} else if simCard.SmsBalance <= 0 || smsLimit <= 0 {
 		simCardStatus = "No Balance"
 		statusBadgeVariant = "destructive"
 	} else if device.IsOnline && simCard.IsActive {
@@ -382,7 +395,7 @@ func enhanceDeviceSimCardWithAdditionalData(simCard models.DeviceSimCard) map[st
 		"total_waiting":          0,
 		"main_balance":           0.0,
 		"sms_balance":            0,
-		"sms_limit":              0,
+		"sms_limit":              smsLimit,
 		"device_id":              nil,
 		"device_name":            simCard.DeviceName,
 		"country_site":           simCard.CountrySite,
@@ -393,7 +406,7 @@ func enhanceDeviceSimCardWithAdditionalData(simCard models.DeviceSimCard) map[st
 		"success_rate":           0.0,
 		"formatted_main_balance": "$0.00",
 		"formatted_sms_balance":  "0",
-		"formatted_sms_limit":    "0",
+		"formatted_sms_limit":    strconv.Itoa(smsLimit),
 	}
 }
 

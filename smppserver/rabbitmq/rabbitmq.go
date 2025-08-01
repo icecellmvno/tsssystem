@@ -362,7 +362,7 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 
 // createDeliveryReportText creates the delivery report text in SMPP format
 func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage) string {
-	// Format: "jid:message_id sub:000 dlvrd:000 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
+	// Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
 
 	// Convert message state to SMPP status string
 	var status string
@@ -385,14 +385,24 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage)
 		status = "UNKNOWN"
 	}
 
+	// Determine submit and delivered counts based on delivery status
+	var subCount, dlvrdCount string
+	if report.Delivered {
+		subCount = "001"
+		dlvrdCount = "001"
+	} else {
+		subCount = "001"
+		dlvrdCount = "000"
+	}
+
 	// Create delivery report text
 	originalText := "Delivery Report"
 	if report.OriginalText != "" {
 		originalText = report.OriginalText
 	}
 
-	deliveryText := fmt.Sprintf("id:%s sub:000 dlvrd:000 submit date:%s done date:%s stat:%s err:000 text:%s",
-		report.MessageID, report.SubmitDate, report.DoneDate, status, originalText)
+	deliveryText := fmt.Sprintf("id:%s sub:%s dlvrd:%s submit date:%s done date:%s stat:%s err:%03d text:%s",
+		report.MessageID, subCount, dlvrdCount, report.SubmitDate, report.DoneDate, status, report.ErrorCode, originalText)
 
 	return deliveryText
 }

@@ -610,6 +610,7 @@ export default function DevicesIndex() {
                 fetchDevices();
                 fetchStats();
               }}
+              onUpdateSmsLimits={handleBulkUpdateSmsLimits}
               countrySites={countrySites}
               deviceGroups={deviceGroups}
               loading={loading}

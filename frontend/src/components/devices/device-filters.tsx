@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Filter, X, RefreshCw } from 'lucide-react';
+import { Filter, X, RefreshCw, MessageSquare } from 'lucide-react';
 
 interface DeviceFiltersProps {
   globalFilter: string;
@@ -20,6 +20,7 @@ interface DeviceFiltersProps {
   setMaintenanceFilter: (value: string) => void;
   onClearFilters: () => void;
   onRefresh: () => void;
+  onUpdateSmsLimits?: () => void;
   countrySites: string[];
   deviceGroups: string[];
   loading?: boolean;
@@ -40,6 +41,7 @@ export function DeviceFilters({
   setMaintenanceFilter,
   onClearFilters,
   onRefresh,
+  onUpdateSmsLimits,
   countrySites,
   deviceGroups,
   loading = false
@@ -71,16 +73,30 @@ export function DeviceFilters({
               </Button>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={loading}
-            className="text-blue-600 border-blue-300 hover:bg-blue-50"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {onUpdateSmsLimits && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onUpdateSmsLimits}
+                disabled={loading}
+                className="text-green-600 border-green-300 hover:bg-green-50"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Update SMS Limits
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={loading}
+              className="text-blue-600 border-blue-300 hover:bg-blue-50"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent>

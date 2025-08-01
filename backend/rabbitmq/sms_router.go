@@ -101,10 +101,14 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 	// Find the best matching routing rule
 	var routing *models.SmsRouting
+	var systemIDMismatch bool
+	var destinationMismatch bool
+
 	for _, r := range routings {
 		// Check if system_id matches (if specified in routing)
 		if r.SystemID != nil && *r.SystemID != "" && *r.SystemID != "*" && *r.SystemID != smppMsg.SystemID {
 			log.Printf("System ID mismatch for routing %s: expects %s, got %s", r.Name, *r.SystemID, smppMsg.SystemID)
+			systemIDMismatch = true
 			continue // Try next routing rule
 		}
 
@@ -113,6 +117,7 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 			// Enhanced pattern matching with wildcard support
 			if !sr.matchesDestinationPattern(*r.DestinationAddress, smppMsg.DestinationAddr) {
 				log.Printf("Destination address mismatch for routing %s: expects %s, got %s", r.Name, *r.DestinationAddress, smppMsg.DestinationAddr)
+				destinationMismatch = true
 				continue // Try next routing rule
 			}
 		}
@@ -129,13 +134,22 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	}
 
 	if routing == nil {
+		var failureReason string
+		if systemIDMismatch {
+			failureReason = fmt.Sprintf("System ID mismatch - no routing rule found for SystemID: %s", smppMsg.SystemID)
+		} else if destinationMismatch {
+			failureReason = fmt.Sprintf("Destination address mismatch - no routing rule found for destination: %s", smppMsg.DestinationAddr)
+		} else {
+			failureReason = fmt.Sprintf("No matching routing rule found for SystemID: %s, Destination: %s", smppMsg.SystemID, smppMsg.DestinationAddr)
+		}
+
 		log.Printf("No matching routing rule found for SMPP message (SystemID: %s, Destination: %s)", smppMsg.SystemID, smppMsg.DestinationAddr)
 
 		// Log to alarm log
-		sr.logSmppMessageProcessing(smppMsg, fmt.Sprintf("No matching routing rule found for SystemID: %s, Destination: %s", smppMsg.SystemID, smppMsg.DestinationAddr))
+		sr.logSmppMessageProcessing(smppMsg, failureReason)
 
-		sr.createSmsRoutingFailureAlarm(smppMsg, fmt.Sprintf("No matching routing rule found for SystemID: %s, Destination: %s", smppMsg.SystemID, smppMsg.DestinationAddr))
-		return sr.sendUndeliveredReport(smppMsg, "No matching routing rule found")
+		sr.createSmsRoutingFailureAlarm(smppMsg, failureReason)
+		return sr.sendUndeliveredReport(smppMsg, failureReason)
 	}
 
 	// Get connected devices

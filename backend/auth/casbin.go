@@ -89,6 +89,7 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("admin", "/api/devices/toggle-active", "PUT")
 	Enforcer.AddPolicy("admin", "/api/devices/maintenance/enter", "POST")
 	Enforcer.AddPolicy("admin", "/api/devices/maintenance/exit", "POST")
+	Enforcer.AddPolicy("admin", "/api/devices/bulk-update-sms-limits", "POST")
 
 	// Admin schedule tasks policies
 	Enforcer.AddPolicy("admin", "/api/schedule-tasks", "GET")
@@ -221,6 +222,7 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/sms-limits/status", "GET")
 	Enforcer.AddPolicy("manager", "/api/devices/maintenance/enter", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/maintenance/exit", "POST")
+	Enforcer.AddPolicy("manager", "/api/devices/bulk-update-sms-limits", "POST")
 	Enforcer.AddPolicy("manager", "/api/devices/:device_id/rename", "PUT")
 	Enforcer.AddPolicy("manager", "/api/devices/toggle-active", "PUT")
 	Enforcer.AddPolicy("manager", "/api/alarm-logs", "GET")
@@ -310,6 +312,7 @@ func loadDefaultPolicies() error {
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/sms-limits/status", "GET")
 	Enforcer.AddPolicy("operator", "/api/devices/maintenance/enter", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/maintenance/exit", "POST")
+	Enforcer.AddPolicy("operator", "/api/devices/bulk-update-sms-limits", "POST")
 	Enforcer.AddPolicy("operator", "/api/devices/:device_id/rename", "PUT")
 	Enforcer.AddPolicy("operator", "/api/devices/toggle-active", "PUT")
 	Enforcer.AddPolicy("operator", "/api/alarm-logs", "GET")

@@ -28,6 +28,15 @@ export interface Device {
   created_at: string;
   updated_at: string;
   alarms?: any[];
+  // SMS Limit tracking fields
+  sim1_daily_sms_used?: number;
+  sim1_monthly_sms_used?: number;
+  sim1_daily_limit_reset_at?: string;
+  sim1_monthly_limit_reset_at?: string;
+  sim2_daily_sms_used?: number;
+  sim2_monthly_sms_used?: number;
+  sim2_daily_limit_reset_at?: string;
+  sim2_monthly_limit_reset_at?: string;
 }
 
 export interface AlarmLog {
@@ -177,5 +186,23 @@ export const deviceService = {
   // Clear alarm logs
   clearAlarmLogs: async (): Promise<{ success: boolean }> => {
     return apiClient.delete<{ success: boolean }>('/alarm-logs');
+  },
+
+  // Get SMS limit status for a device
+  getSmsLimitStatus: async (imei: string, simSlot: number): Promise<any> => {
+    return apiClient.get(`/devices/${imei}/sms-limits/status?sim_slot=${simSlot}`);
+  },
+
+  // Reset SMS limits for a device
+  resetSmsLimits: async (imei: string, simSlot: number, resetType: string): Promise<{ success: boolean }> => {
+    return apiClient.post(`/devices/${imei}/sms-limits/reset`, {
+      sim_slot: simSlot,
+      reset_type: resetType
+    });
+  },
+
+  // Bulk update SMS limit data for all devices
+  bulkUpdateSmsLimitData: async (): Promise<{ success: boolean }> => {
+    return apiClient.post('/devices/bulk-update-sms-limits');
   }
 }; 

@@ -15,7 +15,8 @@ import {
   AlertTriangle,
   Smartphone,
   Activity,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -329,6 +330,19 @@ export default function DevicesIndex() {
     setAlarmStatusFilter('all');
   };
 
+  const handleBulkUpdateSmsLimits = async () => {
+    try {
+      const response = await deviceService.bulkUpdateSmsLimitData();
+      if (response.success) {
+        toast.success('SMS limit data updated successfully for all devices');
+        fetchDevices(); // Refresh devices to show updated data
+      }
+    } catch (error) {
+      console.error('Error updating SMS limit data:', error);
+      toast.error('Failed to update SMS limit data');
+    }
+  };
+
   // Computed values
   const countrySites = useMemo(() => {
     if (!devices || devices.length === 0) return [];
@@ -507,6 +521,16 @@ export default function DevicesIndex() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkUpdateSmsLimits}
+              disabled={loading}
+              title="Update SMS limit data for all devices"
+            >
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Update SMS Limits
+            </Button>
             <Button
               variant="ghost"
               size="sm"

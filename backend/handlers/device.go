@@ -1051,3 +1051,48 @@ func (h *DeviceHandler) GetSmsLimitStatus(c *fiber.Ctx) error {
 		"data":    status,
 	})
 }
+
+// BulkUpdateSmsLimitData updates SMS limit data for all devices
+func (h *DeviceHandler) BulkUpdateSmsLimitData(c *fiber.Ctx) error {
+	var devices []models.Device
+
+	// Get all devices
+	if err := database.GetDB().Find(&devices).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to fetch devices",
+			"error":   err.Error(),
+		})
+	}
+
+	updatedCount := 0
+
+	for _, device := range devices {
+		// Initialize SMS limit data if not exists
+		if device.Sim1DailySmsUsed == 0 && device.Sim1MonthlySmsUsed == 0 {
+			if err := database.GetDB().Model(&device).Updates(map[string]interface{}{
+				"sim1_daily_sms_used":         0,
+				"sim1_monthly_sms_used":       0,
+				"sim1_daily_limit_reset_at":   nil,
+				"sim1_monthly_limit_reset_at": nil,
+				"sim2_daily_sms_used":         0,
+				"sim2_monthly_sms_used":       0,
+				"sim2_daily_limit_reset_at":   nil,
+				"sim2_monthly_limit_reset_at": nil,
+			}).Error; err != nil {
+				log.Printf("Failed to update SMS limit data for device %s: %v", device.IMEI, err)
+				continue
+			}
+			updatedCount++
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "SMS limit data updated successfully",
+		"data": fiber.Map{
+			"updated_devices": updatedCount,
+			"total_devices":   len(devices),
+		},
+	})
+}

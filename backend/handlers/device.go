@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"log"
+	"strconv"
 	"time"
 	"tsimsocketserver/database"
 	"tsimsocketserver/models"
@@ -9,6 +10,7 @@ import (
 	"tsimsocketserver/websocket"
 
 	"tsimsocketserver/auth"
+	"tsimsocketserver/services"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -173,6 +175,26 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check SMS limits before sending
+	smsLimitService := services.NewSmsLimitService()
+	canSend, reason, err := smsLimitService.CheckSmsLimit(imei, request.SimSlot)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to check SMS limits",
+		})
+	}
+
+	if !canSend {
+		// Enter maintenance mode if limit exceeded
+		smsLimitService.EnterMaintenanceModeIfLimitExceeded(imei, request.SimSlot)
+
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": reason,
+		})
+	}
+
 	// Get SIM card information for the specified slot
 	var deviceSimCard models.DeviceSimCard
 	var simcardName, simcardNumber, simcardICCID, deviceIMSI *string
@@ -231,6 +253,12 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 		})
 	}
 
+	// Increment SMS usage
+	if err := smsLimitService.IncrementSmsUsage(imei, request.SimSlot); err != nil {
+		// Log error but don't fail the SMS send
+		log.Printf("Failed to increment SMS usage for device %s: %v", imei, err)
+	}
+
 	data := models.SendSmsData{
 		SimSlot:     request.SimSlot,
 		PhoneNumber: request.PhoneNumber,
@@ -253,9 +281,9 @@ func (h *DeviceHandler) SendSms(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{
-		"success":    true,
-		"message":    "SMS sent successfully",
-		"message_id": messageID,
+		"success": true,
+		"message": "SMS sent successfully",
+		"data":    smsLog,
 	})
 }
 
@@ -941,5 +969,85 @@ func (h *DeviceHandler) GetActiveDevices(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    devices,
+	})
+}
+
+// ResetSmsLimits resets SMS limits for a device
+func (h *DeviceHandler) ResetSmsLimits(c *fiber.Ctx) error {
+	imei := c.Params("imei")
+	if imei == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "Device IMEI is required",
+		})
+	}
+
+	var request struct {
+		SimSlot   int    `json:"sim_slot" validate:"required,min=1,max=2"`
+		ResetType string `json:"reset_type" validate:"required,oneof=daily monthly both"`
+	}
+
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid request body",
+		})
+	}
+
+	// Check if device exists
+	var device models.Device
+	if err := database.GetDB().Where("imei = ?", imei).First(&device).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{
+			"success": false,
+			"message": "Device not found",
+		})
+	}
+
+	// Reset SMS limits
+	smsLimitService := services.NewSmsLimitService()
+	if err := smsLimitService.ResetSmsLimits(imei, request.SimSlot, request.ResetType); err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to reset SMS limits",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "SMS limits reset successfully",
+	})
+}
+
+// GetSmsLimitStatus returns SMS limit status for a device
+func (h *DeviceHandler) GetSmsLimitStatus(c *fiber.Ctx) error {
+	imei := c.Params("imei")
+	if imei == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "Device IMEI is required",
+		})
+	}
+
+	simSlotStr := c.Query("sim_slot", "1")
+	simSlot, err := strconv.Atoi(simSlotStr)
+	if err != nil || (simSlot != 1 && simSlot != 2) {
+		return c.Status(400).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid SIM slot. Must be 1 or 2",
+		})
+	}
+
+	smsLimitService := services.NewSmsLimitService()
+	status, err := smsLimitService.GetSmsLimitStatus(imei, simSlot)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to get SMS limit status",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    status,
 	})
 }

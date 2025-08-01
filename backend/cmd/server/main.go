@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"tsimsocketserver/auth"
 	"tsimsocketserver/config"
@@ -84,6 +85,9 @@ func main() {
 		log.Println("SMS router started successfully")
 	}
 
+	// Start SMS limit reset cron job
+	go startSmsLimitResetCron()
+
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -112,5 +116,25 @@ func main() {
 	log.Printf("Server starting on port %s", cfg.Server.Port)
 	if err := app.Listen(":" + cfg.Server.Port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+// startSmsLimitResetCron starts the cron job for SMS limit reset
+func startSmsLimitResetCron() {
+	smsLimitService := services.NewSmsLimitService()
+	ticker := time.NewTicker(1 * time.Hour) // Check every hour
+	defer ticker.Stop()
+
+	log.Println("SMS limit reset cron job started")
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := smsLimitService.CheckAndResetDailyLimits(); err != nil {
+				log.Printf("Error in SMS limit reset cron job: %v", err)
+			} else {
+				log.Println("SMS limit reset cron job executed successfully")
+			}
+		}
 	}
 }

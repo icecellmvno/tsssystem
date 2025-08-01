@@ -103,6 +103,8 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	devices.Post("/:imei/toggle", deviceHandler.ToggleDevice)
 	devices.Post("/:imei/maintenance/enter", deviceHandler.EnterMaintenanceMode)
 	devices.Post("/:imei/maintenance/exit", deviceHandler.ExitMaintenanceMode)
+	devices.Post("/:imei/sms-limits/reset", deviceHandler.ResetSmsLimits)
+	devices.Get("/:imei/sms-limits/status", deviceHandler.GetSmsLimitStatus) // Yeni endpoint
 	devices.Delete("/:imei", deviceHandler.DeleteDevice)
 	devices.Put("/:imei/rename", deviceHandler.UpdateDeviceName)
 	devices.Delete("/", deviceHandler.DeleteDevices)

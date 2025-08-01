@@ -67,6 +67,7 @@ type DeliveryReportMessage struct {
 	Failed          bool   `json:"failed"`
 	FailureReason   string `json:"failure_reason,omitempty"`
 	OriginalText    string `json:"original_text,omitempty"` // Orijinal SMS metni
+	DataCoding      uint8  `json:"data_coding,omitempty"`   // Orijinal mesajın data coding'i
 }
 
 func NewRabbitMQClient(config *Config) (*RabbitMQClient, error) {
@@ -321,6 +322,12 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// Create delivery report text in SMPP format
 	deliveryReportText := r.createDeliveryReportText(report)
 
+	// Determine data coding - use original message's data coding if available, otherwise default to GSM 7-bit
+	dataCoding := uint8(protocol.DCS_GSM7) // Default to GSM 7-bit
+	if report.DataCoding != 0 {
+		dataCoding = report.DataCoding
+	}
+
 	// Create deliver_sm PDU for delivery report
 	deliverPDU := &protocol.DeliverSMPDU{
 		ServiceType:          "",
@@ -337,7 +344,7 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		ValidityPeriod:       "",
 		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC, // SMSC delivery receipt
 		ReplaceIfPresentFlag: 0,
-		DataCoding:           protocol.DCS_GSM7, // GSM 7-bit
+		DataCoding:           dataCoding, // Use original message's data coding
 		SMDefaultMsgID:       0,
 		SMLength:             uint8(len(deliveryReportText)),
 		ShortMessage:         deliveryReportText, // Delivery report text

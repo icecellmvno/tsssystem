@@ -10,6 +10,7 @@ import (
 
 	"tsimsocketserver/database"
 	"tsimsocketserver/models"
+	"tsimsocketserver/services"
 	"tsimsocketserver/types"
 	"tsimsocketserver/websocket"
 	"tsimsocketserver/websocket_handlers"
@@ -171,6 +172,38 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 	for i, device := range availableDevices {
 		simSlot := sr.selectSimSlot(device, *routing)
 
+		// Check SMS limits before sending
+		smsLimitService := services.NewSmsLimitService()
+		canSend, reason, err := smsLimitService.CheckSmsLimit(device.DeviceID, simSlot)
+		if err != nil {
+			log.Printf("Failed to check SMS limits for device %s: %v", device.DeviceID, err)
+			lastError = err
+			continue
+		}
+
+		if !canSend {
+			log.Printf("SMS limit exceeded for device %s (SIM slot %d): %s", device.DeviceID, simSlot, reason)
+			lastError = fmt.Errorf("SMS limit exceeded: %s", reason)
+
+			// Create SMS log entry for limit exceeded
+			if err := sr.createSmsLogForSmpp(smppMsg, "failed", fmt.Sprintf("SMS limit exceeded: %s", reason), device.DeviceID); err != nil {
+				log.Printf("Failed to create SMS log for limit exceeded: %v", err)
+			}
+
+			// Send delivery report for limit exceeded if delivery report was requested
+			if smppMsg.RegisteredDelivery == 1 {
+				if err := sr.sendDeliveryReportForFailedAttempt(smppMsg, fmt.Sprintf("SMS limit exceeded: %s", reason)); err != nil {
+					log.Printf("Failed to send delivery report for limit exceeded: %v", err)
+				}
+			}
+
+			// Create SMS failure alarm for limit exceeded
+			sr.createSmsFailureAlarm(smppMsg, device.DeviceID, fmt.Sprintf("SMS limit exceeded: %s", reason))
+
+			// Continue to next device
+			continue
+		}
+
 		// Create SMS data
 		smsData := models.SendSmsData{
 			PhoneNumber: smppMsg.DestinationAddr,
@@ -205,6 +238,11 @@ func (sr *SmsRouter) processSmppMessage(message []byte) error {
 
 			// Continue to next device
 			continue
+		}
+
+		// Increment SMS usage after successful send
+		if err := smsLimitService.IncrementSmsUsage(device.DeviceID, simSlot); err != nil {
+			log.Printf("Failed to increment SMS usage for device %s: %v", device.DeviceID, err)
 		}
 
 		// Success! Create SMS log entry for successful delivery

@@ -33,7 +33,7 @@ export function SmsLimitStatus({ deviceImei, simSlot }: SmsLimitStatusProps) {
     setLoading(true);
     try {
       const response = await apiClient.get(`/devices/${deviceImei}/sms-limits/status?sim_slot=${simSlot}`);
-      setStatus(response.data.data);
+      setStatus((response as any).data.data);
     } catch (error) {
       console.error('Failed to fetch SMS limit status:', error);
     } finally {

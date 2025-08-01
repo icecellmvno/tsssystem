@@ -150,6 +150,9 @@ export default function SmsLogsIndex() {
                 sms_status: (smsStatus && smsStatus !== 'all') ? smsStatus : undefined,
             };
 
+            // Debug: Log the parameters being sent
+            console.log('SMS Logs Filter Parameters:', params);
+
             const response = await smsLogsService.getAll(params);
             
             setSmsLogs(response.data);
@@ -222,6 +225,43 @@ export default function SmsLogsIndex() {
         updateURLParams({});
     };
 
+    // Handle input changes (not applied yet)
+    const handleInputSearchChange = (value: string) => {
+        setInputSearch(value);
+    };
+
+    const handleInputStartDateChange = (value: string) => {
+        setInputStartDate(value);
+    };
+
+    const handleInputEndDateChange = (value: string) => {
+        setInputEndDate(value);
+    };
+
+    const handleInputStartTimeChange = (value: string) => {
+        setInputStartTime(value);
+    };
+
+    const handleInputEndTimeChange = (value: string) => {
+        setInputEndTime(value);
+    };
+
+    const handleInputSourceAddressChange = (value: string) => {
+        setInputSourceAddress(value);
+    };
+
+    const handleInputDestinationAddressChange = (value: string) => {
+        setInputDestinationAddress(value);
+    };
+
+    const handleInputDeviceNameChange = (value: string) => {
+        setInputDeviceName(value);
+    };
+
+    const handleInputSmsStatusChange = (value: string) => {
+        setInputSmsStatus(value);
+    };
+
     // Check if any filters are active
     const hasActiveFilters = search || startDate || endDate || startTime || endTime || sourceAddress || destinationAddress || deviceName || (smsStatus && smsStatus !== 'all');
 
@@ -233,13 +273,17 @@ export default function SmsLogsIndex() {
         const merged = [...apiLogs];
         
         realtimeLogs.forEach(realtimeLog => {
+            // Check for duplicates using message_id first, then id, then phone_number + timestamp
             const existingIndex = merged.findIndex(log => {
+                // If both have message_id, compare by message_id
                 if (log.message_id && realtimeLog.message_id) {
                     return log.message_id === realtimeLog.message_id;
                 }
+                // If both have id, compare by id
                 if (log.id && realtimeLog.id) {
                     return log.id === realtimeLog.id;
                 }
+                // For inbound SMS without message_id, compare by phone_number + timestamp
                 if (log.direction === 'inbound' && realtimeLog.direction === 'inbound') {
                     return log.destination_addr === realtimeLog.destination_addr && 
                            log.created_at === realtimeLog.created_at;
@@ -248,8 +292,10 @@ export default function SmsLogsIndex() {
             });
             
             if (existingIndex === -1) {
+                // Add new real-time log at the beginning
                 merged.unshift(realtimeLog);
             } else {
+                // Update existing log with real-time data
                 merged[existingIndex] = { ...merged[existingIndex], ...realtimeLog };
             }
         });
@@ -266,11 +312,13 @@ export default function SmsLogsIndex() {
         const outbound = combinedSmsLogs.filter(log => log.direction === 'outbound').length;
         const inbound = combinedSmsLogs.filter(log => log.direction === 'inbound').length;
         
+        // Calculate total cost
         const totalCost = combinedSmsLogs.reduce((sum, log) => {
             const cost = parseFloat(log.total_cost || '0');
             return sum + cost;
         }, 0);
 
+        // Calculate success rate
         const successRate = total > 0 ? ((delivered / total) * 100).toFixed(1) : '0';
 
         return {
@@ -285,7 +333,7 @@ export default function SmsLogsIndex() {
         };
     }, [combinedSmsLogs]);
 
-    // Column definitions
+    // Column definitions based on the JSON structure
     const columns: ColumnDef<SmsLogItem>[] = useMemo(() => [
         {
             accessorKey: 'id',
@@ -335,6 +383,32 @@ export default function SmsLogsIndex() {
             },
         },
         {
+            accessorKey: 'source_connector',
+            header: 'Connector',
+            cell: ({ row }) => {
+                const connector = row.getValue('source_connector') as string || null;
+                return (
+                    <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                            {connector || '-'}
+                        </Badge>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'source_user',
+            header: 'User',
+            cell: ({ row }) => {
+                const user = row.getValue('source_user') as string || null;
+                return (
+                    <div className="text-sm">
+                        {user || '-'}
+                    </div>
+                );
+            },
+        },
+        {
             accessorKey: 'destination_addr',
             header: 'Destination',
             cell: ({ row }) => {
@@ -355,6 +429,7 @@ export default function SmsLogsIndex() {
                 
                 if (!message) return <span className="text-muted-foreground">-</span>;
                 
+                // SMS count calculation
                 let smsCount = 1;
                 let charsLeft = 0;
                 
@@ -367,7 +442,7 @@ export default function SmsLogsIndex() {
                     } else {
                         smsCount = Math.ceil(messageLength / 160);
                     }
-                } catch (error) {
+        } catch (error) {
                     smsCount = Math.ceil(messageLength / 160);
                 }
                 
@@ -400,20 +475,130 @@ export default function SmsLogsIndex() {
             },
         },
         {
-            accessorKey: 'status',
-            header: 'Status',
+            accessorKey: 'device_group',
+            header: 'Group',
             cell: ({ row }) => {
-                const status = row.getValue('status') as string;
-                let variant: "default" | "secondary" | "destructive" | "outline" = "secondary";
-                
-                if (status === 'delivered') variant = 'default';
-                else if (status === 'failed') variant = 'destructive';
-                else if (status === 'pending') variant = 'outline';
-                
+                const group = row.getValue('device_group') as string || null;
+                return (
+                    <div className="text-sm">
+                        {group || '-'}
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'country_site',
+            header: 'Site',
+            cell: ({ row }) => {
+                const site = row.getValue('country_site') as string || null;
+                return (
+                    <div className="text-sm">
+                        {site || '-'}
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'simcard_name',
+            header: 'SIM Name',
+            cell: ({ row }) => {
+                const name = row.getValue('simcard_name') as string || null;
+                return (
+                    <div className="text-sm">
+                        {name || '-'}
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'sim_slot',
+            header: 'Slot',
+            cell: ({ row }) => {
+                const slot = row.getValue('sim_slot') as number || null;
+                return (
+                    <div className="text-sm">
+                        {slot || '-'}
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'device_imsi',
+            header: 'IMSI',
+            cell: ({ row }) => {
+                const imsi = row.getValue('device_imsi') as string || null;
+                return (
+                    <div className="text-sm font-mono">
+                        {imsi || '-'}
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'priority',
+            header: 'Priority',
+            cell: ({ row }) => {
+                const priority = row.getValue('priority') as string || null;
+                return (
+                    <div className="text-sm">
+                        {priority || '-'}
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'retry_count',
+            header: 'Retries',
+            cell: ({ row }) => {
+                const retryCount = row.getValue('retry_count') as number || 0;
+                const maxRetries = row.getValue('max_retries') as number || 3;
+                return (
+                    <div className="text-sm">
+                        {retryCount}/{maxRetries}
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'total_cost',
+            header: 'Cost',
+            cell: ({ row }) => {
+                const cost = row.getValue('total_cost') as string || '0.00';
+                const currency = row.getValue('currency') as string || 'TRY';
                 return (
                     <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                        <Badge variant={variant}>{status}</Badge>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-mono">
+                            {cost} {currency}
+                        </span>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'smpp_sent',
+            header: 'SMPP',
+            cell: ({ row }) => {
+                const smppSent = row.getValue('smpp_sent') as boolean || false;
+                return (
+                    <div className="flex items-center gap-2">
+                        <Badge variant={smppSent ? 'default' : 'secondary'}>
+                            {smppSent ? 'Sent' : 'Not Sent'}
+                        </Badge>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'delivery_report_requested',
+            header: 'DR',
+            cell: ({ row }) => {
+                const drRequested = row.getValue('delivery_report_requested') as boolean || false;
+                return (
+                    <div className="flex items-center gap-2">
+                        <Badge variant={drRequested ? 'default' : 'secondary'}>
+                            {drRequested ? 'Yes' : 'No'}
+                        </Badge>
                     </div>
                 );
             },
@@ -435,6 +620,50 @@ export default function SmsLogsIndex() {
                                 minute: '2-digit' 
                             })}
                         </div>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'received_at',
+            header: 'Received',
+            cell: ({ row }) => {
+                const date = row.getValue('received_at') as string || null;
+                return (
+                    <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <div className="text-sm">
+                            {date ? (
+                                new Date(date).toLocaleString([], { 
+                                    year: 'numeric', 
+                                    month: '2-digit', 
+                                    day: '2-digit',
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                })
+                            ) : (
+                                <span>-</span>
+                            )}
+                        </div>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: 'status',
+            header: 'Status',
+            cell: ({ row }) => {
+                const status = row.getValue('status') as string;
+                let variant: "default" | "secondary" | "destructive" | "outline" = "secondary";
+                
+                if (status === 'delivered') variant = 'default';
+                else if (status === 'failed') variant = 'destructive';
+                else if (status === 'pending') variant = 'outline';
+                
+                return (
+                    <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                        <Badge variant={variant}>{status}</Badge>
                     </div>
                 );
             },
@@ -637,7 +866,7 @@ export default function SmsLogsIndex() {
                                         <Input
                                             placeholder="Search messages, devices, phone numbers..."
                                             value={inputSearch}
-                                            onChange={(e) => setInputSearch(e.target.value)}
+                                            onChange={(e) => handleInputSearchChange(e.target.value)}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
                                                     e.preventDefault();
@@ -647,7 +876,7 @@ export default function SmsLogsIndex() {
                                         />
                                     </div>
                                 </div>
-                                <Button onClick={() => setInputSearch('')} variant="outline" type="button">
+                                <Button onClick={() => handleInputSearchChange('')} variant="outline" type="button">
                                     Clear
                                 </Button>
                                 <Button onClick={applyFilters} type="button">
@@ -666,7 +895,7 @@ export default function SmsLogsIndex() {
                                                 id="start-date"
                                                 type="date"
                                                 value={inputStartDate}
-                                                onChange={(e) => setInputStartDate(e.target.value)}
+                                                onChange={(e) => handleInputStartDateChange(e.target.value)}
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -675,7 +904,7 @@ export default function SmsLogsIndex() {
                                                 id="end-date"
                                                 type="date"
                                                 value={inputEndDate}
-                                                onChange={(e) => setInputEndDate(e.target.value)}
+                                                onChange={(e) => handleInputEndDateChange(e.target.value)}
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -684,8 +913,8 @@ export default function SmsLogsIndex() {
                                                 id="start-time"
                                                 type="time"
                                                 step="60"
-                                                value={inputStartTime}
-                                                onChange={(e) => setInputStartTime(e.target.value)}
+                                                value={startTime}
+                                                onChange={(e) => handleStartTimeChange(e.target.value)}
                                                 placeholder="HH:MM"
                                             />
                                             <p className="text-xs text-muted-foreground">Use 24-hour format (e.g., 14:30 for 2:30 PM)</p>
@@ -696,8 +925,8 @@ export default function SmsLogsIndex() {
                                                 id="end-time"
                                                 type="time"
                                                 step="60"
-                                                value={inputEndTime}
-                                                onChange={(e) => setInputEndTime(e.target.value)}
+                                                value={endTime}
+                                                onChange={(e) => handleEndTimeChange(e.target.value)}
                                                 placeholder="HH:MM"
                                             />
                                             <p className="text-xs text-muted-foreground">Use 24-hour format (e.g., 23:45 for 11:45 PM)</p>
@@ -711,8 +940,8 @@ export default function SmsLogsIndex() {
                                             <Input
                                                 id="source-address"
                                                 placeholder="Enter source address..."
-                                                value={inputSourceAddress}
-                                                onChange={(e) => setInputSourceAddress(e.target.value)}
+                                                value={sourceAddress}
+                                                onChange={(e) => handleSourceAddressChange(e.target.value)}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
                                                         e.preventDefault();
@@ -725,8 +954,8 @@ export default function SmsLogsIndex() {
                                             <Input
                                                 id="destination-address"
                                                 placeholder="Enter destination address..."
-                                                value={inputDestinationAddress}
-                                                onChange={(e) => setInputDestinationAddress(e.target.value)}
+                                                value={destinationAddress}
+                                                onChange={(e) => handleDestinationAddressChange(e.target.value)}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
                                                         e.preventDefault();
@@ -743,8 +972,8 @@ export default function SmsLogsIndex() {
                                             <Input
                                                 id="device-name"
                                                 placeholder="Enter device name..."
-                                                value={inputDeviceName}
-                                                onChange={(e) => setInputDeviceName(e.target.value)}
+                                                value={deviceName}
+                                                onChange={(e) => handleDeviceNameChange(e.target.value)}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
                                                         e.preventDefault();
@@ -754,7 +983,7 @@ export default function SmsLogsIndex() {
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="sms-status">SMS Status</Label>
-                                            <Select value={inputSmsStatus} onValueChange={setInputSmsStatus}>
+                                            <Select value={smsStatus} onValueChange={handleSmsStatusChange}>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select status..." />
                                                 </SelectTrigger>
@@ -781,10 +1010,7 @@ export default function SmsLogsIndex() {
                                             Search: {search}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputSearch('');
-                                                    setSearch('');
-                                                }}
+                                                onClick={() => setSearch('')}
                                             />
                                         </Badge>
                                     )}
@@ -793,10 +1019,7 @@ export default function SmsLogsIndex() {
                                             From: {startDate}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputStartDate('');
-                                                    setStartDate('');
-                                                }}
+                                                onClick={() => handleStartDateChange('')}
                                             />
                                         </Badge>
                                     )}
@@ -805,10 +1028,7 @@ export default function SmsLogsIndex() {
                                             To: {endDate}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputEndDate('');
-                                                    setEndDate('');
-                                                }}
+                                                onClick={() => handleEndDateChange('')}
                                             />
                                         </Badge>
                                     )}
@@ -817,10 +1037,7 @@ export default function SmsLogsIndex() {
                                             From Time: {startTime}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputStartTime('');
-                                                    setStartTime('');
-                                                }}
+                                                onClick={() => handleStartTimeChange('')}
                                             />
                                         </Badge>
                                     )}
@@ -829,10 +1046,7 @@ export default function SmsLogsIndex() {
                                             To Time: {endTime}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputEndTime('');
-                                                    setEndTime('');
-                                                }}
+                                                onClick={() => handleEndTimeChange('')}
                                             />
                                         </Badge>
                                     )}
@@ -841,10 +1055,7 @@ export default function SmsLogsIndex() {
                                             Source: {sourceAddress}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputSourceAddress('');
-                                                    setSourceAddress('');
-                                                }}
+                                                onClick={() => handleSourceAddressChange('')}
                                             />
                                         </Badge>
                                     )}
@@ -853,10 +1064,7 @@ export default function SmsLogsIndex() {
                                             Destination: {destinationAddress}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputDestinationAddress('');
-                                                    setDestinationAddress('');
-                                                }}
+                                                onClick={() => handleDestinationAddressChange('')}
                                             />
                                         </Badge>
                                     )}
@@ -865,10 +1073,7 @@ export default function SmsLogsIndex() {
                                             Device: {deviceName}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputDeviceName('');
-                                                    setDeviceName('');
-                                                }}
+                                                onClick={() => handleDeviceNameChange('')}
                                             />
                                         </Badge>
                                     )}
@@ -877,10 +1082,7 @@ export default function SmsLogsIndex() {
                                             Status: {smsStatus}
                                             <X
                                                 className="h-3 w-3 cursor-pointer"
-                                                onClick={() => {
-                                                    setInputSmsStatus('all');
-                                                    setSmsStatus('');
-                                                }}
+                                                onClick={() => handleSmsStatusChange('all')}
                                             />
                                         </Badge>
                                     )}

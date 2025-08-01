@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { SmsLimitStatus } from '@/components/devices/sms-limit-status';
 
 
 interface Device {
@@ -88,6 +89,9 @@ const getAlarmIcon = (type: string) => {
       return <Wifi className="h-4 w-4 text-red-600" />;
     case 'error_count':
       return <XCircle className="h-4 w-4 text-red-600" />;
+    case 'sms_limit_daily':
+    case 'sms_limit_monthly':
+      return <Smartphone className="h-4 w-4 text-orange-600" />;
     default:
       return <AlertTriangle className="h-4 w-4 text-gray-600" />;
   }
@@ -107,6 +111,10 @@ const getAlarmTypeDisplay = (type: string) => {
       return 'Device Offline';
     case 'error_count':
       return 'Error Count';
+    case 'sms_limit_daily':
+      return 'SMS Daily Limit Warning';
+    case 'sms_limit_monthly':
+      return 'SMS Monthly Limit Warning';
     default:
       return type;
   }
@@ -933,6 +941,7 @@ export default function DeviceShow() {
             <TabsTrigger value="commands">Commands</TabsTrigger>
             <TabsTrigger value="sims">SIM Cards</TabsTrigger>
             <TabsTrigger value="alarms">Alarm Logs</TabsTrigger>
+            <TabsTrigger value="sms-limits">SMS Limits</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -1497,6 +1506,13 @@ export default function DeviceShow() {
                 />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="sms-limits" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SmsLimitStatus deviceImei={device?.imei || ''} simSlot={1} />
+              <SmsLimitStatus deviceImei={device?.imei || ''} simSlot={2} />
+            </div>
           </TabsContent>
         </Tabs>
 

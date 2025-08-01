@@ -1,11 +1,12 @@
 package services
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 	"tsimsocketserver/database"
 	"tsimsocketserver/models"
+
+	"gorm.io/gorm"
 )
 
 type SmsLimitService struct{}
@@ -83,16 +84,16 @@ func (s *SmsLimitService) IncrementSmsUsage(deviceIMEI string, simSlot int) erro
 	if simSlot == 1 {
 		if err := db.Model(&models.Device{}).
 			Where("imei = ?", deviceIMEI).
-			UpdateColumn("sim1_daily_sms_used", sql.Expr("sim1_daily_sms_used + 1")).
-			UpdateColumn("sim1_monthly_sms_used", sql.Expr("sim1_monthly_sms_used + 1")).
+			UpdateColumn("sim1_daily_sms_used", gorm.Expr("sim1_daily_sms_used + 1")).
+			UpdateColumn("sim1_monthly_sms_used", gorm.Expr("sim1_monthly_sms_used + 1")).
 			Error; err != nil {
 			return err
 		}
 	} else if simSlot == 2 {
 		if err := db.Model(&models.Device{}).
 			Where("imei = ?", deviceIMEI).
-			UpdateColumn("sim2_daily_sms_used", sql.Expr("sim2_daily_sms_used + 1")).
-			UpdateColumn("sim2_monthly_sms_used", sql.Expr("sim2_monthly_sms_used + 1")).
+			UpdateColumn("sim2_daily_sms_used", gorm.Expr("sim2_daily_sms_used + 1")).
+			UpdateColumn("sim2_monthly_sms_used", gorm.Expr("sim2_monthly_sms_used + 1")).
 			Error; err != nil {
 			return err
 		}

@@ -391,7 +391,7 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage)
 		originalText = report.OriginalText
 	}
 
-	deliveryText := fmt.Sprintf("jid:%s sub:000 dlvrd:000 submit date:%s done date:%s stat:%s err:000 text:%s",
+	deliveryText := fmt.Sprintf("id:%s sub:000 dlvrd:000 submit date:%s done date:%s stat:%s err:000 text:%s",
 		report.MessageID, report.SubmitDate, report.DoneDate, status, originalText)
 
 	return deliveryText

@@ -90,7 +90,7 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 	// Convert status to SMPP message state
 	switch status {
 	case "delivered":
-		report.MessageState = 2 // DELIVERED
+		report.MessageState = 1 // DELIVERED
 		report.Delivered = true
 		report.Failed = false
 		report.FailureReason = ""
@@ -100,7 +100,7 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.Failed = true
 		report.FailureReason = "Message undelivered"
 	case "expired":
-		report.MessageState = 3 // EXPIRED
+		report.MessageState = 2 // EXPIRED
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message expired"
@@ -115,7 +115,7 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.Failed = true
 		report.FailureReason = "Message timeout"
 	case "cancelled":
-		report.MessageState = 8 // CANCELLED
+		report.MessageState = 3 // DELETED (cancelled messages are treated as deleted)
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message cancelled"

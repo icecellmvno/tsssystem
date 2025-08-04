@@ -246,52 +246,46 @@ func WritePDU(writer io.Writer, pdu *PDU) error {
 	log.Printf("WritePDU: Writing PDU - TotalLength: %d, CommandID: 0x%08X, Status: 0x%08X, Seq: %d, BodyLen: %d",
 		totalLength, pdu.CommandID, pdu.CommandStatus, pdu.SequenceNumber, len(pdu.Body))
 
-	// Write command length
+	// Build complete PDU in memory first
+	completePDU := make([]byte, 0, 16+len(pdu.Body))
+
+	// Command length (4 bytes)
 	lengthBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(lengthBytes, totalLength)
-	log.Printf("WritePDU: Command length bytes: %02X %02X %02X %02X", lengthBytes[0], lengthBytes[1], lengthBytes[2], lengthBytes[3])
-	if _, err := writer.Write(lengthBytes); err != nil {
-		log.Printf("WritePDU: Failed to write command length: %v", err)
-		return fmt.Errorf("failed to write command length: %v", err)
-	}
+	completePDU = append(completePDU, lengthBytes...)
 
-	// Write command ID
+	// Command ID (4 bytes)
 	commandIDBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(commandIDBytes, pdu.CommandID)
-	log.Printf("WritePDU: Command ID bytes: %02X %02X %02X %02X", commandIDBytes[0], commandIDBytes[1], commandIDBytes[2], commandIDBytes[3])
-	if _, err := writer.Write(commandIDBytes); err != nil {
-		log.Printf("WritePDU: Failed to write command ID: %v", err)
-		return fmt.Errorf("failed to write command ID: %v", err)
-	}
+	completePDU = append(completePDU, commandIDBytes...)
 
-	// Write command status
+	// Command status (4 bytes)
 	statusBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(statusBytes, pdu.CommandStatus)
-	log.Printf("WritePDU: Command status bytes: %02X %02X %02X %02X", statusBytes[0], statusBytes[1], statusBytes[2], statusBytes[3])
-	if _, err := writer.Write(statusBytes); err != nil {
-		log.Printf("WritePDU: Failed to write command status: %v", err)
-		return fmt.Errorf("failed to write command status: %v", err)
-	}
+	completePDU = append(completePDU, statusBytes...)
 
-	// Write sequence number
+	// Sequence number (4 bytes)
 	seqBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(seqBytes, pdu.SequenceNumber)
-	log.Printf("WritePDU: Sequence number bytes: %02X %02X %02X %02X", seqBytes[0], seqBytes[1], seqBytes[2], seqBytes[3])
-	if _, err := writer.Write(seqBytes); err != nil {
-		log.Printf("WritePDU: Failed to write sequence number: %v", err)
-		return fmt.Errorf("failed to write sequence number: %v", err)
-	}
+	completePDU = append(completePDU, seqBytes...)
 
-	// Write body if present
-	if len(pdu.Body) > 0 {
-		log.Printf("WritePDU: Body bytes: %X", pdu.Body)
-		if _, err := writer.Write(pdu.Body); err != nil {
-			log.Printf("WritePDU: Failed to write PDU body: %v", err)
-			return fmt.Errorf("failed to write PDU body: %v", err)
+	// Body
+	completePDU = append(completePDU, pdu.Body...)
+
+	log.Printf("WritePDU: Complete PDU hex dump: %X", completePDU)
+
+	// Write complete PDU in one operation - ensure all data is written
+	bytesWritten := 0
+	for bytesWritten < len(completePDU) {
+		n, err := writer.Write(completePDU[bytesWritten:])
+		if err != nil {
+			log.Printf("WritePDU: Failed to write PDU (partial write): %v", err)
+			return fmt.Errorf("failed to write complete PDU: %v", err)
 		}
+		bytesWritten += n
 	}
 
-	log.Printf("WritePDU: PDU written successfully")
+	log.Printf("WritePDU: PDU written successfully in one operation (%d bytes)", bytesWritten)
 	return nil
 }
 
@@ -414,6 +408,8 @@ func SerializeBindRespPDU(systemID string) []byte {
 	// Only SystemID in bind response
 	result = append(result, []byte(systemID)...)
 	result = append(result, 0) // null terminator
+
+	log.Printf("SerializeBindRespPDU: SystemID=%q, Result=%X, Length=%d", systemID, result, len(result))
 
 	return result
 }

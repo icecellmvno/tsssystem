@@ -202,6 +202,7 @@ func (h *BindHandler) HandleBindTransmitter(session *session.Session, pdu *proto
 // HandleBindTransceiver handles bind_transceiver requests
 func (h *BindHandler) HandleBindTransceiver(session *session.Session, pdu *protocol.PDU) error {
 	log.Printf("Session %s: Processing bind_transceiver request", session.ID)
+	log.Printf("Session %s: Current state: %d, IsBound: %t", session.ID, session.GetState(), session.IsBound())
 
 	if session.IsBound() {
 		log.Printf("Session %s: Already bound, sending error response", session.ID)

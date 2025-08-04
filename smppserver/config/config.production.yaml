@@ -1,14 +1,14 @@
 server:
   host: "0.0.0.0"
   port: 2775
-  read_timeout: 60s
-  write_timeout: 60s
-  max_sessions: 1000
-  session_timeout: 300s
-  enquire_link_interval: 60s
+  read_timeout: 120s
+  write_timeout: 120s
+  max_sessions: 2000
+  session_timeout: 600s
+  enquire_link_interval: 90s
   tcp_keepalive: true
-  tcp_keepalive_period: 60s
-  tcp_linger: 5s
+  tcp_keepalive_period: 90s
+  tcp_linger: 10s
 
 database:
   host: "localhost"
@@ -16,8 +16,6 @@ database:
   user: "root"
   password: "password"
   name: "tsim_socket_server"
-
-# Redis removed - using MySQL for authentication
 
 rabbitmq:
   url: "amqp://guest:guest@localhost:5672/"
@@ -30,5 +28,5 @@ logging:
   format: "text"
 
 smpp:
-  enquire_link_interval: 60s
-  session_timeout: 300s 
+  enquire_link_interval: 90s
+  session_timeout: 600s 

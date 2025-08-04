@@ -45,9 +45,12 @@ type Session struct {
 
 // SessionManager manages all active SMPP sessions
 type SessionManager struct {
-	sessions map[string]*Session
-	mutex    sync.RWMutex
-	Config   *SessionConfig
+	sessions    map[string]*Session
+	mutex       sync.RWMutex
+	Config      *SessionConfig
+	authManager interface {
+		RemoveSession(systemID, sessionID string) error
+	}
 }
 
 // SessionConfig holds configuration for session management
@@ -60,10 +63,13 @@ type SessionConfig struct {
 }
 
 // NewSessionManager creates a new session manager
-func NewSessionManager(config *SessionConfig) *SessionManager {
+func NewSessionManager(config *SessionConfig, authManager interface {
+	RemoveSession(systemID, sessionID string) error
+}) *SessionManager {
 	return &SessionManager{
-		sessions: make(map[string]*Session),
-		Config:   config,
+		sessions:    make(map[string]*Session),
+		Config:      config,
+		authManager: authManager,
 	}
 }
 
@@ -113,9 +119,16 @@ func (sm *SessionManager) RemoveSession(sessionID string) {
 	defer sm.mutex.Unlock()
 
 	if session, exists := sm.sessions[sessionID]; exists {
+		// Auth manager'dan da session'ı kaldır
+		if sm.authManager != nil && session.SystemID != "" {
+			if err := sm.authManager.RemoveSession(session.SystemID, sessionID); err != nil {
+				log.Printf("Failed to remove session from auth manager: %v", err)
+			}
+		}
+
 		session.Close()
 		delete(sm.sessions, sessionID)
-		log.Printf("Session %s removed. Total sessions: %d", sessionID, len(sm.sessions))
+		log.Printf("Session %s removed from session manager. Total sessions: %d", sessionID, len(sm.sessions))
 	}
 }
 
@@ -184,18 +197,37 @@ func (sm *SessionManager) CleanupInactiveSessions() {
 	defer sm.mutex.Unlock()
 
 	now := time.Now()
+	removedCount := 0
+
 	for sessionID, session := range sm.sessions {
+		// Use a more conservative timeout check
 		if now.Sub(session.LastActivity) > sm.Config.SessionTimeout {
+			log.Printf("Session %s: Removing due to inactivity (last activity: %v, timeout: %v)",
+				sessionID, session.LastActivity, sm.Config.SessionTimeout)
+
+			// Auth manager'dan da session'ı kaldır
+			if sm.authManager != nil && session.SystemID != "" {
+				if err := sm.authManager.RemoveSession(session.SystemID, sessionID); err != nil {
+					log.Printf("Failed to remove session from auth manager during cleanup: %v", err)
+				}
+			}
+
 			session.Close()
 			delete(sm.sessions, sessionID)
-			log.Printf("Session %s removed due to inactivity", sessionID)
+			removedCount++
 		}
+	}
+
+	if removedCount > 0 {
+		log.Printf("Session manager cleanup: Removed %d inactive sessions. Remaining sessions: %d", removedCount, len(sm.sessions))
+	} else {
+		log.Printf("Session manager cleanup: No inactive sessions found. Total sessions: %d", len(sm.sessions))
 	}
 }
 
 // StartCleanupRoutine starts a background routine to clean up inactive sessions
 func (sm *SessionManager) StartCleanupRoutine() {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(2 * time.Minute) // Run cleanup every 2 minutes instead of every minute
 	go func() {
 		for range ticker.C {
 			sm.CleanupInactiveSessions()
@@ -221,7 +253,9 @@ func (s *Session) GetState() SessionState {
 // IsBound returns true if the session is in a bound state
 func (s *Session) IsBound() bool {
 	state := s.GetState()
-	return state == StateBoundRX || state == StateBoundTX || state == StateBoundTRX
+	isBound := state == StateBoundRX || state == StateBoundTX || state == StateBoundTRX
+	log.Printf("Session %s: IsBound check - State: %d, IsBound: %t", s.ID, state, isBound)
+	return isBound
 }
 
 // CanReceive returns true if the session can receive messages
@@ -268,8 +302,8 @@ func (s *Session) SendPDU(pdu *protocol.PDU) error {
 
 	log.Printf("Session %s: SendPDU called - proceeding with send", s.ID)
 
-	// Set write deadline
-	s.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
+	// Set write deadline with longer timeout for better stability
+	s.Conn.SetWriteDeadline(time.Now().Add(time.Second * 60))
 
 	log.Printf("Session %s: Sending PDU - CommandID: 0x%08X, Status: 0x%08X, Seq: %d, BodyLen: %d",
 		s.ID, pdu.CommandID, pdu.CommandStatus, pdu.SequenceNumber, len(pdu.Body))
@@ -295,8 +329,8 @@ func (s *Session) SendResponse(commandID uint32, status uint32, body []byte, seq
 		return fmt.Errorf("cannot send response - session is not in valid state")
 	}
 
-	log.Printf("Session %s: Creating response PDU - CommandID: 0x%08X, Status: 0x%08X, Seq: %d, BodyLen: %d",
-		s.ID, commandID, status, sequenceNumber, len(body))
+	log.Printf("Session %s: Creating response PDU - CommandID: 0x%08X, Status: 0x%08X, Seq: %d, BodyLen: %d, Body: %X",
+		s.ID, commandID, status, sequenceNumber, len(body), body)
 
 	response := &protocol.PDU{
 		CommandLength:  uint32(16 + len(body)),
@@ -308,9 +342,9 @@ func (s *Session) SendResponse(commandID uint32, status uint32, body []byte, seq
 
 	log.Printf("Session %s: Response PDU created - TotalLength: %d", s.ID, response.CommandLength)
 
-	// Add detailed PDU logging
-	log.Printf("Session %s: Generated bind_transceiver_resp PDU: ID=0x%08X, Status=0x%08X, Seq=%d, SystemID=%q",
-		s.ID, response.CommandID, response.CommandStatus, response.SequenceNumber, "tarik")
+	// Add detailed PDU logging with hex dump
+	log.Printf("Session %s: Generated bind response PDU: ID=0x%08X, Status=0x%08X, Seq=%d, Body=%X",
+		s.ID, response.CommandID, response.CommandStatus, response.SequenceNumber, response.Body)
 
 	return s.SendPDU(response)
 }
@@ -336,7 +370,7 @@ func (s *Session) SendGenericNACK(sequenceNumber uint32) error {
 
 // StartEnquireLink starts the enquire link routine
 func (s *Session) StartEnquireLink() {
-	s.EnquireLinkTicker = time.NewTicker(time.Duration(30) * time.Second)
+	s.EnquireLinkTicker = time.NewTicker(time.Duration(60) * time.Second)
 	go func() {
 		for {
 			select {
@@ -354,9 +388,9 @@ func (s *Session) StartEnquireLink() {
 						s.Close()
 						return
 					}
-					// Timeout kontrolü: Son alınan PDU üzerinden 60 saniye geçtiyse session'ı kapat
-					if time.Since(s.LastReceivedAt) > 60*time.Second {
-						log.Printf("Session %s: No enquire_link_resp or PDU received in 60s, closing session", s.ID)
+					// Timeout kontrolü: Son alınan PDU üzerinden 120 saniye geçtiyse session'ı kapat
+					if time.Since(s.LastReceivedAt) > 120*time.Second {
+						log.Printf("Session %s: No enquire_link_resp or PDU received in 120s, closing session", s.ID)
 						s.Close()
 						return
 					}
@@ -393,6 +427,8 @@ func (s *Session) Close() {
 	}
 
 	close(s.MessageQueue)
+
+	log.Printf("Session %s closed", s.ID)
 }
 
 // HandleConnection handles the SMPP connection
@@ -410,8 +446,8 @@ func (s *Session) HandleConnection(handler SessionHandler) {
 		case <-s.Context.Done():
 			return
 		default:
-			// Set read deadline
-			s.Conn.SetReadDeadline(time.Now().Add(time.Second * 30))
+			// Set read deadline - use longer timeout for better stability
+			s.Conn.SetReadDeadline(time.Now().Add(time.Second * 60))
 
 			// Read PDU
 			pdu, err := protocol.ReadPDU(s.Conn)

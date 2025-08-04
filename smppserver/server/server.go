@@ -29,13 +29,18 @@ func NewSMPServer(config *config.Config) (*SMPServer, error) {
 		ReadTimeout:         config.Server.ReadTimeout,
 		WriteTimeout:        config.Server.WriteTimeout,
 	}
-	sessionManager := session.NewSessionManager(sessionConfig)
 
-	// Initialize MySQL-based auth manager
-	authManager, err := auth.NewMySQLAuthManager(config.GetDatabaseDSN(), sessionManager)
+	// Initialize MySQL-based auth manager first (without session manager)
+	authManager, err := auth.NewMySQLAuthManager(config.GetDatabaseDSN(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MySQL auth manager: %v", err)
 	}
+
+	// Initialize session manager with auth manager
+	sessionManager := session.NewSessionManager(sessionConfig, authManager)
+
+	// Update auth manager with session manager reference
+	authManager.SetSessionManager(sessionManager)
 
 	// Initialize RabbitMQ client
 	rabbitMQConfig := &rabbitmq.Config{
@@ -82,8 +87,9 @@ func (s *SMPServer) Start() error {
 	s.listener = listener
 	log.Printf("SMPP Server started on %s", addr)
 
-	// Start cleanup routine
+	// Start cleanup routines
 	go s.authManager.StartCleanupRoutine()
+	go s.sessionManager.StartCleanupRoutine()
 
 	// Accept connections
 	for {
@@ -98,7 +104,7 @@ func (s *SMPServer) Start() error {
 }
 
 func (s *SMPServer) handleConnection(conn net.Conn) {
-	// Enable TCP Keepalive from config
+	// Enable TCP Keepalive and other TCP options from config
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
 		if s.config.Server.TCPKeepalive {
 			if err := tcpConn.SetKeepAlive(true); err != nil {
@@ -110,6 +116,19 @@ func (s *SMPServer) handleConnection(conn net.Conn) {
 			if err := tcpConn.SetLinger(int(s.config.Server.TCPLinger.Seconds())); err != nil {
 				log.Printf("Failed to set TCP linger: %v", err)
 			}
+		}
+
+		// Set TCP_NODELAY to disable Nagle's algorithm for better real-time performance
+		if err := tcpConn.SetNoDelay(true); err != nil {
+			log.Printf("Failed to set TCP_NODELAY: %v", err)
+		}
+
+		// Set TCP buffer sizes for better performance
+		if err := tcpConn.SetReadBuffer(64 * 1024); err != nil {
+			log.Printf("Failed to set TCP read buffer: %v", err)
+		}
+		if err := tcpConn.SetWriteBuffer(64 * 1024); err != nil {
+			log.Printf("Failed to set TCP write buffer: %v", err)
 		}
 	}
 

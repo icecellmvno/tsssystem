@@ -82,13 +82,13 @@ func (SmppSession) TableName() string {
 // MySQLAuthManager manages SMPP user authentication via MySQL
 type MySQLAuthManager struct {
 	db             *gorm.DB
-	sessionManager *session.SessionManager
+	sessionManager interface{}
 	rateLimiter    *RateLimiter
 	ctx            context.Context
 }
 
 // NewMySQLAuthManager creates a new MySQL-based auth manager
-func NewMySQLAuthManager(dsn string, sessionManager *session.SessionManager) (*MySQLAuthManager, error) {
+func NewMySQLAuthManager(dsn string, sessionManager interface{}) (*MySQLAuthManager, error) {
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to MySQL: %v", err)
@@ -236,6 +236,8 @@ func (am *MySQLAuthManager) AddSession(systemID, sessionID, remoteAddr, bindType
 
 // RemoveSession removes a session from MySQL
 func (am *MySQLAuthManager) RemoveSession(systemID, sessionID string) error {
+	log.Printf("Removing session %s for user %s from database", sessionID, systemID)
+
 	// Delete session
 	err := am.db.Where("session_id = ? AND system_id = ?", sessionID, systemID).Delete(&SmppSession{}).Error
 	if err != nil {
@@ -248,6 +250,8 @@ func (am *MySQLAuthManager) RemoveSession(systemID, sessionID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to check remaining sessions: %v", err)
 	}
+
+	log.Printf("User %s has %d remaining sessions", systemID, remainingSessions)
 
 	// If no remaining sessions, update user status to offline
 	if remainingSessions == 0 {
@@ -266,9 +270,11 @@ func (am *MySQLAuthManager) RemoveSession(systemID, sessionID string) error {
 
 		// Publish user status update to RabbitMQ for real-time updates
 		am.publishUserStatusUpdate(systemID, false, "", sessionID, "")
+
+		log.Printf("User %s marked as offline (no remaining sessions)", systemID)
 	}
 
-	log.Printf("Session removed for user %s: %s", systemID, sessionID)
+	log.Printf("Session %s successfully removed from database for user %s", sessionID, systemID)
 	return nil
 }
 
@@ -328,14 +334,23 @@ func (am *MySQLAuthManager) DisconnectUserSessions(systemID string) {
 	}
 
 	// Close all sessions in session manager
-	sessions := am.sessionManager.GetAllSessions()
-	for _, sess := range sessions {
-		if sess.SystemID == systemID {
-			sess.Close()
+	if sessionManager, ok := am.sessionManager.(interface {
+		GetAllSessions() []*session.Session
+	}); ok {
+		sessions := sessionManager.GetAllSessions()
+		for _, sess := range sessions {
+			if sess.SystemID == systemID {
+				sess.Close()
+			}
 		}
 	}
 
 	log.Printf("Disconnected all sessions for user: %s", systemID)
+}
+
+// SetSessionManager sets the session manager reference
+func (am *MySQLAuthManager) SetSessionManager(sessionManager interface{}) {
+	am.sessionManager = sessionManager
 }
 
 // Close closes the database connection
@@ -352,16 +367,28 @@ func (am *MySQLAuthManager) Close() error {
 
 // cleanupExpiredSessions removes expired sessions from database
 func (am *MySQLAuthManager) cleanupExpiredSessions() {
+	log.Println("Starting cleanup of expired sessions...")
+
 	// Remove sessions older than 1 hour
 	expiredTime := time.Now().Add(-1 * time.Hour)
 
-	err := am.db.Where("updated_at < ?", expiredTime).Delete(&SmppSession{}).Error
-	if err != nil {
-		log.Printf("Failed to cleanup expired sessions: %v", err)
-		return
-	}
+	// Count sessions before cleanup
+	var countBefore int64
+	am.db.Model(&SmppSession{}).Where("updated_at < ?", expiredTime).Count(&countBefore)
 
-	log.Println("Cleaned up expired sessions")
+	if countBefore > 0 {
+		log.Printf("Found %d expired sessions to cleanup", countBefore)
+
+		err := am.db.Where("updated_at < ?", expiredTime).Delete(&SmppSession{}).Error
+		if err != nil {
+			log.Printf("Failed to cleanup expired sessions: %v", err)
+			return
+		}
+
+		log.Printf("Successfully cleaned up %d expired sessions", countBefore)
+	} else {
+		log.Println("No expired sessions found to cleanup")
+	}
 }
 
 // GetUserStats returns statistics for a specific user

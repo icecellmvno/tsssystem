@@ -233,23 +233,38 @@ export default function SmsLogsIndex() {
         const merged = [...apiLogs];
         
         realtimeLogs.forEach(realtimeLog => {
+            // Check if this real-time log already exists in API logs
             const existingIndex = merged.findIndex(log => {
+                // Try to match by message_id first (most reliable)
                 if (log.message_id && realtimeLog.message_id) {
                     return log.message_id === realtimeLog.message_id;
                 }
+                
+                // Try to match by ID
                 if (log.id && realtimeLog.id) {
                     return log.id === realtimeLog.id;
                 }
+                
+                // For inbound messages, try to match by destination address and timestamp
                 if (log.direction === 'inbound' && realtimeLog.direction === 'inbound') {
                     return log.destination_addr === realtimeLog.destination_addr && 
                            log.created_at === realtimeLog.created_at;
                 }
+                
+                // For outbound messages, try to match by source address and timestamp
+                if (log.direction === 'outbound' && realtimeLog.direction === 'outbound') {
+                    return log.source_addr === realtimeLog.source_addr && 
+                           log.created_at === realtimeLog.created_at;
+                }
+                
                 return false;
             });
             
             if (existingIndex === -1) {
+                // Add new real-time log to the beginning
                 merged.unshift(realtimeLog);
             } else {
+                // Update existing log with real-time data
                 merged[existingIndex] = { ...merged[existingIndex], ...realtimeLog };
             }
         });

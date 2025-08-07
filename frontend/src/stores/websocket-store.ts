@@ -267,112 +267,144 @@ export const useWebSocketStore = create<WebSocketStore>()(
     const handleSmsLog = (data: SmsLogData) => {
       console.log('WebSocket: SMS log received:', data);
       
-             // Add to SMS logs
-       get().addSmsLog({
-         id: Date.now(),
-         sim_slot: data.sim_slot,
-         phone_number: data.phone_number,
-         message: data.message,
-         status: data.status,
-         device_group: data.device_group,
-         country_site: data.sitename,
-         created_at: new Date().toISOString(),
-       });
+      // Convert WebSocket data to API format
+      const apiFormatSmsLog = {
+        id: Date.now(),
+        message_id: `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        device_id: null,
+        device_name: null,
+        device_imei: null,
+        device_imsi: null,
+        simcard_name: null,
+        sim_slot: data.sim_slot,
+        simcard_number: data.phone_number,
+        simcard_iccid: null,
+        source_addr: null,
+        source_connector: null,
+        source_user: null,
+        destination_addr: data.phone_number,
+        message: data.message,
+        message_length: data.message ? data.message.length : 0,
+        direction: 'outbound',
+        priority: null,
+        status: data.status,
+        sent_at: null,
+        delivered_at: null,
+        delivery_report_status: null,
+        delivery_report_received_at: null,
+        received_at: null,
+        error_message: null,
+        device_group_id: null,
+        device_group: data.device_group,
+        country_site_id: null,
+        country_site: data.sitename,
+        campaign_id: null,
+        batch_id: null,
+        queued_at: null,
+        metadata: null,
+        total_cost: null,
+        currency: null,
+        smpp_sent: null,
+        delivery_report_requested: null,
+        retry_count: null,
+        max_retries: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        pdu_count: null,
+        is_blacklisted: false
+      };
+      
+      // Add to SMS logs
+      get().addSmsLog(apiFormatSmsLog);
     };
 
     const handleSmsMessage = (data: SmsMessageData) => {
       console.log('WebSocket: SMS message received:', data);
       
-             // Add to SMS logs
-       get().addSmsLog({
-         id: Date.now(),
-         sim_slot: data.sim_slot,
-         phone_number: data.phone_number,
-         message: data.message,
-         direction: data.direction,
-         device_group: data.device_group,
-         country_site: data.sitename,
-         created_at: new Date(data.timestamp).toISOString(),
-       });
+      // Convert WebSocket data to API format
+      const apiFormatSmsLog = {
+        id: Date.now(),
+        message_id: `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        device_id: null,
+        device_name: null,
+        device_imei: null,
+        device_imsi: null,
+        simcard_name: null,
+        sim_slot: data.sim_slot,
+        simcard_number: data.phone_number,
+        simcard_iccid: null,
+        source_addr: data.direction === 'received' ? data.phone_number : null,
+        source_connector: null,
+        source_user: null,
+        destination_addr: data.direction === 'sent' ? data.phone_number : null,
+        message: data.message,
+        message_length: data.message ? data.message.length : 0,
+        direction: data.direction,
+        priority: null,
+        status: data.direction === 'received' ? 'delivered' : 'sent',
+        sent_at: data.direction === 'sent' ? new Date(data.timestamp).toISOString() : null,
+        delivered_at: data.direction === 'received' ? new Date(data.timestamp).toISOString() : null,
+        delivery_report_status: null,
+        delivery_report_received_at: null,
+        received_at: data.direction === 'received' ? new Date(data.timestamp).toISOString() : null,
+        error_message: null,
+        device_group_id: null,
+        device_group: data.device_group,
+        country_site_id: null,
+        country_site: data.sitename,
+        campaign_id: null,
+        batch_id: null,
+        queued_at: null,
+        metadata: null,
+        total_cost: null,
+        currency: null,
+        smpp_sent: null,
+        delivery_report_requested: null,
+        retry_count: null,
+        max_retries: null,
+        created_at: new Date(data.timestamp).toISOString(),
+        updated_at: new Date(data.timestamp).toISOString(),
+        pdu_count: null,
+        is_blacklisted: false
+      };
+      
+      // Add to SMS logs
+      get().addSmsLog(apiFormatSmsLog);
     };
 
     const handleUssdResponse = (data: UssdResponseData) => {
       console.log('WebSocket: USSD response received:', data);
       
-             // Add to USSD logs
-       get().addSmsLog({
-         id: Date.now(),
-         session_id: data.session_id,
-         message_id: data.message_id,
-         response: data.cleaned_response,
-         status: data.status,
-         is_menu: data.is_menu,
-         auto_cancel: data.auto_cancel,
-         created_at: new Date(data.timestamp).toISOString(),
-       });
+      // USSD responses should not be added to SMS logs
+      // They should be handled separately in USSD logs
     };
 
     const handleUssdResponseFailed = (data: UssdResponseFailedData) => {
       console.log('WebSocket: USSD response failed received:', data);
       
-      // Add to USSD logs
-      get().addSmsLog({
-        id: Date.now(),
-        session_id: data.session_id,
-        message_id: data.message_id,
-        ussd_code: data.ussd_code,
-        failure_code: data.failure_code,
-        error_message: data.error_message,
-        status: data.status,
-        created_at: new Date().toISOString(),
-      });
+      // USSD failed responses should not be added to SMS logs
+      // They should be handled separately in USSD logs
     };
 
     const handleMmsReceived = (data: MmsReceivedData) => {
       console.log('WebSocket: MMS received:', data);
       
-             // Add to MMS logs
-       get().addSmsLog({
-         id: Date.now(),
-         sender: data.sender,
-         subject: data.subject,
-         parts_count: data.parts_count,
-         sim_slot: data.sim_slot,
-         device_group: data.device_group,
-         country_site: data.sitename,
-         created_at: new Date(data.timestamp).toISOString(),
-       });
+      // MMS messages should not be added to SMS logs
+      // They should be handled separately in MMS logs
     };
 
     const handleRcsReceived = (data: RcsReceivedData) => {
       console.log('WebSocket: RCS received:', data);
       
-             // Add to RCS logs
-       get().addSmsLog({
-         id: Date.now(),
-         sender: data.sender,
-         message: data.message,
-         message_type: data.message_type,
-         sim_slot: data.sim_slot,
-         device_group: data.device_group,
-         country_site: data.sitename,
-         created_at: new Date(data.timestamp).toISOString(),
-       });
+      // RCS messages should not be added to SMS logs
+      // They should be handled separately in RCS logs
     };
 
     const handleUssdCode = (data: UssdCodeData) => {
       console.log('WebSocket: USSD code received:', data);
       
-             // Add to USSD logs
-       get().addSmsLog({
-         id: Date.now(),
-         sender: data.sender,
-         ussd_code: data.ussd_code,
-         sim_slot: data.sim_slot,
-         device_group: data.device_group,
-         country_site: data.sitename,
-         created_at: new Date(data.timestamp).toISOString(),
-       });
+      // USSD codes should not be added to SMS logs
+      // They should be handled separately in USSD logs
     };
 
     const handleFindDeviceSuccess = (data: FindDeviceSuccessData) => {
@@ -757,9 +789,14 @@ export const useWebSocketStore = create<WebSocketStore>()(
 
       // SMS logs management
       addSmsLog: (smsLog: any) => {
-        set((state) => ({
-          smsLogs: [...state.smsLogs, smsLog]
-        }));
+        set((state) => {
+          const newSmsLogs = [...state.smsLogs, smsLog];
+          // Keep only the last 100 SMS logs to prevent memory issues
+          const limitedSmsLogs = newSmsLogs.slice(-100);
+          return {
+            smsLogs: limitedSmsLogs
+          };
+        });
       },
 
       updateSmsLog: (smsLogId: number, data: Partial<any>) => {

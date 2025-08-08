@@ -2,7 +2,7 @@ database:
   host: localhost
   port: 3306
   user: root
-  password: password
+  password: Zsax9771071
   name: tsim_socket_server
 
 jwt:
@@ -10,7 +10,7 @@ jwt:
 
 server:
   port: 7001
-websocket_url: ws://192.168.9.24:7001/ws
+websocket_url: ws://tsimasia.icell.cloud:7001/ws
 
 
 rabbitmq:

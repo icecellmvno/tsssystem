@@ -12,12 +12,18 @@ import (
 	"tsimsocketserver/utils"
 )
 
-// Global delivery report service instance
+// Global service instances
 var deliveryReportService *services.DeliveryReportService
+var smsMonitoringService *services.SmsMonitoringService
 
 // SetDeliveryReportService sets the global delivery report service
 func SetDeliveryReportService(service *services.DeliveryReportService) {
 	deliveryReportService = service
+}
+
+// SetSmsMonitoringService sets the global SMS monitoring service
+func SetSmsMonitoringService(service *services.SmsMonitoringService) {
+	smsMonitoringService = service
 }
 
 // HandleSmsLog processes SMS log messages from devices
@@ -46,6 +52,15 @@ func HandleSmsLog(wsServer interfaces.WebSocketServerInterface, deviceID string,
 		}
 
 		database.GetDB().Model(&smsLog).Updates(updates)
+
+		// Trigger SMS delivery monitoring after updating status
+		if smsMonitoringService != nil {
+			go func() {
+				if err := smsMonitoringService.CheckDeviceSmsDeliveryStatus(deviceID); err != nil {
+					log.Printf("SMS monitoring check failed for device %s: %v", deviceID, err)
+				}
+			}()
+		}
 	}
 
 	// Broadcast to frontend clients
@@ -176,6 +191,15 @@ func HandleSmsDeliveryReport(wsServer interfaces.WebSocketServerInterface, devic
 			}
 		} else if smsLog.SourceConnector == nil || *smsLog.SourceConnector != "smpp" {
 			log.Printf("Skipping SMPP delivery report for non-SMPP message: %s (source: %v)", data.MessageID, smsLog.SourceConnector)
+		}
+
+		// Trigger SMS delivery monitoring after updating delivery report status
+		if smsMonitoringService != nil && smsLog.DeviceID != nil {
+			go func() {
+				if err := smsMonitoringService.CheckDeviceSmsDeliveryStatus(*smsLog.DeviceID); err != nil {
+					log.Printf("SMS monitoring check failed for device %s: %v", *smsLog.DeviceID, err)
+				}
+			}()
 		}
 	} else {
 		log.Printf("SMS log not found for message ID: %s", data.MessageID)

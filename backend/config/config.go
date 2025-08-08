@@ -7,12 +7,13 @@ import (
 )
 
 type Config struct {
-	Database     DatabaseConfig `mapstructure:"database"`
-	JWT          JWTConfig      `mapstructure:"jwt"`
-	Server       ServerConfig   `mapstructure:"server"`
-	RabbitMQ     RabbitMQConfig `mapstructure:"rabbitmq"`
-	Redis        RedisConfig    `mapstructure:"redis"`
-	WebSocketURL string         `mapstructure:"websocket_url"`
+	Database      DatabaseConfig      `mapstructure:"database"`
+	JWT           JWTConfig           `mapstructure:"jwt"`
+	Server        ServerConfig        `mapstructure:"server"`
+	RabbitMQ      RabbitMQConfig      `mapstructure:"rabbitmq"`
+	Redis         RedisConfig         `mapstructure:"redis"`
+	WebSocketURL  string              `mapstructure:"websocket_url"`
+	SmsMonitoring SmsMonitoringConfig `mapstructure:"sms_monitoring"`
 }
 
 type DatabaseConfig struct {
@@ -41,6 +42,13 @@ type RabbitMQConfig struct {
 
 type RedisConfig struct {
 	URL string `mapstructure:"url"`
+}
+
+type SmsMonitoringConfig struct {
+	MonitoringWindow     int `mapstructure:"monitoring_window"`      // Number of recent SMS to check
+	MinSmsForCheck       int `mapstructure:"min_sms_for_check"`      // Minimum SMS count before checking
+	MaintenanceThreshold int `mapstructure:"maintenance_threshold"`  // Number of non-delivered SMS to trigger maintenance
+	CheckIntervalMinutes int `mapstructure:"check_interval_minutes"` // How often to run the monitoring (in minutes)
 }
 
 func LoadConfig() (*Config, error) {

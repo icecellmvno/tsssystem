@@ -25,4 +25,10 @@ smpp:
 
 logging:
   level: info
-  format: json 
+  format: json
+
+sms_monitoring:
+  monitoring_window: 10      # Check last 10 SMS messages
+  min_sms_for_check: 5       # Need at least 5 SMS to start checking  
+  maintenance_threshold: 5   # If 5 or more are not delivered, enter maintenance
+  check_interval_minutes: 15 # Run monitoring every 15 minutes 

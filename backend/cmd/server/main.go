@@ -65,6 +65,24 @@ func main() {
 	deliveryReportService := services.NewDeliveryReportService(deliveryReportPublisher.PublishDeliveryReport)
 	websocket_handlers.SetDeliveryReportService(deliveryReportService)
 
+	// Initialize SMS monitoring service
+	smsMonitoringService := services.NewSmsMonitoringService()
+	// Configure with values from config (use defaults if not set)
+	monitoringWindow := cfg.SmsMonitoring.MonitoringWindow
+	if monitoringWindow == 0 {
+		monitoringWindow = 10
+	}
+	minSmsForCheck := cfg.SmsMonitoring.MinSmsForCheck
+	if minSmsForCheck == 0 {
+		minSmsForCheck = 5
+	}
+	maintenanceThreshold := cfg.SmsMonitoring.MaintenanceThreshold
+	if maintenanceThreshold == 0 {
+		maintenanceThreshold = 5
+	}
+	smsMonitoringService.SetConfiguration(monitoringWindow, minSmsForCheck, maintenanceThreshold)
+	websocket_handlers.SetSmsMonitoringService(smsMonitoringService)
+
 	// Initialize SMS consumer for regular SMS messages
 	smsConsumer := rabbitmq.NewSmsConsumer(rabbitMQHandler, wsServer)
 
@@ -87,6 +105,13 @@ func main() {
 
 	// Start SMS limit reset cron job
 	go startSmsLimitResetCron()
+
+	// Start SMS monitoring cron job
+	checkInterval := cfg.SmsMonitoring.CheckIntervalMinutes
+	if checkInterval == 0 {
+		checkInterval = 15 // Default to 15 minutes
+	}
+	go startSmsMonitoringCron(smsMonitoringService, checkInterval)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -134,6 +159,25 @@ func startSmsLimitResetCron() {
 				log.Printf("Error in SMS limit reset cron job: %v", err)
 			} else {
 				log.Println("SMS limit reset cron job executed successfully")
+			}
+		}
+	}
+}
+
+// startSmsMonitoringCron starts the cron job for SMS delivery monitoring
+func startSmsMonitoringCron(smsMonitoringService *services.SmsMonitoringService, intervalMinutes int) {
+	ticker := time.NewTicker(time.Duration(intervalMinutes) * time.Minute)
+	defer ticker.Stop()
+
+	log.Printf("SMS monitoring cron job started (checking every %d minutes)", intervalMinutes)
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := smsMonitoringService.MonitorAllDevices(); err != nil {
+				log.Printf("Error in SMS monitoring cron job: %v", err)
+			} else {
+				log.Println("SMS monitoring cron job executed successfully")
 			}
 		}
 	}

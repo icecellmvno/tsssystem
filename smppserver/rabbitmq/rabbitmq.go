@@ -334,7 +334,7 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		report.MessageID, report.Delivered, report.Failed, report.MessageState)
 
 	// Determine the actual message state based on delivery status
-	// SMPP Message State Values: 0=ENROUTE, 1=DELIVERED, 2=EXPIRED, 3=DELETED, 4=UNDELIVERABLE, 5=ACCEPTED, 6=UNKNOWN, 7=REJECTED
+	// System Message State Values: 0=SCHEDULED, 1=ENROUTE, 2=DELIVERED, 3=EXPIRED, 4=DELETED, 5=UNDELIVERABLE, 6=ACCEPTED, 7=UNKNOWN, 8=REJECTED
 	var messageState uint8
 
 	// Debug: Log the decision process
@@ -344,16 +344,16 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	log.Printf("DEBUG: - report.MessageState: %d", report.MessageState)
 
 	if report.Delivered {
-		messageState = protocol.MESSAGE_STATE_DELIVERED // DELIVERED (SMPP 3.4/5.0 standard)
+		messageState = protocol.MESSAGE_STATE_DELIVERED // DELIVERED (System standard: 2)
 		log.Printf("DEBUG: - Setting messageState to DELIVERED (%d) because report.Delivered = true", messageState)
 	} else if report.Failed {
-		messageState = protocol.MESSAGE_STATE_UNDELIVERABLE // UNDELIVERABLE (SMPP 3.4/5.0 standard)
+		messageState = protocol.MESSAGE_STATE_UNDELIVERABLE // UNDELIVERABLE (System standard: 5)
 		log.Printf("DEBUG: - Setting messageState to UNDELIVERABLE (%d) because report.Failed = true", messageState)
 	} else if report.MessageState > 0 {
 		messageState = report.MessageState // Use original if available and valid
 		log.Printf("DEBUG: - Setting messageState to original value (%d) from report.MessageState", messageState)
 	} else {
-		messageState = protocol.MESSAGE_STATE_ENROUTE // Default to ENROUTE if no state provided
+		messageState = protocol.MESSAGE_STATE_ENROUTE // Default to ENROUTE if no state provided (System standard: 1)
 		log.Printf("DEBUG: - Setting messageState to ENROUTE (%d) as default", messageState)
 	}
 
@@ -439,25 +439,27 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 	log.Printf("DEBUG: createDeliveryReportText - MessageState: %d, OriginalText: '%s', Delivered: %v, Failed: %v",
 		messageState, report.OriginalText, report.Delivered, report.Failed)
 
-	// Convert message state to SMPP status string (SMPP 3.4/5.0 standard)
-	// SMPP Message State Values: 0=ENROUTE, 1=DELIVERED, 2=EXPIRED, 3=DELETED, 4=UNDELIVERABLE, 5=ACCEPTED, 6=UNKNOWN, 7=REJECTED
+	// Convert message state to SMPP status string (System standard)
+	// System Message State Values: 0=SCHEDULED, 1=ENROUTE, 2=DELIVERED, 3=EXPIRED, 4=DELETED, 5=UNDELIVERABLE, 6=ACCEPTED, 7=UNKNOWN, 8=REJECTED
 	var status string
 	switch messageState {
-	case protocol.MESSAGE_STATE_ENROUTE: // ENROUTE
+	case protocol.MESSAGE_STATE_SCHEDULED: // SCHEDULED (System standard: 0)
+		status = "SCHEDULED"
+	case protocol.MESSAGE_STATE_ENROUTE: // ENROUTE (System standard: 1)
 		status = "ENROUTE"
-	case protocol.MESSAGE_STATE_DELIVERED: // DELIVERED
+	case protocol.MESSAGE_STATE_DELIVERED: // DELIVERED (System standard: 2)
 		status = "DELIVRD"
-	case protocol.MESSAGE_STATE_EXPIRED: // EXPIRED
+	case protocol.MESSAGE_STATE_EXPIRED: // EXPIRED (System standard: 3)
 		status = "EXPIRED"
-	case protocol.MESSAGE_STATE_DELETED: // DELETED
+	case protocol.MESSAGE_STATE_DELETED: // DELETED (System standard: 4)
 		status = "DELETED"
-	case protocol.MESSAGE_STATE_UNDELIVERABLE: // UNDELIVERABLE
+	case protocol.MESSAGE_STATE_UNDELIVERABLE: // UNDELIVERABLE (System standard: 5)
 		status = "UNDELIV"
-	case protocol.MESSAGE_STATE_ACCEPTED: // ACCEPTED
+	case protocol.MESSAGE_STATE_ACCEPTED: // ACCEPTED (System standard: 6)
 		status = "ACCEPTD"
-	case protocol.MESSAGE_STATE_UNKNOWN: // UNKNOWN
+	case protocol.MESSAGE_STATE_UNKNOWN: // UNKNOWN (System standard: 7)
 		status = "UNKNOWN"
-	case protocol.MESSAGE_STATE_REJECTED: // REJECTED
+	case protocol.MESSAGE_STATE_REJECTED: // REJECTED (System standard: 8)
 		status = "REJECTD"
 	default:
 		status = "UNKNOWN"
@@ -468,7 +470,7 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 
 	// Determine submit and delivered counts based on actual message state
 	var subCount, dlvrdCount string
-	if messageState == protocol.MESSAGE_STATE_DELIVERED { // DELIVERED (SMPP 3.4/5.0 standard)
+	if messageState == protocol.MESSAGE_STATE_DELIVERED { // DELIVERED (System standard: 2)
 		subCount = "001"
 		dlvrdCount = "001"
 	} else {

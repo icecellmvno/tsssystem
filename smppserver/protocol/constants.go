@@ -172,17 +172,18 @@ const (
 	REPLACE_IF_PRESENT_TRUE  = 0x01
 )
 
-// SMPP Message State values (SMPP 3.4/5.0 standard)
-// These values follow the SMPP 3.4/5.0 specification for delivery report status
+// SMPP Message State values (System specific - starting from 0)
+// These values follow your system's message state numbering convention
 const (
-	MESSAGE_STATE_ENROUTE       = 0x00 // ENROUTE - Message is en route
-	MESSAGE_STATE_DELIVERED     = 0x01 // DELIVERED - Message is delivered
-	MESSAGE_STATE_EXPIRED       = 0x02 // EXPIRED - Message validity period has expired
-	MESSAGE_STATE_DELETED       = 0x03 // DELETED - Message has been deleted
-	MESSAGE_STATE_UNDELIVERABLE = 0x04 // UNDELIVERABLE - Message is undeliverable
-	MESSAGE_STATE_ACCEPTED      = 0x05 // ACCEPTED - Message is accepted
-	MESSAGE_STATE_UNKNOWN       = 0x06 // UNKNOWN - Message state is unknown
-	MESSAGE_STATE_REJECTED      = 0x07 // REJECTED - Message is rejected
+	MESSAGE_STATE_SCHEDULED     = 0x00 // SCHEDULED - Mesaj planlandı, ancak gönderim henüz başlamadı
+	MESSAGE_STATE_ENROUTE       = 0x01 // ENROUTE - Mesaj yolda
+	MESSAGE_STATE_DELIVERED     = 0x02 // DELIVERED - Mesaj başarıyla teslim edildi
+	MESSAGE_STATE_EXPIRED       = 0x03 // EXPIRED - Mesajın geçerlilik süresi doldu
+	MESSAGE_STATE_DELETED       = 0x04 // DELETED - Mesaj silindi
+	MESSAGE_STATE_UNDELIVERABLE = 0x05 // UNDELIVERABLE - Mesaj teslim edilemedi
+	MESSAGE_STATE_ACCEPTED      = 0x06 // ACCEPTED - Mesaj kabul edildi (operatör tarafından alındı ancak henüz teslimat başlamadı)
+	MESSAGE_STATE_UNKNOWN       = 0x07 // UNKNOWN - Mesajın durumu bilinmiyor
+	MESSAGE_STATE_REJECTED      = 0x08 // REJECTED - Mesaj reddedildi
 )
 
 // SMPP Optional Parameter Tags

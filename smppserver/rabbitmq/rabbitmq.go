@@ -304,6 +304,12 @@ func (r *RabbitMQClient) handleDeliveryReport(msg amqp.Delivery, sessionManager 
 	log.Printf("DEBUG: Raw Delivery Report - MessageID: %s, SystemID: %s, Delivered: %v, Failed: %v, MessageState: %d",
 		deliveryReport.MessageID, deliveryReport.SystemID, deliveryReport.Delivered, deliveryReport.Failed, deliveryReport.MessageState)
 
+	// Debug: Log additional fields
+	log.Printf("DEBUG: Additional Fields - OriginalText: '%s', DataCoding: %d, ErrorCode: %d",
+		deliveryReport.OriginalText, deliveryReport.DataCoding, deliveryReport.ErrorCode)
+	log.Printf("DEBUG: Timestamps - SubmitDate: '%s', DoneDate: '%s', FinalDate: '%s'",
+		deliveryReport.SubmitDate, deliveryReport.DoneDate, deliveryReport.FinalDate)
+
 	log.Printf("Received delivery report for message: %s, system: %s", deliveryReport.MessageID, deliveryReport.SystemID)
 
 	// Find sessions for the system ID
@@ -330,14 +336,25 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// Determine the actual message state based on delivery status
 	// SMPP Message State Values: 0=ENROUTE, 1=DELIVERED, 2=EXPIRED, 3=DELETED, 4=UNDELIVERABLE, 5=ACCEPTED, 6=UNKNOWN, 7=REJECTED
 	var messageState uint8
+
+	// Debug: Log the decision process
+	log.Printf("DEBUG: Message State Decision Process:")
+	log.Printf("DEBUG: - report.Delivered: %v", report.Delivered)
+	log.Printf("DEBUG: - report.Failed: %v", report.Failed)
+	log.Printf("DEBUG: - report.MessageState: %d", report.MessageState)
+
 	if report.Delivered {
 		messageState = protocol.MESSAGE_STATE_DELIVERED // DELIVERED (SMPP 3.4/5.0 standard)
+		log.Printf("DEBUG: - Setting messageState to DELIVERED (%d) because report.Delivered = true", messageState)
 	} else if report.Failed {
 		messageState = protocol.MESSAGE_STATE_UNDELIVERABLE // UNDELIVERABLE (SMPP 3.4/5.0 standard)
+		log.Printf("DEBUG: - Setting messageState to UNDELIVERABLE (%d) because report.Failed = true", messageState)
 	} else if report.MessageState > 0 {
 		messageState = report.MessageState // Use original if available and valid
+		log.Printf("DEBUG: - Setting messageState to original value (%d) from report.MessageState", messageState)
 	} else {
 		messageState = protocol.MESSAGE_STATE_ENROUTE // Default to ENROUTE if no state provided
+		log.Printf("DEBUG: - Setting messageState to ENROUTE (%d) as default", messageState)
 	}
 
 	// Debug: Log the message state determination
@@ -418,6 +435,10 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage, messageState uint8) string {
 	// SMPP Standard DLR Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
 
+	// Debug: Log input parameters
+	log.Printf("DEBUG: createDeliveryReportText - MessageState: %d, OriginalText: '%s', Delivered: %v, Failed: %v",
+		messageState, report.OriginalText, report.Delivered, report.Failed)
+
 	// Convert message state to SMPP status string (SMPP 3.4/5.0 standard)
 	// SMPP Message State Values: 0=ENROUTE, 1=DELIVERED, 2=EXPIRED, 3=DELETED, 4=UNDELIVERABLE, 5=ACCEPTED, 6=UNKNOWN, 7=REJECTED
 	var status string
@@ -441,6 +462,9 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 	default:
 		status = "UNKNOWN"
 	}
+
+	// Debug: Log status conversion
+	log.Printf("DEBUG: Status conversion - MessageState: %d -> Status: '%s'", messageState, status)
 
 	// Determine submit and delivered counts based on actual message state
 	var subCount, dlvrdCount string
@@ -470,6 +494,9 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 
 	deliveryText := fmt.Sprintf("id:%s sub:%s dlvrd:%s submit date:%s done date:%s stat:%s err:%03d text:%s",
 		messageID, subCount, dlvrdCount, submitDate, doneDate, status, report.ErrorCode, originalText)
+
+	// Debug: Log final delivery text
+	log.Printf("DEBUG: Final delivery text: '%s'", deliveryText)
 
 	return deliveryText
 }

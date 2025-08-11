@@ -300,6 +300,10 @@ func (r *RabbitMQClient) handleDeliveryReport(msg amqp.Delivery, sessionManager 
 		return
 	}
 
+	// Debug: Log the raw delivery report data
+	log.Printf("DEBUG: Raw Delivery Report - MessageID: %s, SystemID: %s, Delivered: %v, Failed: %v, MessageState: %d",
+		deliveryReport.MessageID, deliveryReport.SystemID, deliveryReport.Delivered, deliveryReport.Failed, deliveryReport.MessageState)
+
 	log.Printf("Received delivery report for message: %s, system: %s", deliveryReport.MessageID, deliveryReport.SystemID)
 
 	// Find sessions for the system ID
@@ -319,8 +323,26 @@ func (r *RabbitMQClient) handleDeliveryReport(msg amqp.Delivery, sessionManager 
 
 // sendDeliveryReportToSession sends a delivery report to a specific session
 func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, report *DeliveryReportMessage) error {
+	// Debug: Log the delivery report details
+	log.Printf("DEBUG: Delivery Report - MessageID: %s, Delivered: %v, Failed: %v, MessageState: %d",
+		report.MessageID, report.Delivered, report.Failed, report.MessageState)
+
+	// Determine the actual message state based on delivery status
+	var messageState uint8
+	if report.Delivered {
+		messageState = 1 // DELIVERED
+	} else if report.Failed {
+		messageState = 4 // UNDELIVERABLE
+	} else {
+		messageState = report.MessageState // Use original if available
+	}
+
+	// Debug: Log the message state determination
+	log.Printf("DEBUG: Message State Determination - Delivered: %v, Failed: %v, Original MessageState: %d, Final MessageState: %d",
+		report.Delivered, report.Failed, report.MessageState, messageState)
+
 	// Create delivery report text in SMPP format
-	deliveryReportText := r.createDeliveryReportText(report)
+	deliveryReportText := r.createDeliveryReportText(report, messageState)
 
 	// Determine data coding - use original message's data coding if available, otherwise default to GSM 7-bit
 	dataCoding := uint8(protocol.DCS_GSM7) // Default to GSM 7-bit
@@ -351,15 +373,8 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		OptionalParameters:   make(map[uint16][]byte),
 	}
 
-	// Determine the actual message state based on delivery status for optional parameters
-	var messageState uint8
-	if report.Delivered {
-		messageState = 1 // DELIVERED
-	} else if report.Failed {
-		messageState = 4 // UNDELIVERABLE
-	} else {
-		messageState = report.MessageState // Use original if available
-	}
+	// Debug: Log the final message state being sent
+	log.Printf("DEBUG: Final Message State for Optional Parameters: %d", messageState)
 
 	// Add delivery report specific optional parameters
 	deliverPDU.OptionalParameters[protocol.OPT_PARAM_MESSAGE_STATE] = []byte{messageState}
@@ -378,18 +393,8 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 }
 
 // createDeliveryReportText creates the delivery report text in SMPP format
-func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage) string {
+func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage, messageState uint8) string {
 	// Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
-
-	// Determine the actual message state based on delivery status
-	var messageState uint8
-	if report.Delivered {
-		messageState = 1 // DELIVERED
-	} else if report.Failed {
-		messageState = 4 // UNDELIVERABLE
-	} else {
-		messageState = report.MessageState // Use original if available
-	}
 
 	// Convert message state to SMPP status string (SMPP 3.4 standard)
 	var status string

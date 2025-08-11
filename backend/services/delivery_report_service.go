@@ -2,7 +2,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
@@ -50,6 +49,12 @@ func (drs *DeliveryReportService) PublishDeliveryReport(smsLog models.SmsLog, st
 	// Create delivery report message
 	report := drs.createDeliveryReport(smsLog, systemID, status)
 
+	// If report is nil, it means we don't need to send delivery report for this status
+	if report == nil {
+		log.Printf("No delivery report needed for status: %s, message: %s", status, smsLog.MessageID)
+		return nil
+	}
+
 	// Publish to RabbitMQ
 	if err := drs.publishDeliveryReport(report); err != nil {
 		log.Printf("Failed to publish delivery report for message %s: %v", smsLog.MessageID, err)
@@ -87,7 +92,8 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.OriginalText = *smsLog.Message
 	}
 
-	// Convert status to SMPP message state
+	// Convert status to SMPP message state (SMPP 3.4 standard)
+	// Only send delivery reports for final statuses: delivered, undelivered, expired, rejected, etc.
 	switch status {
 	case "delivered":
 		report.MessageState = 1 // DELIVERED
@@ -110,7 +116,7 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.Failed = true
 		report.FailureReason = "Message rejected"
 	case "timeout":
-		report.MessageState = 5 // TIMEOUT
+		report.MessageState = 5 // ACCEPTED (timeout is treated as accepted)
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message timeout"
@@ -120,10 +126,9 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.Failed = true
 		report.FailureReason = "Message cancelled"
 	default:
-		report.MessageState = 6 // UNKNOWN
-		report.Delivered = false
-		report.Failed = true
-		report.FailureReason = fmt.Sprintf("Unknown status: %s", status)
+		// For intermediate statuses like "sent", "enroute", etc., don't send delivery report
+		log.Printf("Skipping delivery report for intermediate status: %s", status)
+		return nil
 	}
 
 	log.Printf("Created delivery report for message %s: status=%s, message_state=%d, delivered=%t, failed=%t",

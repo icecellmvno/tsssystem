@@ -371,17 +371,21 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage) string {
 	// Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
 
-	// Convert message state to SMPP status string
+	// Convert message state to SMPP status string (SMPP 3.4 standard)
 	var status string
 	switch report.MessageState {
-	case 2: // DELIVERED
+	case 0: // ENROUTE
+		status = "ENROUTE"
+	case 1: // DELIVERED
 		status = "DELIVRD"
-	case 3: // EXPIRED
+	case 2: // EXPIRED
 		status = "EXPIRED"
+	case 3: // DELETED
+		status = "DELETED"
 	case 4: // UNDELIVERABLE
 		status = "UNDELIV"
-	case 5: // TIMEOUT
-		status = "TIMEOUT"
+	case 5: // ACCEPTED
+		status = "ACCEPTD"
 	case 6: // UNKNOWN
 		status = "UNKNOWN"
 	case 7: // REJECTED

@@ -1,34 +1,26 @@
 database:
-  host: localhost
-  port: 3306
-  user: root
-  password: Zsax9771071
-  name: tsim_socket_server
-
+    host: localhost
+    name: tsim_socket_server
+    password: Zsax9771071
+    port: "3306"
+    user: root
 jwt:
-  secret: your-secret-key-here
-
-server:
-  port: 7001
-websocket_url: ws://tsimasia.icell.cloud:7001/ws
-
-
-rabbitmq:
-  url: amqp://guest:guest@localhost:5672/
-
-redis:
-  url: redis://localhost:6379
-
-smpp:
-  enquire_link_interval: 30s
-  session_timeout: 60s
-
+    secret: your-secret-key-here
 logging:
-  level: info
-  format: json
-
+    format: json
+    level: info
+rabbitmq:
+    url: amqp://guest:guest@localhost:5672/
+redis:
+    url: redis://localhost:6379
+server:
+    port: "7001"
+smpp:
+    enquire_link_interval: 30s
+    session_timeout: 60s
 sms_monitoring:
-  monitoring_window: 10      # Check last 10 SMS messages
-  min_sms_for_check: 5       # Need at least 5 SMS to start checking  
-  maintenance_threshold: 5   # If 5 or more are not delivered, enter maintenance
-  check_interval_minutes: 15 # Run monitoring every 15 minutes 
+    check_interval_minutes: 15
+    maintenance_threshold: 5
+    min_sms_for_check: 5
+    monitoring_window: 5
+websocket_url: ws://tsimasia.icell.cloud:7001/ws

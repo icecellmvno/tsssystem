@@ -16,19 +16,19 @@ export interface ConfigResponse {
 export const configService = {
   // Get current SMS monitoring configuration
   async getSmsMonitoringConfig(): Promise<SmsMonitoringConfig> {
-    const response = await apiClient.get<ConfigResponse>('/api/config/sms-monitoring')
+    const response = await apiClient.get<ConfigResponse>('/config/sms-monitoring')
     return response.data
   },
 
   // Update SMS monitoring configuration
   async updateSmsMonitoringConfig(config: SmsMonitoringConfig): Promise<ConfigResponse> {
-    const response = await apiClient.put<ConfigResponse>('/api/config/sms-monitoring', config)
+    const response = await apiClient.put<ConfigResponse>('/config/sms-monitoring', config)
     return response
   },
 
   // Reload configuration from file
   async reloadConfig(): Promise<ConfigResponse> {
-    const response = await apiClient.post<ConfigResponse>('/api/config/reload')
+    const response = await apiClient.post<ConfigResponse>('/config/reload')
     return response
   }
 } 

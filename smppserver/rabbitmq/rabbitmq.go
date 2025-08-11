@@ -337,9 +337,9 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		DestAddrTON:          protocol.TON_INTERNATIONAL, // International number
 		DestAddrNPI:          protocol.NPI_ISDN,          // ISDN numbering plan
 		DestinationAddr:      report.DestinationAddr,
-		ESMClass:             protocol.ESM_CLASS_DATAGRAM_MODE, // Delivery receipt için doğru ESM class
-		ProtocolID:           0,                                // Normal SMS
-		PriorityFlag:         0,                                // Normal priority
+		ESMClass:             protocol.ESM_CLASS_DEFAULT, // Delivery receipt için doğru ESM class
+		ProtocolID:           0,                          // Normal SMS
+		PriorityFlag:         0,                          // Normal priority
 		ScheduleDeliveryTime: "",
 		ValidityPeriod:       "",
 		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC, // SMSC delivery receipt

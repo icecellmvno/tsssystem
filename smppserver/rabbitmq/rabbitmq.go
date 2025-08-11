@@ -490,11 +490,19 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 	// Create delivery report text with proper SMPP format
 	originalText := "Delivery Report"
 	if report.OriginalText != "" && len(report.OriginalText) > 0 {
+		// Clean text to ensure only ASCII characters (SMPP 3.4 standard)
+		cleanedText := ""
+		for _, char := range report.OriginalText {
+			if char >= 32 && char <= 126 { // ASCII printable characters only
+				cleanedText += string(char)
+			}
+		}
+
 		// Limit text to first 20 characters as per SMPP 3.4 standard
-		if len(report.OriginalText) > 20 {
-			originalText = report.OriginalText[:20]
-		} else {
-			originalText = report.OriginalText
+		if len(cleanedText) > 20 {
+			originalText = cleanedText[:20]
+		} else if len(cleanedText) > 0 {
+			originalText = cleanedText
 		}
 	}
 

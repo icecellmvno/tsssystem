@@ -398,8 +398,9 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	log.Printf("DEBUG: Final Message State for Optional Parameters: %d", messageState)
 
 	// Add delivery report specific optional parameters
-	deliverPDU.OptionalParameters[protocol.OPT_PARAM_MESSAGE_STATE] = []byte{messageState}
+	// SMPP 3.4 standard: receipted_message_id (0x001E) first, then message_state (0x0427)
 	deliverPDU.OptionalParameters[protocol.OPT_PARAM_RECEIPTED_MESSAGE_ID] = []byte(report.MessageID)
+	deliverPDU.OptionalParameters[protocol.OPT_PARAM_MESSAGE_STATE] = []byte{messageState}
 
 	// Debug: Log the DLR PDU configuration
 	log.Printf("DEBUG: DLR PDU Configuration - ESMClass: 0x%02X, RegisteredDelivery: 0x%02X, MessageState: %d",
@@ -470,22 +471,31 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 
 	// Determine submit and delivered counts based on actual message state
 	var subCount, dlvrdCount string
-	if messageState == protocol.MESSAGE_STATE_DELIVERED { // DELIVERED (System standard: 2)
-		subCount = "001"
+	subCount = "001" // Always 001 for submit count
+
+	// Set dlvrd count based on message state (SMPP 3.4 standard)
+	switch messageState {
+	case protocol.MESSAGE_STATE_DELIVERED: // DELIVERED (System standard: 2)
 		dlvrdCount = "001"
-	} else {
-		subCount = "001"
-		dlvrdCount = "000"
+	case protocol.MESSAGE_STATE_ACCEPTED: // ACCEPTED (System standard: 6)
+		dlvrdCount = "001"
+	default:
+		dlvrdCount = "000" // For all other states (failed, expired, etc.)
 	}
 
 	// Clean and validate timestamps
-	submitDate := r.cleanTimestamp(report.SubmitDate)
-	doneDate := r.cleanTimestamp(report.DoneDate)
+	submitDate := r.cleanTimestampForDLR(report.SubmitDate)
+	doneDate := r.cleanTimestampForDLR(report.DoneDate)
 
 	// Create delivery report text with proper SMPP format
 	originalText := "Delivery Report"
 	if report.OriginalText != "" && len(report.OriginalText) > 0 {
-		originalText = report.OriginalText
+		// Limit text to first 20 characters as per SMPP 3.4 standard
+		if len(report.OriginalText) > 20 {
+			originalText = report.OriginalText[:20]
+		} else {
+			originalText = report.OriginalText
+		}
 	}
 
 	// Use original message ID directly (SMPP standard)
@@ -494,6 +504,7 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 		messageID = "UNKNOWN"
 	}
 
+	// SMPP 3.4 standard DLR format: id:<message_id> sub:001 dlvrd:001 submit date:YYMMDDhhmm done date:YYMMDDhhmm stat:<status> err:000 text:<first 20 chars>
 	deliveryText := fmt.Sprintf("id:%s sub:%s dlvrd:%s submit date:%s done date:%s stat:%s err:%03d text:%s",
 		messageID, subCount, dlvrdCount, submitDate, doneDate, status, report.ErrorCode, originalText)
 
@@ -525,6 +536,33 @@ func (r *RabbitMQClient) cleanTimestamp(timestamp string) string {
 	// Truncate if too long
 	if len(cleaned) > 14 {
 		cleaned = cleaned[:14]
+	}
+
+	return cleaned
+}
+
+// cleanTimestampForDLR cleans and validates timestamp format for DLR (YYMMDDhhmm)
+func (r *RabbitMQClient) cleanTimestampForDLR(timestamp string) string {
+	if timestamp == "" {
+		return "00000000000000" // Default empty timestamp
+	}
+
+	// Remove any non-numeric characters and ensure proper format
+	cleaned := ""
+	for _, char := range timestamp {
+		if char >= '0' && char <= '9' {
+			cleaned += string(char)
+		}
+	}
+
+	// Ensure minimum length (12 digits for YYMMDDhhmm)
+	if len(cleaned) < 12 {
+		cleaned = cleaned + "000000000000"[:12-len(cleaned)]
+	}
+
+	// Truncate if too long
+	if len(cleaned) > 12 {
+		cleaned = cleaned[:12]
 	}
 
 	return cleaned

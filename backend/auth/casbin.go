@@ -197,6 +197,11 @@ func loadDefaultPolicies() error {
 	// Admin websocket config policies
 	Enforcer.AddPolicy("admin", "/api/websocket-config", "GET")
 
+	// Admin configuration policies
+	Enforcer.AddPolicy("admin", "/api/config/sms-monitoring", "GET")
+	Enforcer.AddPolicy("admin", "/api/config/sms-monitoring", "PUT")
+	Enforcer.AddPolicy("admin", "/api/config/reload", "POST")
+
 	// Manager policies
 	Enforcer.AddPolicy("manager", "/api/users", "GET")
 	Enforcer.AddPolicy("manager", "/api/roles", "GET")
@@ -280,6 +285,9 @@ func loadDefaultPolicies() error {
 
 	// Manager QR generation policies (read-only)
 	Enforcer.AddPolicy("manager", "/api/qr/generate", "POST")
+
+	// Manager configuration policies (read-only)
+	Enforcer.AddPolicy("manager", "/api/config/sms-monitoring", "GET")
 
 	// Manager schedule tasks policies (read-only)
 	Enforcer.AddPolicy("manager", "/api/schedule-tasks", "GET")
@@ -366,6 +374,9 @@ func loadDefaultPolicies() error {
 
 	// Operator QR generation policies (read-only)
 	Enforcer.AddPolicy("operator", "/api/qr/generate", "POST")
+
+	// Operator configuration policies (read-only)
+	Enforcer.AddPolicy("operator", "/api/config/sms-monitoring", "GET")
 
 	// Operator schedule tasks policies (read-only)
 	Enforcer.AddPolicy("operator", "/api/schedule-tasks", "GET")

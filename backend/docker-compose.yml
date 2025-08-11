@@ -6,7 +6,7 @@ services:
     container_name: tsim_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: Zsax9771071
       MYSQL_DATABASE: tsim_socket_server
       MYSQL_USER: tsim_user
       MYSQL_PASSWORD: tsim_password

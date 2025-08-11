@@ -8,7 +8,7 @@ import { Loader2, Save, AlertCircle } from 'lucide-react'
 import { configService, SmsMonitoringConfig } from '@/services/configService'
 import { toast } from 'sonner'
 
-export function SmsMonitoringConfig() {
+export function SmsMonitoringConfigComponent() {
   const [config, setConfig] = useState<SmsMonitoringConfig>({
     monitoring_window: 10,
     min_sms_for_check: 5,

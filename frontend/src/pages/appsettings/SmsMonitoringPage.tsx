@@ -1,5 +1,5 @@
 import { AppLayout } from '@/layouts/app-layout'
-import { SmsMonitoringConfig } from '@/components/SmsMonitoringConfig'
+import { SmsMonitoringConfigComponent } from '@/components/SmsMonitoringConfig'
 
 export function SmsMonitoringPage() {
   return (
@@ -12,7 +12,7 @@ export function SmsMonitoringPage() {
           </p>
         </div>
         
-        <SmsMonitoringConfig />
+        <SmsMonitoringConfigComponent />
       </div>
     </AppLayout>
   )

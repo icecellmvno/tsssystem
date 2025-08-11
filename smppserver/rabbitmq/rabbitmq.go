@@ -354,18 +354,18 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// In delivery report: SourceAddr = original destination (recipient), DestinationAddr = original source (sender)
 	deliverPDU := &protocol.DeliverSMPDU{
 		ServiceType:          "",
-		SourceAddrTON:        protocol.TON_UNKNOWN,       // International number
-		SourceAddrNPI:        protocol.NPI_UNKNOWN,       // ISDN numbering plan
-		SourceAddr:           report.DestinationAddr,     // Original recipient becomes source in delivery report
-		DestAddrTON:          protocol.TON_UNKNOWN,       // International number
-		DestAddrNPI:          protocol.NPI_UNKNOWN,       // ISDN numbering plan
-		DestinationAddr:      report.SourceAddr,          // Original sender becomes destination in delivery report
-		ESMClass:             protocol.ESM_CLASS_DEFAULT, // Delivery receipt için doğru ESM class
-		ProtocolID:           0,                          // Normal SMS
-		PriorityFlag:         0,                          // Normal priority
+		SourceAddrTON:        protocol.TON_UNKNOWN,             // International number
+		SourceAddrNPI:        protocol.NPI_UNKNOWN,             // ISDN numbering plan
+		SourceAddr:           report.DestinationAddr,           // Original recipient becomes source in delivery report
+		DestAddrTON:          protocol.TON_UNKNOWN,             // International number
+		DestAddrNPI:          protocol.NPI_UNKNOWN,             // ISDN numbering plan
+		DestinationAddr:      report.SourceAddr,                // Original sender becomes destination in delivery report
+		ESMClass:             protocol.ESM_CLASS_DATAGRAM_MODE, // SMSC delivery receipt (DLR) = 0x04
+		ProtocolID:           0,                                // Normal SMS
+		PriorityFlag:         0,                                // Normal priority
 		ScheduleDeliveryTime: "",
 		ValidityPeriod:       "",
-		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC, // SMSC delivery receipt
+		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC, // SMSC delivery receipt = 0x01
 		ReplaceIfPresentFlag: 0,
 		DataCoding:           dataCoding, // Use original message's data coding
 		SMDefaultMsgID:       0,
@@ -380,6 +380,10 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// Add delivery report specific optional parameters
 	deliverPDU.OptionalParameters[protocol.OPT_PARAM_MESSAGE_STATE] = []byte{messageState}
 	deliverPDU.OptionalParameters[protocol.OPT_PARAM_RECEIPTED_MESSAGE_ID] = []byte(report.MessageID)
+
+	// Debug: Log the DLR PDU configuration
+	log.Printf("DEBUG: DLR PDU Configuration - ESMClass: 0x%02X, RegisteredDelivery: 0x%02X, MessageState: %d",
+		deliverPDU.ESMClass, deliverPDU.RegisteredDelivery, messageState)
 
 	// Convert to PDU and send
 	pdu := &protocol.PDU{

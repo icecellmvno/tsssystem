@@ -145,7 +145,7 @@ const (
 	ESM_CLASS_DATAGRAM               = 0x01
 	ESM_CLASS_FORWARD                = 0x02
 	ESM_CLASS_STORE_AND_FORWARD      = 0x03
-	ESM_CLASS_DATAGRAM_MODE          = 0x04
+	ESM_CLASS_DATAGRAM_MODE          = 0x04 // SMSC delivery receipt (DLR)
 	ESM_CLASS_FORWARD_MODE           = 0x08
 	ESM_CLASS_STORE_AND_FORWARD_MODE = 0x0C
 )

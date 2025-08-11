@@ -529,7 +529,7 @@ func (sr *SmsRouter) sendUndeliveredReport(smppMsg SmppSubmitSMMessage, reason s
 			SystemID:        smppMsg.SystemID,
 			SourceAddr:      smppMsg.DestinationAddr, // Orijinal hedef numara (mesajın gönderildiği yer)
 			DestinationAddr: smppMsg.SourceAddr,      // SMPP client adresi (mesajın geldiği yer)
-			MessageState:    4,                       // UNDELIVERABLE
+			MessageState:    5,                       // UNDELIVERABLE (System standard)
 			ErrorCode:       0,
 			FinalDate:       time.Now().Format("20060102150405"),
 			SubmitDate:      time.Now().Format("20060102150405"),

@@ -1,6 +1,8 @@
 package types
 
 // DeliveryReportMessage represents the delivery report message structure
+// MessageState values follow the system specific standard:
+// 0 = SCHEDULED, 1 = ENROUTE, 2 = DELIVERED, 3 = EXPIRED, 4 = DELETED, 5 = UNDELIVERABLE, 6 = ACCEPTED, 7 = UNKNOWN, 8 = REJECTED
 type DeliveryReportMessage struct {
 	MessageID       string `json:"message_id"`
 	SystemID        string `json:"system_id"`

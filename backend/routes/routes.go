@@ -27,6 +27,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	scheduleTaskHandler := handlers.NewScheduleTaskHandler(wsServer)
 	mccMncHandler := handlers.NewMccMncHandler()
 	smsRoutingHandler := handlers.NewSmsRoutingHandler()
+	configHandler := handlers.NewConfigHandler()
 
 	// API routes
 	api := app.Group("/api")
@@ -228,6 +229,12 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, wsServer *websocket.WebSock
 	smppRoutings.Get("/:id", smsRoutingHandler.GetSmsRoutingByID)
 	smppRoutings.Put("/:id", smsRoutingHandler.UpdateSmsRouting)
 	smppRoutings.Delete("/:id", smsRoutingHandler.DeleteSmsRouting)
+
+	// Configuration routes
+	config := protected.Group("/config")
+	config.Get("/sms-monitoring", configHandler.GetSmsMonitoringConfig)
+	config.Put("/sms-monitoring", configHandler.UpdateSmsMonitoringConfig)
+	config.Post("/reload", configHandler.ReloadConfig)
 
 	// WebSocket config route
 	protected.Get("/websocket-config", websocketHandler.GetWebSocketConfig)

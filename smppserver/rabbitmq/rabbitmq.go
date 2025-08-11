@@ -351,8 +351,18 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		OptionalParameters:   make(map[uint16][]byte),
 	}
 
+	// Determine the actual message state based on delivery status for optional parameters
+	var messageState uint8
+	if report.Delivered {
+		messageState = 1 // DELIVERED
+	} else if report.Failed {
+		messageState = 4 // UNDELIVERABLE
+	} else {
+		messageState = report.MessageState // Use original if available
+	}
+
 	// Add delivery report specific optional parameters
-	deliverPDU.OptionalParameters[protocol.OPT_PARAM_MESSAGE_STATE] = []byte{report.MessageState}
+	deliverPDU.OptionalParameters[protocol.OPT_PARAM_MESSAGE_STATE] = []byte{messageState}
 	deliverPDU.OptionalParameters[protocol.OPT_PARAM_RECEIPTED_MESSAGE_ID] = []byte(report.MessageID)
 
 	// Convert to PDU and send
@@ -371,9 +381,19 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage) string {
 	// Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
 
+	// Determine the actual message state based on delivery status
+	var messageState uint8
+	if report.Delivered {
+		messageState = 1 // DELIVERED
+	} else if report.Failed {
+		messageState = 4 // UNDELIVERABLE
+	} else {
+		messageState = report.MessageState // Use original if available
+	}
+
 	// Convert message state to SMPP status string (SMPP 3.4 standard)
 	var status string
-	switch report.MessageState {
+	switch messageState {
 	case 0: // ENROUTE
 		status = "ENROUTE"
 	case 1: // DELIVERED
@@ -396,9 +416,9 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage)
 		status = "UNKNOWN"
 	}
 
-	// Determine submit and delivered counts based on delivery status
+	// Determine submit and delivered counts based on actual message state
 	var subCount, dlvrdCount string
-	if report.Delivered {
+	if messageState == 1 { // DELIVERED
 		subCount = "001"
 		dlvrdCount = "001"
 	} else {

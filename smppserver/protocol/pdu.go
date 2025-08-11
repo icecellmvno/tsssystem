@@ -1479,3 +1479,84 @@ func (pdu *PDU) String() string {
 		pdu.SequenceNumber,
 		hex.EncodeToString(pdu.Body))
 }
+
+// SerializeDeliverSMPDU serializes a deliver_sm PDU to bytes
+func SerializeDeliverSMPDU(deliver *DeliverSMPDU) []byte {
+	var result []byte
+
+	// Service Type
+	result = append(result, []byte(deliver.ServiceType)...)
+	result = append(result, 0)
+
+	// Source Addr TON
+	result = append(result, deliver.SourceAddrTON)
+
+	// Source Addr NPI
+	result = append(result, deliver.SourceAddrNPI)
+
+	// Source Addr
+	result = append(result, []byte(deliver.SourceAddr)...)
+	result = append(result, 0)
+
+	// Dest Addr TON
+	result = append(result, deliver.DestAddrTON)
+
+	// Dest Addr NPI
+	result = append(result, deliver.DestAddrNPI)
+
+	// Destination Addr
+	result = append(result, []byte(deliver.DestinationAddr)...)
+	result = append(result, 0)
+
+	// ESM Class
+	result = append(result, deliver.ESMClass)
+
+	// Protocol ID
+	result = append(result, deliver.ProtocolID)
+
+	// Priority Flag
+	result = append(result, deliver.PriorityFlag)
+
+	// Schedule Delivery Time
+	result = append(result, []byte(deliver.ScheduleDeliveryTime)...)
+	result = append(result, 0)
+
+	// Validity Period
+	result = append(result, []byte(deliver.ValidityPeriod)...)
+	result = append(result, 0)
+
+	// Registered Delivery
+	result = append(result, deliver.RegisteredDelivery)
+
+	// Replace If Present Flag
+	result = append(result, deliver.ReplaceIfPresentFlag)
+
+	// Data Coding
+	result = append(result, deliver.DataCoding)
+
+	// SM Default Msg ID
+	result = append(result, deliver.SMDefaultMsgID)
+
+	// SM Length
+	result = append(result, deliver.SMLength)
+
+	// Short Message
+	if deliver.SMLength > 0 {
+		result = append(result, []byte(deliver.ShortMessage)...)
+	}
+
+	// Optional Parameters
+	for tag, value := range deliver.OptionalParameters {
+		tagBytes := make([]byte, 2)
+		binary.BigEndian.PutUint16(tagBytes, tag)
+		result = append(result, tagBytes...)
+
+		lengthBytes := make([]byte, 2)
+		binary.BigEndian.PutUint16(lengthBytes, uint16(len(value)))
+		result = append(result, lengthBytes...)
+
+		result = append(result, value...)
+	}
+
+	return result
+}

@@ -385,7 +385,7 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		PriorityFlag:         0,                                // Normal priority
 		ScheduleDeliveryTime: "",
 		ValidityPeriod:       "",
-		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC, // SMSC delivery receipt = 0x01
+		RegisteredDelivery:   0, // deliver_sm'de registered_delivery anlamsızdır, 0x00 olmalı
 		ReplaceIfPresentFlag: 0,
 		DataCoding:           dataCoding, // Use original message's data coding
 		SMDefaultMsgID:       0,
@@ -410,12 +410,15 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	log.Printf("DEBUG: DLR Text: %s", deliveryReportText)
 
 	// Convert to PDU and send
+	// Use SerializeDeliverSMPDU for deliver_sm PDU, not SerializeSubmitSMPDU
+	deliverBody := protocol.SerializeDeliverSMPDU(deliverPDU)
+
 	pdu := &protocol.PDU{
-		CommandLength:  uint32(16 + len(protocol.SerializeSubmitSMPDU((*protocol.SubmitSMPDU)(deliverPDU)))),
+		CommandLength:  uint32(16 + len(deliverBody)), // 16 bytes header + body length
 		CommandID:      protocol.DELIVER_SM,
 		CommandStatus:  0,
 		SequenceNumber: session.GetNextSequenceNumber(),
-		Body:           protocol.SerializeSubmitSMPDU((*protocol.SubmitSMPDU)(deliverPDU)),
+		Body:           deliverBody,
 	}
 
 	// Debug: Log the final PDU details

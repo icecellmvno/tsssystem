@@ -145,7 +145,7 @@ const (
 	ESM_CLASS_DATAGRAM               = 0x01
 	ESM_CLASS_FORWARD                = 0x02
 	ESM_CLASS_STORE_AND_FORWARD      = 0x03
-	ESM_CLASS_DATAGRAM_MODE          = 0x04
+	ESM_CLASS_DATAGRAM_MODE          = 0x04 // SMSC delivery receipt (DLR)
 	ESM_CLASS_FORWARD_MODE           = 0x08
 	ESM_CLASS_STORE_AND_FORWARD_MODE = 0x0C
 )
@@ -188,6 +188,6 @@ const (
 	OPT_PARAM_SAR_MSG_REF_NUM_8      = 0x020C // 8-bit concatenated short message reference number
 	OPT_PARAM_SAR_TOTAL_SEGMENTS_8   = 0x020E // 8-bit total number of short messages
 	OPT_PARAM_SAR_SEGMENT_SEQNUM_8   = 0x020F // 8-bit sequence number
-	OPT_PARAM_MESSAGE_STATE          = 0x0427 // Message state
+	OPT_PARAM_MESSAGE_STATE          = 0x0427 // Message state (SMPP 3.4 standard)
 	OPT_PARAM_RECEIPTED_MESSAGE_ID   = 0x001E // Receipted message ID
 )

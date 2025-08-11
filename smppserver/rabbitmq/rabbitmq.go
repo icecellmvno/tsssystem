@@ -300,6 +300,10 @@ func (r *RabbitMQClient) handleDeliveryReport(msg amqp.Delivery, sessionManager 
 		return
 	}
 
+	// Debug: Log the raw delivery report data
+	log.Printf("DEBUG: Raw Delivery Report - MessageID: %s, SystemID: %s, Delivered: %v, Failed: %v, MessageState: %d",
+		deliveryReport.MessageID, deliveryReport.SystemID, deliveryReport.Delivered, deliveryReport.Failed, deliveryReport.MessageState)
+
 	log.Printf("Received delivery report for message: %s, system: %s", deliveryReport.MessageID, deliveryReport.SystemID)
 
 	// Find sessions for the system ID
@@ -319,8 +323,28 @@ func (r *RabbitMQClient) handleDeliveryReport(msg amqp.Delivery, sessionManager 
 
 // sendDeliveryReportToSession sends a delivery report to a specific session
 func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, report *DeliveryReportMessage) error {
+	// Debug: Log the delivery report details
+	log.Printf("DEBUG: Delivery Report - MessageID: %s, Delivered: %v, Failed: %v, MessageState: %d",
+		report.MessageID, report.Delivered, report.Failed, report.MessageState)
+
+	// Determine the actual message state based on delivery status
+	var messageState uint8
+	if report.Delivered {
+		messageState = 2 // DELIVERED (SMPP 3.4/5.0 standard)
+	} else if report.Failed {
+		messageState = 5 // UNDELIVERABLE (SMPP 3.4/5.0 standard)
+	} else if report.MessageState > 0 {
+		messageState = report.MessageState // Use original if available and valid
+	} else {
+		messageState = 1 // Default to ENROUTE if no state provided
+	}
+
+	// Debug: Log the message state determination
+	log.Printf("DEBUG: Message State Determination - Delivered: %v, Failed: %v, Original MessageState: %d, Final MessageState: %d",
+		report.Delivered, report.Failed, report.MessageState, messageState)
+
 	// Create delivery report text in SMPP format
-	deliveryReportText := r.createDeliveryReportText(report)
+	deliveryReportText := r.createDeliveryReportText(report, messageState)
 
 	// Determine data coding - use original message's data coding if available, otherwise default to GSM 7-bit
 	dataCoding := uint8(protocol.DCS_GSM7) // Default to GSM 7-bit
@@ -329,20 +353,21 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	}
 
 	// Create deliver_sm PDU for delivery report
+	// In delivery report: SourceAddr = original destination (recipient), DestinationAddr = original source (sender)
 	deliverPDU := &protocol.DeliverSMPDU{
 		ServiceType:          "",
-		SourceAddrTON:        protocol.TON_INTERNATIONAL, // International number
-		SourceAddrNPI:        protocol.NPI_ISDN,          // ISDN numbering plan
-		SourceAddr:           report.SourceAddr,
-		DestAddrTON:          protocol.TON_INTERNATIONAL, // International number
-		DestAddrNPI:          protocol.NPI_ISDN,          // ISDN numbering plan
-		DestinationAddr:      report.DestinationAddr,
-		ESMClass:             protocol.ESM_CLASS_DATAGRAM_MODE, // Delivery receipt için doğru ESM class
+		SourceAddrTON:        protocol.TON_UNKNOWN,             // International number
+		SourceAddrNPI:        protocol.NPI_UNKNOWN,             // ISDN numbering plan
+		SourceAddr:           report.DestinationAddr,           // Original recipient becomes source in delivery report
+		DestAddrTON:          protocol.TON_UNKNOWN,             // International number
+		DestAddrNPI:          protocol.NPI_UNKNOWN,             // ISDN numbering plan
+		DestinationAddr:      report.SourceAddr,                // Original sender becomes destination in delivery report
+		ESMClass:             protocol.ESM_CLASS_DATAGRAM_MODE, // SMSC delivery receipt (DLR) = 0x04
 		ProtocolID:           0,                                // Normal SMS
 		PriorityFlag:         0,                                // Normal priority
 		ScheduleDeliveryTime: "",
 		ValidityPeriod:       "",
-		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC, // SMSC delivery receipt
+		RegisteredDelivery:   protocol.REG_DELIVERY_SMSC, // SMSC delivery receipt = 0x01
 		ReplaceIfPresentFlag: 0,
 		DataCoding:           dataCoding, // Use original message's data coding
 		SMDefaultMsgID:       0,
@@ -351,9 +376,19 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		OptionalParameters:   make(map[uint16][]byte),
 	}
 
+	// Debug: Log the final message state being sent
+	log.Printf("DEBUG: Final Message State for Optional Parameters: %d", messageState)
+
 	// Add delivery report specific optional parameters
-	deliverPDU.OptionalParameters[protocol.OPT_PARAM_MESSAGE_STATE] = []byte{report.MessageState}
+	deliverPDU.OptionalParameters[protocol.OPT_PARAM_MESSAGE_STATE] = []byte{messageState}
 	deliverPDU.OptionalParameters[protocol.OPT_PARAM_RECEIPTED_MESSAGE_ID] = []byte(report.MessageID)
+
+	// Debug: Log the DLR PDU configuration
+	log.Printf("DEBUG: DLR PDU Configuration - ESMClass: 0x%02X, RegisteredDelivery: 0x%02X, MessageState: %d",
+		deliverPDU.ESMClass, deliverPDU.RegisteredDelivery, messageState)
+
+	// Debug: Log the cleaned DLR text
+	log.Printf("DEBUG: DLR Text: %s", deliveryReportText)
 
 	// Convert to PDU and send
 	pdu := &protocol.PDU{
@@ -364,37 +399,50 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		Body:           protocol.SerializeSubmitSMPDU((*protocol.SubmitSMPDU)(deliverPDU)),
 	}
 
-	return session.SendPDU(pdu)
+	// Debug: Log the final PDU details
+	log.Printf("DEBUG: Sending DLR PDU - CommandID: 0x%08X, SequenceNumber: %d, BodyLength: %d",
+		pdu.CommandID, pdu.SequenceNumber, len(pdu.Body))
+
+	err := session.SendPDU(pdu)
+	if err != nil {
+		log.Printf("ERROR: Failed to send DLR PDU: %v", err)
+		return err
+	}
+
+	log.Printf("INFO: Successfully sent DLR for message: %s to session: %s", report.MessageID, session.ID)
+	return nil
 }
 
 // createDeliveryReportText creates the delivery report text in SMPP format
-func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage) string {
-	// Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
+func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage, messageState uint8) string {
+	// SMPP Standard DLR Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
 
-	// Convert message state to SMPP status string
+	// Convert message state to SMPP status string (SMPP 3.4/5.0 standard)
 	var status string
-	switch report.MessageState {
+	switch messageState {
+	case 1: // ENROUTE
+		status = "ENROUTE"
 	case 2: // DELIVERED
 		status = "DELIVRD"
 	case 3: // EXPIRED
 		status = "EXPIRED"
-	case 4: // UNDELIVERABLE
+	case 4: // DELETED
+		status = "DELETED"
+	case 5: // UNDELIVERABLE
 		status = "UNDELIV"
-	case 5: // TIMEOUT
-		status = "TIMEOUT"
-	case 6: // UNKNOWN
+	case 6: // ACCEPTED
+		status = "ACCEPTD"
+	case 7: // UNKNOWN
 		status = "UNKNOWN"
-	case 7: // REJECTED
+	case 8: // REJECTED
 		status = "REJECTD"
-	case 8: // CANCELLED
-		status = "CANCELLED"
 	default:
 		status = "UNKNOWN"
 	}
 
-	// Determine submit and delivered counts based on delivery status
+	// Determine submit and delivered counts based on actual message state
 	var subCount, dlvrdCount string
-	if report.Delivered {
+	if messageState == 2 { // DELIVERED (SMPP 3.4/5.0 standard)
 		subCount = "001"
 		dlvrdCount = "001"
 	} else {
@@ -402,14 +450,51 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage)
 		dlvrdCount = "000"
 	}
 
-	// Create delivery report text
+	// Clean and validate timestamps
+	submitDate := r.cleanTimestamp(report.SubmitDate)
+	doneDate := r.cleanTimestamp(report.DoneDate)
+
+	// Create delivery report text with proper SMPP format
 	originalText := "Delivery Report"
-	if report.OriginalText != "" {
+	if report.OriginalText != "" && len(report.OriginalText) > 0 {
 		originalText = report.OriginalText
 	}
 
+	// Use original message ID directly (SMPP standard)
+	messageID := report.MessageID
+	if messageID == "" {
+		messageID = "UNKNOWN"
+	}
+
 	deliveryText := fmt.Sprintf("id:%s sub:%s dlvrd:%s submit date:%s done date:%s stat:%s err:%03d text:%s",
-		report.MessageID, subCount, dlvrdCount, report.SubmitDate, report.DoneDate, status, report.ErrorCode, originalText)
+		messageID, subCount, dlvrdCount, submitDate, doneDate, status, report.ErrorCode, originalText)
 
 	return deliveryText
+}
+
+// cleanTimestamp cleans and validates timestamp format
+func (r *RabbitMQClient) cleanTimestamp(timestamp string) string {
+	if timestamp == "" {
+		return "00000000000000" // Default empty timestamp
+	}
+
+	// Remove any non-numeric characters and ensure proper format
+	cleaned := ""
+	for _, char := range timestamp {
+		if char >= '0' && char <= '9' {
+			cleaned += string(char)
+		}
+	}
+
+	// Ensure minimum length (14 digits for YYYYMMDDHHMMSS)
+	if len(cleaned) < 14 {
+		cleaned = cleaned + "00000000000000"[:14-len(cleaned)]
+	}
+
+	// Truncate if too long
+	if len(cleaned) > 14 {
+		cleaned = cleaned[:14]
+	}
+
+	return cleaned
 }

@@ -92,8 +92,10 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.OriginalText = *smsLog.Message
 	}
 
-	// Convert status to SMPP message state (SMPP 3.4 standard)
+	// Convert status to SMPP message state (SMPP 3.4/5.0 standard)
 	// Only send delivery reports for final statuses: delivered, undelivered, expired, rejected, etc.
+	// SMPP Message State Values:
+	// 0 = ENROUTE, 1 = DELIVERED, 2 = EXPIRED, 3 = DELETED, 4 = UNDELIVERABLE, 5 = ACCEPTED, 6 = UNKNOWN, 7 = REJECTED
 	switch status {
 	case "sent":
 		// Don't send delivery report for "sent" status from Android devices
@@ -101,32 +103,32 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		log.Printf("Skipping delivery report for intermediate status: %s", status)
 		return nil
 	case "delivered":
-		report.MessageState = 1 // DELIVERED
+		report.MessageState = 1 // DELIVERED (SMPP standard)
 		report.Delivered = true
 		report.Failed = false
 		report.FailureReason = ""
 	case "failed", "undelivered":
-		report.MessageState = 4 // UNDELIVERABLE
+		report.MessageState = 4 // UNDELIVERABLE (SMPP standard)
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message undelivered"
 	case "expired":
-		report.MessageState = 2 // EXPIRED
+		report.MessageState = 2 // EXPIRED (SMPP standard)
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message expired"
 	case "rejected":
-		report.MessageState = 7 // REJECTED
+		report.MessageState = 7 // REJECTED (SMPP standard)
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message rejected"
 	case "timeout":
-		report.MessageState = 5 // ACCEPTED (timeout is treated as accepted)
+		report.MessageState = 5 // ACCEPTED (SMPP standard)
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message timeout"
 	case "cancelled":
-		report.MessageState = 3 // DELETED (cancelled messages are treated as deleted)
+		report.MessageState = 3 // DELETED (SMPP standard)
 		report.Delivered = false
 		report.Failed = true
 		report.FailureReason = "Message cancelled"

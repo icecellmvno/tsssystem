@@ -328,15 +328,16 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		report.MessageID, report.Delivered, report.Failed, report.MessageState)
 
 	// Determine the actual message state based on delivery status
+	// SMPP Message State Values: 0=ENROUTE, 1=DELIVERED, 2=EXPIRED, 3=DELETED, 4=UNDELIVERABLE, 5=ACCEPTED, 6=UNKNOWN, 7=REJECTED
 	var messageState uint8
 	if report.Delivered {
-		messageState = 2 // DELIVERED (SMPP 3.4/5.0 standard)
+		messageState = 1 // DELIVERED (SMPP 3.4/5.0 standard)
 	} else if report.Failed {
-		messageState = 5 // UNDELIVERABLE (SMPP 3.4/5.0 standard)
+		messageState = 4 // UNDELIVERABLE (SMPP 3.4/5.0 standard)
 	} else if report.MessageState > 0 {
 		messageState = report.MessageState // Use original if available and valid
 	} else {
-		messageState = 1 // Default to ENROUTE if no state provided
+		messageState = 0 // Default to ENROUTE if no state provided
 	}
 
 	// Debug: Log the message state determination
@@ -418,23 +419,24 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 	// SMPP Standard DLR Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
 
 	// Convert message state to SMPP status string (SMPP 3.4/5.0 standard)
+	// SMPP Message State Values: 0=ENROUTE, 1=DELIVERED, 2=EXPIRED, 3=DELETED, 4=UNDELIVERABLE, 5=ACCEPTED, 6=UNKNOWN, 7=REJECTED
 	var status string
 	switch messageState {
-	case 1: // ENROUTE
+	case 0: // ENROUTE
 		status = "ENROUTE"
-	case 2: // DELIVERED
+	case 1: // DELIVERED
 		status = "DELIVRD"
-	case 3: // EXPIRED
+	case 2: // EXPIRED
 		status = "EXPIRED"
-	case 4: // DELETED
+	case 3: // DELETED
 		status = "DELETED"
-	case 5: // UNDELIVERABLE
+	case 4: // UNDELIVERABLE
 		status = "UNDELIV"
-	case 6: // ACCEPTED
+	case 5: // ACCEPTED
 		status = "ACCEPTD"
-	case 7: // UNKNOWN
+	case 6: // UNKNOWN
 		status = "UNKNOWN"
-	case 8: // REJECTED
+	case 7: // REJECTED
 		status = "REJECTD"
 	default:
 		status = "UNKNOWN"
@@ -442,7 +444,7 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 
 	// Determine submit and delivered counts based on actual message state
 	var subCount, dlvrdCount string
-	if messageState == 2 { // DELIVERED (SMPP 3.4/5.0 standard)
+	if messageState == 1 { // DELIVERED (SMPP 3.4/5.0 standard)
 		subCount = "001"
 		dlvrdCount = "001"
 	} else {

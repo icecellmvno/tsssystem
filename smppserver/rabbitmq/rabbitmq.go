@@ -374,11 +374,11 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// In delivery report: SourceAddr = original destination (recipient), DestinationAddr = original source (sender)
 	deliverPDU := &protocol.DeliverSMPDU{
 		ServiceType:          "",
-		SourceAddrTON:        protocol.TON_UNKNOWN,             // International number
-		SourceAddrNPI:        protocol.NPI_UNKNOWN,             // ISDN numbering plan
+		SourceAddrTON:        protocol.TON_INTERNATIONAL,       // International number (0x01)
+		SourceAddrNPI:        protocol.NPI_ISDN,                // ISDN numbering plan (0x01)
 		SourceAddr:           report.DestinationAddr,           // Original recipient becomes source in delivery report
-		DestAddrTON:          protocol.TON_UNKNOWN,             // International number
-		DestAddrNPI:          protocol.NPI_UNKNOWN,             // ISDN numbering plan
+		DestAddrTON:          protocol.TON_ALPHANUMERIC,        // Alphanumeric for service names (0x05)
+		DestAddrNPI:          protocol.NPI_UNKNOWN,             // Unknown numbering plan (0x00)
 		DestinationAddr:      report.SourceAddr,                // Original sender becomes destination in delivery report
 		ESMClass:             protocol.ESM_CLASS_DATAGRAM_MODE, // SMSC delivery receipt (DLR) = 0x04
 		ProtocolID:           0,                                // Normal SMS
@@ -405,6 +405,11 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// Debug: Log the DLR PDU configuration
 	log.Printf("DEBUG: DLR PDU Configuration - ESMClass: 0x%02X, RegisteredDelivery: 0x%02X, MessageState: %d",
 		deliverPDU.ESMClass, deliverPDU.RegisteredDelivery, messageState)
+
+	// Debug: Log address configuration
+	log.Printf("DEBUG: Address Configuration - SourceAddr: %s (TON: 0x%02X, NPI: 0x%02X), DestAddr: %s (TON: 0x%02X, NPI: 0x%02X)",
+		deliverPDU.SourceAddr, deliverPDU.SourceAddrTON, deliverPDU.SourceAddrNPI,
+		deliverPDU.DestinationAddr, deliverPDU.DestAddrTON, deliverPDU.DestAddrNPI)
 
 	// Debug: Log the cleaned DLR text
 	log.Printf("DEBUG: DLR Text: %s", deliveryReportText)

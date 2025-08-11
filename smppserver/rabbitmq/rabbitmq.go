@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"smppserver/protocol"
+	"strings"
 
 	"smppserver/session"
 
@@ -333,8 +334,10 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		messageState = 2 // DELIVERED (SMPP 3.4/5.0 standard)
 	} else if report.Failed {
 		messageState = 5 // UNDELIVERABLE (SMPP 3.4/5.0 standard)
+	} else if report.MessageState > 0 {
+		messageState = report.MessageState // Use original if available and valid
 	} else {
-		messageState = report.MessageState // Use original if available
+		messageState = 1 // Default to ENROUTE if no state provided
 	}
 
 	// Debug: Log the message state determination
@@ -385,6 +388,9 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	log.Printf("DEBUG: DLR PDU Configuration - ESMClass: 0x%02X, RegisteredDelivery: 0x%02X, MessageState: %d",
 		deliverPDU.ESMClass, deliverPDU.RegisteredDelivery, messageState)
 
+	// Debug: Log the cleaned DLR text
+	log.Printf("DEBUG: DLR Text: %s", deliveryReportText)
+
 	// Convert to PDU and send
 	pdu := &protocol.PDU{
 		CommandLength:  uint32(16 + len(protocol.SerializeSubmitSMPDU((*protocol.SubmitSMPDU)(deliverPDU)))),
@@ -394,12 +400,23 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 		Body:           protocol.SerializeSubmitSMPDU((*protocol.SubmitSMPDU)(deliverPDU)),
 	}
 
-	return session.SendPDU(pdu)
+	// Debug: Log the final PDU details
+	log.Printf("DEBUG: Sending DLR PDU - CommandID: 0x%08X, SequenceNumber: %d, BodyLength: %d",
+		pdu.CommandID, pdu.SequenceNumber, len(pdu.Body))
+
+	err := session.SendPDU(pdu)
+	if err != nil {
+		log.Printf("ERROR: Failed to send DLR PDU: %v", err)
+		return err
+	}
+
+	log.Printf("INFO: Successfully sent DLR for message: %s to session: %s", report.MessageID, session.ID)
+	return nil
 }
 
 // createDeliveryReportText creates the delivery report text in SMPP format
 func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage, messageState uint8) string {
-	// Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
+	// SMPP Standard DLR Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
 
 	// Convert message state to SMPP status string (SMPP 3.4/5.0 standard)
 	var status string
@@ -434,14 +451,71 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 		dlvrdCount = "000"
 	}
 
-	// Create delivery report text
+	// Clean and validate timestamps
+	submitDate := r.cleanTimestamp(report.SubmitDate)
+	doneDate := r.cleanTimestamp(report.DoneDate)
+
+	// Create delivery report text with proper SMPP format
 	originalText := "Delivery Report"
-	if report.OriginalText != "" {
+	if report.OriginalText != "" && len(report.OriginalText) > 0 {
 		originalText = report.OriginalText
 	}
 
+	// Ensure message ID is clean (remove timestamp prefix if exists)
+	messageID := r.cleanMessageID(report.MessageID)
+
 	deliveryText := fmt.Sprintf("id:%s sub:%s dlvrd:%s submit date:%s done date:%s stat:%s err:%03d text:%s",
-		report.MessageID, subCount, dlvrdCount, report.SubmitDate, report.DoneDate, status, report.ErrorCode, originalText)
+		messageID, subCount, dlvrdCount, submitDate, doneDate, status, report.ErrorCode, originalText)
 
 	return deliveryText
+}
+
+// cleanTimestamp cleans and validates timestamp format
+func (r *RabbitMQClient) cleanTimestamp(timestamp string) string {
+	if timestamp == "" {
+		return "00000000000000" // Default empty timestamp
+	}
+
+	// Remove any non-numeric characters and ensure proper format
+	cleaned := ""
+	for _, char := range timestamp {
+		if char >= '0' && char <= '9' {
+			cleaned += string(char)
+		}
+	}
+
+	// Ensure minimum length (14 digits for YYYYMMDDHHMMSS)
+	if len(cleaned) < 14 {
+		cleaned = cleaned + "00000000000000"[:14-len(cleaned)]
+	}
+
+	// Truncate if too long
+	if len(cleaned) > 14 {
+		cleaned = cleaned[:14]
+	}
+
+	return cleaned
+}
+
+// cleanMessageID removes timestamp prefix if exists and cleans the message ID
+func (r *RabbitMQClient) cleanMessageID(messageID string) string {
+	if messageID == "" {
+		return "UNKNOWN"
+	}
+
+	// Remove common timestamp prefixes like "zid:MSG" or "MSG"
+	if len(messageID) > 8 && (messageID[:4] == "zid:" || messageID[:3] == "MSG") {
+		// Extract the actual message ID part
+		parts := strings.Split(messageID, ":")
+		if len(parts) > 1 {
+			// Remove "MSG" prefix if exists
+			actualID := parts[1]
+			if len(actualID) > 3 && actualID[:3] == "MSG" {
+				return actualID[3:] // Return part after "MSG"
+			}
+			return actualID
+		}
+	}
+
+	return messageID
 }

@@ -79,12 +79,14 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 	}
 
 	// Set source and destination addresses for delivery report
-	// In SMPP delivery report: source_addr = original destination (where message was sent), destination_addr = original source (SMPP client)
-	if smsLog.DestinationAddr != nil {
-		report.SourceAddr = *smsLog.DestinationAddr // Orijinal hedef numara (mesajın gönderildiği yer)
-	}
+	// SMPP Standard: In delivery report, addresses are reversed from original message
+	// Original SMS: SMPP Client -> Destination
+	// Delivery Report: Destination -> SMPP Client (reversed)
 	if smsLog.SourceAddr != nil {
-		report.DestinationAddr = *smsLog.SourceAddr // SMPP client adresi (mesajın geldiği yer)
+		report.SourceAddr = *smsLog.SourceAddr // SMPP client adresi (orijinal gönderen)
+	}
+	if smsLog.DestinationAddr != nil {
+		report.DestinationAddr = *smsLog.DestinationAddr // Orijinal hedef numara (alıcı)
 	}
 
 	// Set original text if available

@@ -354,11 +354,11 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// In delivery report: SourceAddr = original destination (recipient), DestinationAddr = original source (sender)
 	deliverPDU := &protocol.DeliverSMPDU{
 		ServiceType:          "",
-		SourceAddrTON:        protocol.TON_INTERNATIONAL, // International number
-		SourceAddrNPI:        protocol.NPI_ISDN,          // ISDN numbering plan
+		SourceAddrTON:        protocol.TON_UNKNOWN,       // International number
+		SourceAddrNPI:        protocol.NPI_UNKNOWN,       // ISDN numbering plan
 		SourceAddr:           report.DestinationAddr,     // Original recipient becomes source in delivery report
-		DestAddrTON:          protocol.TON_INTERNATIONAL, // International number
-		DestAddrNPI:          protocol.NPI_ISDN,          // ISDN numbering plan
+		DestAddrTON:          protocol.TON_UNKNOWN,       // International number
+		DestAddrNPI:          protocol.NPI_UNKNOWN,       // ISDN numbering plan
 		DestinationAddr:      report.SourceAddr,          // Original sender becomes destination in delivery report
 		ESMClass:             protocol.ESM_CLASS_DEFAULT, // Delivery receipt için doğru ESM class
 		ProtocolID:           0,                          // Normal SMS

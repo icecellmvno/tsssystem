@@ -2,7 +2,7 @@ import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
-import { LayoutGrid, Users, Database, Building2, Server, Clock, CreditCard, BarChart3, UserCog, Shield, KeyRound, Send, Filter, PhoneOff, MessageSquare, Settings, Route } from 'lucide-react';
+import { LayoutGrid, Users, Database, Building2, Server, BarChart3, UserCog, Shield, KeyRound, Settings } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems = [
@@ -31,7 +31,6 @@ const mainNavItems = [
             {
                 title: 'Sim Card Management',
                 url: '/sim-cards',
-                icon: CreditCard,
             },
         ],
     },
@@ -67,7 +66,6 @@ const mainNavItems = [
             {
                 title: 'SMPP Routings',
                 url: '/smpp-routings',
-                icon: Route,
             },
 
         ],
@@ -99,31 +97,33 @@ const mainNavItems = [
         url: '#',
         icon: Settings,
         items: [
-    
+            {
+                title: 'General Settings',
+                url: '/appsettings/settings',
+            },
+            {
+                title: 'SMS Monitoring',
+                url: '/appsettings/sms-monitoring',
+            },
             {
                 title: 'Schedule Tasks',
                 url: '/schedule-tasks',
-                icon: Clock,
             },
             {
                 title: 'Blacklist Numbers',
                 url: '/blacklist-numbers',
-                icon: PhoneOff,
             },
             {
                 title: 'Filters',
                 url: '/filters',
-                icon: Filter,
             },
             {
                 title: 'MCC-MNC',
                 url: '/mcc-mnc',
-                icon: Database,
             },
             {
                 title: 'Operator Commands',
                 url: '/operator-commands',
-                icon: Send,
             },
         ]
     }

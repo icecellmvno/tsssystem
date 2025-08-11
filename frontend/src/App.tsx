@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { WebSocketProvider } from '@/contexts/websocket-context'
 import { isTokenExpired } from '@/utils/jwt'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { SmsMonitoringPage } from '@/pages/appsettings/SmsMonitoringPage'
 import Dashboard from '@/pages/dashboard'
 import Login from '@/pages/auth/login'
 import Register from '@/pages/auth/register'
@@ -138,6 +139,16 @@ function App() {
             <Route path="/settings" element={
               <ProtectedRoute>
                 <SettingsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/appsettings/settings" element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/appsettings/sms-monitoring" element={
+              <ProtectedRoute>
+                <SmsMonitoringPage />
               </ProtectedRoute>
             } />
             <Route path="/users" element={

@@ -23,7 +23,7 @@ export function SettingsPage() {
           
           <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-2">Security Settings</h3>
+              <h3 className="text-lg font-semibold mb-4">Security Settings</h3>
               <p className="text-sm text-muted-foreground">
                 Manage security and authentication settings.
               </p>

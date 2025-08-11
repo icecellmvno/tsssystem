@@ -330,9 +330,9 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	// Determine the actual message state based on delivery status
 	var messageState uint8
 	if report.Delivered {
-		messageState = 1 // DELIVERED
+		messageState = 2 // DELIVERED (SMPP 3.4/5.0 standard)
 	} else if report.Failed {
-		messageState = 4 // UNDELIVERABLE
+		messageState = 5 // UNDELIVERABLE (SMPP 3.4/5.0 standard)
 	} else {
 		messageState = report.MessageState // Use original if available
 	}
@@ -351,14 +351,15 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 	}
 
 	// Create deliver_sm PDU for delivery report
+	// In delivery report: SourceAddr = original destination (recipient), DestinationAddr = original source (sender)
 	deliverPDU := &protocol.DeliverSMPDU{
 		ServiceType:          "",
 		SourceAddrTON:        protocol.TON_INTERNATIONAL, // International number
 		SourceAddrNPI:        protocol.NPI_ISDN,          // ISDN numbering plan
-		SourceAddr:           report.SourceAddr,
+		SourceAddr:           report.DestinationAddr,     // Original recipient becomes source in delivery report
 		DestAddrTON:          protocol.TON_INTERNATIONAL, // International number
 		DestAddrNPI:          protocol.NPI_ISDN,          // ISDN numbering plan
-		DestinationAddr:      report.DestinationAddr,
+		DestinationAddr:      report.SourceAddr,          // Original sender becomes destination in delivery report
 		ESMClass:             protocol.ESM_CLASS_DEFAULT, // Delivery receipt için doğru ESM class
 		ProtocolID:           0,                          // Normal SMS
 		PriorityFlag:         0,                          // Normal priority
@@ -396,34 +397,32 @@ func (r *RabbitMQClient) sendDeliveryReportToSession(session *session.Session, r
 func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage, messageState uint8) string {
 	// Format: "id:message_id sub:001 dlvrd:001 submit date:submit_date done date:done_date stat:status err:error_code text:original_text"
 
-	// Convert message state to SMPP status string (SMPP 3.4 standard)
+	// Convert message state to SMPP status string (SMPP 3.4/5.0 standard)
 	var status string
 	switch messageState {
-	case 0: // ENROUTE
+	case 1: // ENROUTE
 		status = "ENROUTE"
-	case 1: // DELIVERED
+	case 2: // DELIVERED
 		status = "DELIVRD"
-	case 2: // EXPIRED
+	case 3: // EXPIRED
 		status = "EXPIRED"
-	case 3: // DELETED
+	case 4: // DELETED
 		status = "DELETED"
-	case 4: // UNDELIVERABLE
+	case 5: // UNDELIVERABLE
 		status = "UNDELIV"
-	case 5: // ACCEPTED
+	case 6: // ACCEPTED
 		status = "ACCEPTD"
-	case 6: // UNKNOWN
+	case 7: // UNKNOWN
 		status = "UNKNOWN"
-	case 7: // REJECTED
+	case 8: // REJECTED
 		status = "REJECTD"
-	case 8: // CANCELLED
-		status = "CANCELLED"
 	default:
 		status = "UNKNOWN"
 	}
 
 	// Determine submit and delivered counts based on actual message state
 	var subCount, dlvrdCount string
-	if messageState == 1 { // DELIVERED
+	if messageState == 2 { // DELIVERED (SMPP 3.4/5.0 standard)
 		subCount = "001"
 		dlvrdCount = "001"
 	} else {

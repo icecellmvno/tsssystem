@@ -188,6 +188,6 @@ const (
 	OPT_PARAM_SAR_MSG_REF_NUM_8      = 0x020C // 8-bit concatenated short message reference number
 	OPT_PARAM_SAR_TOTAL_SEGMENTS_8   = 0x020E // 8-bit total number of short messages
 	OPT_PARAM_SAR_SEGMENT_SEQNUM_8   = 0x020F // 8-bit sequence number
-	OPT_PARAM_MESSAGE_STATE          = 0x0427 // Message state
+	OPT_PARAM_MESSAGE_STATE          = 0x0427 // Message state (SMPP 3.4 standard)
 	OPT_PARAM_RECEIPTED_MESSAGE_ID   = 0x001E // Receipted message ID
 )

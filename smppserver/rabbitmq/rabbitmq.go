@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"smppserver/protocol"
-	"strings"
 
 	"smppserver/session"
 
@@ -461,8 +460,11 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 		originalText = report.OriginalText
 	}
 
-	// Ensure message ID is clean (remove timestamp prefix if exists)
-	messageID := r.cleanMessageID(report.MessageID)
+	// Use original message ID directly (SMPP standard)
+	messageID := report.MessageID
+	if messageID == "" {
+		messageID = "UNKNOWN"
+	}
 
 	deliveryText := fmt.Sprintf("id:%s sub:%s dlvrd:%s submit date:%s done date:%s stat:%s err:%03d text:%s",
 		messageID, subCount, dlvrdCount, submitDate, doneDate, status, report.ErrorCode, originalText)
@@ -495,27 +497,4 @@ func (r *RabbitMQClient) cleanTimestamp(timestamp string) string {
 	}
 
 	return cleaned
-}
-
-// cleanMessageID removes timestamp prefix if exists and cleans the message ID
-func (r *RabbitMQClient) cleanMessageID(messageID string) string {
-	if messageID == "" {
-		return "UNKNOWN"
-	}
-
-	// Remove common timestamp prefixes like "zid:MSG" or "MSG"
-	if len(messageID) > 8 && (messageID[:4] == "zid:" || messageID[:3] == "MSG") {
-		// Extract the actual message ID part
-		parts := strings.Split(messageID, ":")
-		if len(parts) > 1 {
-			// Remove "MSG" prefix if exists
-			actualID := parts[1]
-			if len(actualID) > 3 && actualID[:3] == "MSG" {
-				return actualID[3:] // Return part after "MSG"
-			}
-			return actualID
-		}
-	}
-
-	return messageID
 }

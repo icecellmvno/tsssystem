@@ -95,6 +95,11 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 	// Convert status to SMPP message state (SMPP 3.4 standard)
 	// Only send delivery reports for final statuses: delivered, undelivered, expired, rejected, etc.
 	switch status {
+	case "sent":
+		// Don't send delivery report for "sent" status from Android devices
+		// This is an intermediate status, not a final delivery status
+		log.Printf("Skipping delivery report for intermediate status: %s", status)
+		return nil
 	case "delivered":
 		report.MessageState = 1 // DELIVERED
 		report.Delivered = true
@@ -126,7 +131,7 @@ func (drs *DeliveryReportService) createDeliveryReport(smsLog models.SmsLog, sys
 		report.Failed = true
 		report.FailureReason = "Message cancelled"
 	default:
-		// For intermediate statuses like "sent", "enroute", etc., don't send delivery report
+		// For intermediate statuses like "enroute", etc., don't send delivery report
 		log.Printf("Skipping delivery report for intermediate status: %s", status)
 		return nil
 	}

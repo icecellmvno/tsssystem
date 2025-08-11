@@ -488,7 +488,8 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 	doneDate := r.cleanTimestampForDLR(report.DoneDate)
 
 	// Create delivery report text with proper SMPP format
-	originalText := "Delivery Report"
+	// Use original message text, not generic "Delivery Report"
+	var originalText string
 	if report.OriginalText != "" && len(report.OriginalText) > 0 {
 		// Clean text to ensure only ASCII characters (SMPP 3.4 standard)
 		cleanedText := ""
@@ -504,6 +505,11 @@ func (r *RabbitMQClient) createDeliveryReportText(report *DeliveryReportMessage,
 		} else if len(cleanedText) > 0 {
 			originalText = cleanedText
 		}
+	}
+
+	// If no original text available, use a meaningful fallback
+	if originalText == "" {
+		originalText = "SMS" // Better than "Delivery Report" for Simberry compatibility
 	}
 
 	// Use original message ID directly (SMPP standard)

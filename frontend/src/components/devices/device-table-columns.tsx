@@ -268,6 +268,170 @@ export const createDeviceColumns = (
     },
   },
   {
+    id: 'sms_usage_sim1',
+    header: 'SIM1 SMS Usage',
+    cell: ({ row }) => {
+      const device = row.original;
+      const dailyUsed = device.sim1_daily_sms_used || 0;
+      const monthlyUsed = device.sim1_monthly_sms_used || 0;
+      const dailyLimit = device.sim1_daily_sms_limit || 0;
+      const monthlyLimit = device.sim1_monthly_sms_limit || 0;
+      const dailyResetAt = device.sim1_daily_limit_reset_at;
+      const monthlyResetAt = device.sim1_monthly_limit_reset_at;
+      const enableSmsLimits = device.enable_sms_limits;
+      
+      // Calculate time until reset
+      const getTimeUntilReset = (resetTime: string | undefined) => {
+        if (!resetTime) return null;
+        const reset = new Date(resetTime);
+        const now = new Date();
+        const diffMs = reset.getTime() - now.getTime();
+        if (diffMs <= 0) return 'Reset now';
+        
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (diffHours > 0) return `${diffHours}h ${diffMinutes}m`;
+        return `${diffMinutes}m`;
+      };
+      
+      // Calculate usage percentage
+      const getDailyPercentage = () => {
+        if (dailyLimit === 0) return 0;
+        return Math.round((dailyUsed / dailyLimit) * 100);
+      };
+      
+      const getMonthlyPercentage = () => {
+        if (monthlyLimit === 0) return 0;
+        return Math.round((monthlyUsed / monthlyLimit) * 100);
+      };
+      
+      // Get color based on usage percentage
+      const getUsageColor = (percentage: number) => {
+        if (percentage >= 90) return 'text-red-600';
+        if (percentage >= 80) return 'text-yellow-600';
+        if (percentage >= 60) return 'text-orange-600';
+        return 'text-green-600';
+      };
+      
+      if (!enableSmsLimits) {
+        return (
+          <div className="flex flex-col gap-1">
+            <div className="text-xs font-medium text-blue-600">SIM1</div>
+            <div className="text-xs text-muted-foreground">Limits disabled</div>
+          </div>
+        );
+      }
+      
+      return (
+        <div className="flex flex-col gap-1">
+          <div className="text-xs font-medium text-blue-600">SIM1</div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between text-xs">
+              <span>Daily:</span>
+              <span className={`font-mono ${getUsageColor(getDailyPercentage())}`}>
+                {dailyUsed}/{dailyLimit > 0 ? dailyLimit : '∞'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span>Monthly:</span>
+              <span className={`font-mono ${getUsageColor(getMonthlyPercentage())}`}>
+                {monthlyUsed}/{monthlyLimit > 0 ? monthlyLimit : '∞'}
+              </span>
+            </div>
+            {dailyResetAt && (
+              <div className="text-xs text-muted-foreground">
+                Reset in: {getTimeUntilReset(dailyResetAt)}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'sms_usage_sim2',
+    header: 'SIM2 SMS Usage',
+    cell: ({ row }) => {
+      const device = row.original;
+      const dailyUsed = device.sim2_daily_sms_used || 0;
+      const monthlyUsed = device.sim2_monthly_sms_used || 0;
+      const dailyLimit = device.sim2_daily_sms_limit || 0;
+      const monthlyLimit = device.sim2_monthly_sms_limit || 0;
+      const dailyResetAt = device.sim2_daily_limit_reset_at;
+      const monthlyResetAt = device.sim2_monthly_limit_reset_at;
+      const enableSmsLimits = device.enable_sms_limits;
+      
+      // Calculate time until reset
+      const getTimeUntilReset = (resetTime: string | undefined) => {
+        if (!resetTime) return null;
+        const reset = new Date(resetTime);
+        const now = new Date();
+        const diffMs = reset.getTime() - now.getTime();
+        if (diffMs <= 0) return 'Reset now';
+        
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (diffHours > 0) return `${diffHours}h ${diffMinutes}m`;
+        return `${diffMinutes}m`;
+      };
+      
+      // Calculate usage percentage
+      const getDailyPercentage = () => {
+        if (dailyLimit === 0) return 0;
+        return Math.round((dailyUsed / dailyLimit) * 100);
+      };
+      
+      const getMonthlyPercentage = () => {
+        if (monthlyLimit === 0) return 0;
+        return Math.round((monthlyUsed / monthlyLimit) * 100);
+      };
+      
+      // Get color based on usage percentage
+      const getUsageColor = (percentage: number) => {
+        if (percentage >= 90) return 'text-red-600';
+        if (percentage >= 80) return 'text-yellow-600';
+        if (percentage >= 60) return 'text-orange-600';
+        return 'text-green-600';
+      };
+      
+      if (!enableSmsLimits) {
+        return (
+          <div className="flex flex-col gap-1">
+            <div className="text-xs font-medium text-green-600">SIM2</div>
+            <div className="text-xs text-muted-foreground">Limits disabled</div>
+          </div>
+        );
+      }
+      
+      return (
+        <div className="flex flex-col gap-1">
+          <div className="text-xs font-medium text-green-600">SIM2</div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between text-xs">
+              <span>Daily:</span>
+              <span className={`font-mono ${getUsageColor(getDailyPercentage())}`}>
+                {dailyUsed}/{dailyLimit > 0 ? dailyLimit : '∞'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span>Monthly:</span>
+              <span className={`font-mono ${getUsageColor(getMonthlyPercentage())}`}>
+                {monthlyUsed}/{monthlyLimit > 0 ? monthlyLimit : '∞'}
+              </span>
+            </div>
+            {dailyResetAt && (
+              <div className="text-xs text-muted-foreground">
+                Reset in: {getTimeUntilReset(dailyResetAt)}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    },
+  },
+  {
     accessorKey: 'is_online',
     header: 'Online',
     cell: ({ row }) => {

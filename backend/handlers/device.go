@@ -133,17 +133,11 @@ func (h *DeviceHandler) GetAllDevices(c *fiber.Ctx) error {
 		})
 	}
 
-	// Enhance devices with device group SMS limit information
-	for i := range devices {
-		var deviceGroup models.DeviceGroup
-		if err := database.GetDB().Where("id = ?", devices[i].DeviceGroupID).First(&deviceGroup).Error; err == nil {
-			// Add SMS limit information to device response
-			devices[i].Sim1DailySmsLimit = deviceGroup.Sim1DailySmsLimit
-			devices[i].Sim1MonthlySmsLimit = deviceGroup.Sim1MonthlySmsLimit
-			devices[i].Sim2DailySmsLimit = deviceGroup.Sim2DailySmsLimit
-			devices[i].Sim2MonthlySmsLimit = deviceGroup.Sim2MonthlySmsLimit
-			devices[i].EnableSmsLimits = deviceGroup.EnableSmsLimits
-		}
+	// Debug logging to see what fields are available
+	for _, device := range devices {
+		log.Printf("Device %s: SMS fields - SIM1 Daily: %d, Monthly: %d, SIM2 Daily: %d, Monthly: %d",
+			device.IMEI, device.Sim1DailySmsUsed, device.Sim1MonthlySmsUsed,
+			device.Sim2DailySmsUsed, device.Sim2MonthlySmsUsed)
 	}
 
 	return c.JSON(fiber.Map{

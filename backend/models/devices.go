@@ -43,11 +43,11 @@ type Device struct {
 	Sim2MonthlyLimitResetAt *time.Time `json:"sim2_monthly_limit_reset_at"`
 
 	// SMS Limit fields from Device Group (for display purposes)
-	Sim1DailySmsLimit       int  `json:"sim1_daily_sms_limit" gorm:"-"`
-	Sim1MonthlySmsLimit     int  `json:"sim1_monthly_sms_limit" gorm:"-"`
-	Sim2DailySmsLimit       int  `json:"sim2_daily_sms_limit" gorm:"-"`
-	Sim2MonthlySmsLimit     int  `json:"sim2_monthly_sms_limit" gorm:"-"`
-	EnableSmsLimits         bool `json:"enable_sms_limits" gorm:"-"`
+	Sim1DailySmsLimit   int  `json:"sim1_daily_sms_limit" gorm:"-"`
+	Sim1MonthlySmsLimit int  `json:"sim1_monthly_sms_limit" gorm:"-"`
+	Sim2DailySmsLimit   int  `json:"sim2_daily_sms_limit" gorm:"-"`
+	Sim2MonthlySmsLimit int  `json:"sim2_monthly_sms_limit" gorm:"-"`
+	EnableSmsLimits     bool `json:"enable_sms_limits" gorm:"-"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

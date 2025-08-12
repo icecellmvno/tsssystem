@@ -37,13 +37,6 @@ export interface Device {
   sim2_monthly_sms_used?: number;
   sim2_daily_limit_reset_at?: string;
   sim2_monthly_limit_reset_at?: string;
-  
-  // SMS Limit fields from Device Group (for display purposes)
-  sim1_daily_sms_limit?: number;
-  sim1_monthly_sms_limit?: number;
-  sim2_daily_sms_limit?: number;
-  sim2_monthly_sms_limit?: number;
-  enable_sms_limits?: boolean;
 }
 
 export interface AlarmLog {

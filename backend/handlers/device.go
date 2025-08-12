@@ -133,13 +133,6 @@ func (h *DeviceHandler) GetAllDevices(c *fiber.Ctx) error {
 		})
 	}
 
-	// Debug logging to see what fields are available
-	for _, device := range devices {
-		log.Printf("Device %s: SMS fields - SIM1 Daily: %d, Monthly: %d, SIM2 Daily: %d, Monthly: %d",
-			device.IMEI, device.Sim1DailySmsUsed, device.Sim1MonthlySmsUsed,
-			device.Sim2DailySmsUsed, device.Sim2MonthlySmsUsed)
-	}
-
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    devices,

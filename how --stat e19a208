@@ -1,0 +1,10 @@
+[33me19a208[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix SMS limit columns: use device table fields directly instead of device group lookup
+[33m73f28d0[m Add SMS limit columns to device table with backend integration
+[33m39ae99e[m dlr dst address
+[33m6b86aa5[m dlr fix test
+[33mfe1588c[m fix pdu issues
+[33md0ad111[m messagetextfix
+[33m13859aa[m dlr fix
+[33ma4bac42[m fix: SMPP 3.4 standard compliance for deliver_sm PDU - Fix optional parameters order (0x001E first, 0x0427 second) - Fix DLR text format according to SMPP 3.4 standard - Fix dlvrd count logic based on message state - Fix timestamp format to YYMMDDhhmm - Limit text to 20 characters as per standard
+[33me847acd[m modified: smppserver/rabbitmq/rabbitmq.go modified: smppserver/protocol/constants.go modified: smppserver/protocol/pdu.go modified: smppserver/session/session.go
+[33m18f53ae[m some fix

@@ -740,6 +740,7 @@ export default function DevicesIndex() {
               selectedRows={selectedDevices}
               rowSelectionKey="imei"
               showSearch={false}
+              showPagination={true}
               filters={
                 <div className="flex items-center gap-2">
                   <Button

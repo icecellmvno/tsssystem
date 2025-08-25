@@ -40,7 +40,7 @@ func (h *DeviceHandler) GetAllDevices(c *fiber.Ctx) error {
 
 	// Get query parameters
 	page := c.QueryInt("page", 1)
-	limit := c.QueryInt("limit", 15)
+	limit := c.QueryInt("limit", 1000)
 	search := c.Query("search")
 	countrySite := c.Query("country_site")
 	deviceGroup := c.Query("device_group")

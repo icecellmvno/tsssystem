@@ -328,19 +328,24 @@ func (r *RedisService) GetAllWebSocketConnections() ([]*WebSocketConnection, err
 	return connections, nil
 }
 
-// CleanupExpiredConnections removes connections that haven't had a heartbeat in the last 5 minutes
+// CleanupExpiredConnections removes connections that haven't had a heartbeat in the last 2 minutes
 func (r *RedisService) CleanupExpiredConnections() error {
 	connections, err := r.GetAllWebSocketConnections()
 	if err != nil {
 		return err
 	}
 
-	expiredThreshold := time.Now().Add(-5 * time.Minute)
+	// Reduced from 5 minutes to 2 minutes for faster offline detection
+	expiredThreshold := time.Now().Add(-2 * time.Minute)
 	var expiredConnections []string
 
 	for _, conn := range connections {
 		if conn.LastHeartbeat.Before(expiredThreshold) {
 			expiredConnections = append(expiredConnections, conn.DeviceID)
+			log.Printf("Found expired connection: %s (Last heartbeat: %s, Threshold: %s)",
+				conn.DeviceID,
+				conn.LastHeartbeat.Format("2006-01-02 15:04:05"),
+				expiredThreshold.Format("2006-01-02 15:04:05"))
 		}
 	}
 
@@ -365,7 +370,8 @@ func (r *RedisService) CleanupExpiredConnections() error {
 
 // StartWebSocketCleanupRoutine starts a routine to clean up expired websocket connections
 func (r *RedisService) StartWebSocketCleanupRoutine() {
-	ticker := time.NewTicker(2 * time.Minute) // Check every 2 minutes
+	// Increased frequency from 2 minutes to 1 minute for more responsive cleanup
+	ticker := time.NewTicker(1 * time.Minute)
 	go func() {
 		for range ticker.C {
 			if err := r.CleanupExpiredConnections(); err != nil {
@@ -373,7 +379,7 @@ func (r *RedisService) StartWebSocketCleanupRoutine() {
 			}
 		}
 	}()
-	log.Println("Started websocket connection cleanup routine")
+	log.Println("Started websocket connection cleanup routine (checking every 1 minute)")
 }
 
 // GetLastDeviceIndex gets the last used device index for round robin

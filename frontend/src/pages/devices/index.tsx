@@ -98,6 +98,8 @@ export default function DevicesIndex() {
     try {
       setLoading(true);
       const response = await deviceService.getDevices({
+        page: 1,
+        limit: 1000,
         search: debouncedGlobalFilter || undefined,
         country_site: countrySiteFilter !== 'all' ? countrySiteFilter : undefined,
         device_group: deviceGroupFilter !== 'all' ? deviceGroupFilter : undefined,

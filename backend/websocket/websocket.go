@@ -79,7 +79,8 @@ func (ws *WebSocketServer) restoreConnectionsFromRedis() {
 
 	log.Printf("Found %d connections in Redis, checking for expired ones...", len(connections))
 
-	expiredThreshold := time.Now().Add(-5 * time.Minute)
+	// Reduced from 5 minutes to 2 minutes to match Redis cleanup
+	expiredThreshold := time.Now().Add(-2 * time.Minute)
 	for _, conn := range connections {
 		if conn.LastHeartbeat.Before(expiredThreshold) {
 			log.Printf("Removing expired connection from Redis: %s (Last heartbeat: %s)",
@@ -193,6 +194,12 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	}
 	log.Printf("IMEI provided: %s", imei)
 
+	// Get reconnection attempt info
+	reconnectAttempt := conn.Query("reconnect_attempt")
+	if reconnectAttempt != "" {
+		log.Printf("Reconnection attempt: %s", reconnectAttempt)
+	}
+
 	// Validate API key against device_groups table
 	var deviceGroup models.DeviceGroup
 	if err := database.GetDB().Where("api_key = ?", apiKey).First(&deviceGroup).Error; err != nil {
@@ -218,24 +225,55 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	// Use IMEI as device ID for connection tracking
 	deviceID := imei
 
-	// Register connection
+	// Check for existing connection and handle reconnection properly
 	ws.mutex.Lock()
-	ws.connections[deviceID] = &models.DeviceConnection{
-		DeviceID:    deviceID,
-		DeviceGroup: deviceGroup.DeviceGroup,
-		CountrySite: deviceGroup.CountrySite,
-		Conn:        conn,
-		IsHandicap:  false, // All devices use same authentication now
+	existingConn, exists := ws.connections[deviceID]
+	if exists {
+		log.Printf("WARNING: Existing connection found for device %s, closing old connection", deviceID)
+
+		// Close existing connection gracefully
+		if existingConn.Conn != nil {
+			// Type assert to websocket.Conn for proper method access
+			if wsConn, ok := existingConn.Conn.(*websocket.Conn); ok {
+				wsConn.WriteJSON(fiber.Map{
+					"type":    "connection_replaced",
+					"message": "New connection established, closing old connection",
+				})
+				wsConn.Close()
+			}
+		}
+
+		// Clean up old connection
+		delete(ws.connections, deviceID)
+		delete(ws.connMutexes, deviceID)
+
+		// Remove from Redis
+		ws.removeConnectionFromRedis(deviceID)
+
+		log.Printf("Old connection for device %s cleaned up", deviceID)
 	}
 	ws.mutex.Unlock()
 
-	// Store connection metadata in Redis
+	// Register new connection
+	ws.mutex.Lock()
+	ws.connections[deviceID] = &models.DeviceConnection{
+		DeviceID:       deviceID,
+		DeviceGroup:    deviceGroup.DeviceGroup,
+		CountrySite:    deviceGroup.CountrySite,
+		ConnectionType: "android",
+		Conn:           conn,
+		IsHandicap:     false, // All devices use same authentication now
+	}
+	ws.mutex.Unlock()
+
+	// Store connection metadata in Redis with enhanced info
 	ws.storeConnectionInRedis(deviceID, deviceGroup.DeviceGroup, deviceGroup.CountrySite, "android", false)
 
 	log.Printf("=== CONNECTION ESTABLISHED ===")
 	log.Printf("Device ID: %s", deviceID)
 	log.Printf("Device Group: %s", deviceGroup.DeviceGroup)
 	log.Printf("Country Site: %s", deviceGroup.CountrySite)
+	log.Printf("Reconnection attempt: %s", reconnectAttempt)
 	log.Printf("Connection registered at: %s", time.Now().Format("2006-01-02 15:04:05.000"))
 
 	// Save device info to database
@@ -251,6 +289,9 @@ func (ws *WebSocketServer) handleAndroidConnection(conn *websocket.Conn) {
 	log.Printf("Connection confirmation sent to device: %s", deviceID)
 
 	log.Printf("Device connected: %s (Group: %s, Site: %s)", deviceID, deviceGroup.DeviceGroup, deviceGroup.CountrySite)
+
+	// Start connection health monitoring for this device
+	go ws.monitorDeviceConnectionHealth(deviceID, conn)
 
 	// Handle messages
 	for {
@@ -1034,4 +1075,58 @@ func (ws *WebSocketServer) GetConnectedDevices() []*models.DeviceConnection {
 	}
 
 	return devices
+}
+
+// monitorDeviceConnectionHealth monitors the health of a specific device connection
+func (ws *WebSocketServer) monitorDeviceConnectionHealth(deviceID string, conn *websocket.Conn) {
+	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Check if connection is still active
+			if conn == nil {
+				log.Printf("Device %s: Connection is nil, stopping health monitoring", deviceID)
+				return
+			}
+
+			// Check if device is still in our connections map
+			ws.mutex.Lock()
+			_, exists := ws.connections[deviceID]
+			ws.mutex.Unlock()
+
+			if !exists {
+				log.Printf("Device %s: No longer in connections map, stopping health monitoring", deviceID)
+				return
+			}
+
+			// Send ping to check connection health
+			err := conn.WriteJSON(models.WebSocketMessage{
+				Type:      "ping",
+				Data:      "health_check",
+				Timestamp: time.Now().UnixMilli(),
+			})
+
+			if err != nil {
+				log.Printf("Device %s: Failed to send health check ping: %v", err)
+				// Connection is broken, remove it
+				ws.mutex.Lock()
+				delete(ws.connections, deviceID)
+				delete(ws.connMutexes, deviceID)
+				ws.mutex.Unlock()
+
+				// Update device offline status
+				websocket_handlers.UpdateDeviceOfflineWithBroadcast(ws, deviceID)
+
+				// Remove from Redis
+				ws.removeConnectionFromRedis(deviceID)
+
+				log.Printf("Device %s: Connection health check failed, connection removed", deviceID)
+				return
+			}
+
+			log.Printf("Device %s: Health check ping sent successfully", deviceID)
+		}
+	}
 }

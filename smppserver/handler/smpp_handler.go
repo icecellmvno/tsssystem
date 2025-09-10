@@ -6,7 +6,6 @@ import (
 	"smppserver/protocol"
 	"smppserver/rabbitmq"
 	"smppserver/session"
-	"time"
 )
 
 // SMPPHandler handles SMPP protocol operations
@@ -125,7 +124,4 @@ func (h *SMPPHandler) SendDeliverSM(session *session.Session, deliver *protocol.
 	return session.SendPDU(pdu)
 }
 
-// GenerateMessageID generates a unique message ID
-func (h *SMPPHandler) GenerateMessageID() string {
-	return "MSG" + time.Now().Format("20060102150405")
-}
+// Removed local GenerateMessageID; using utils.GenerateMessageID via SMSHandler

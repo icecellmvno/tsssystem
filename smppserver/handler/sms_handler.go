@@ -6,7 +6,7 @@ import (
 	"smppserver/protocol"
 	"smppserver/rabbitmq"
 	"smppserver/session"
-	"time"
+	"smppserver/utils"
 )
 
 // SMSHandler handles SMS-related operations
@@ -59,7 +59,7 @@ func (h *SMSHandler) HandleSubmitSM(session *session.Session, pdu *protocol.PDU)
 	}
 
 	// Generate message ID
-	messageID := h.GenerateMessageID()
+	messageID := utils.GenerateMessageID()
 
 	// Increment message counter
 	if err := h.authManager.IncrementMessageCount(session.SystemID, true); err != nil {
@@ -169,7 +169,4 @@ func (h *SMSHandler) HandleDeliverSMResp(session *session.Session, pdu *protocol
 	return nil
 }
 
-// GenerateMessageID generates a unique message ID
-func (h *SMSHandler) GenerateMessageID() string {
-	return "MSG" + time.Now().Format("20060102150405")
-}
+// Removed local GenerateMessageID; using utils.GenerateMessageID instead
